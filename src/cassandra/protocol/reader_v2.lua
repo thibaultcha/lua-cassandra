@@ -37,23 +37,23 @@ function _M.reveive_frame(session)
 
   local header, err = session.socket:receive(8)
   if not header then
-    return nil, string.format("Failed to read frame header from %s: %s", self.host, err)
+    return nil, string.format("Failed to read frame header from %s: %s", session.host, err)
   end
   local header_buffer = unmarshaller.create_buffer(header)
   local version = unmarshaller.read_raw_byte(header_buffer)
   if version ~= session.constants.version_codes.RESPONSE then
-    return nil, string.format("Invalid response version received from %s", self.host)
+    return nil, string.format("Invalid response version received from %s", session.host)
   end
   local flags = unmarshaller.read_raw_byte(header_buffer)
   local stream = unmarshaller.read_raw_byte(header_buffer)
   local op_code = unmarshaller.read_raw_byte(header_buffer)
   local length = unmarshaller.read_int(header_buffer)
 
-  local body, tracing_id
+  local body
   if length > 0 then
     body, err = session.socket:receive(length)
     if not body then
-      return nil, string.format("Failed to read frame body from %s: %s", self.host, err)
+      return nil, string.format("Failed to read frame body from %s: %s", session.host, err)
     end
   else
     body = ""

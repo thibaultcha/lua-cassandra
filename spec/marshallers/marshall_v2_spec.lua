@@ -41,12 +41,12 @@ describe("Marshallers v2", function()
   end
 
   it("should encode and decode a [list]", function()
-    local fixtures = {
+    local list_fixtures = {
       { value_type = "text", value = {"abc", "def"} },
       { value_type = "int", value = {0, 1, 2, 42, -42} },
     }
 
-    for _, fixture in ipairs(fixtures) do
+    for _, fixture in ipairs(list_fixtures) do
       local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.list)
       local buffer = unsmarshall_v2.create_buffer(encoded)
 
@@ -61,13 +61,13 @@ describe("Marshallers v2", function()
   end)
 
   it("should encode and decode a [map]", function()
-    local fixtures = {
+    local map_fixtures = {
       { key_type = "text", value_type = "text", value = {k1='v1', k2='v2'} },
       { key_type = "text", value_type = "int", value = {k1=1, k2=2} },
       { key_type = "text", value_type = "int", value = {} },
     }
 
-    for _, fixture in ipairs(fixtures) do
+    for _, fixture in ipairs(map_fixtures) do
       local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.map)
       local buffer = unsmarshall_v2.create_buffer(encoded)
 
@@ -83,12 +83,12 @@ describe("Marshallers v2", function()
   end)
 
   it("should encode and decode a [set]", function()
-    local fixtures = {
+    local set_fixtures = {
       { value_type = "text", value = {"abc", "def"} },
       { value_type = "int", value = {0, 1, 2, 42, -42} },
     }
 
-    for _, fixture in ipairs(fixtures) do
+    for _, fixture in ipairs(set_fixtures) do
       local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.set)
       local buffer = unsmarshall_v2.create_buffer(encoded)
 

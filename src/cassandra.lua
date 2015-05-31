@@ -39,12 +39,13 @@ function _M.new()
 end
 
 local function send_frame_and_get_response(self, op_code, frame_body, tracing)
+  local bytes, response, err
   local frame = self.writer.build_frame(self, op_code, frame_body, tracing)
-  local bytes, err = self.socket:send(frame)
+  bytes, err = self.socket:send(frame)
   if not bytes then
     return nil, string.format("Failed to send frame to %s: %s", self.host, err)
   end
-  local response, err = self.reader.reveive_frame(self)
+  response, err = self.reader.reveive_frame(self)
   if not response then
     return nil, err
   end
@@ -145,7 +146,7 @@ function _M:execute(operation, args, options)
   if not operation.consistency_level then
     options.consistency_level = self.constants.consistency.ONE
   end
-  for k, v in pairs(options) do
+  for k in pairs(options) do
     if options[k] == nil then options[k] = default_options[k] end
   end
 

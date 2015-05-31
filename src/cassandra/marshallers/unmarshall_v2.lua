@@ -26,6 +26,10 @@ function _M.create_buffer(str)
   return { str = str, pos = 1 }
 end
 
+function _M.read_raw_byte(buffer)
+  return string.byte(read_raw_bytes(buffer, 1))
+end
+
 function _M.read_raw(value)
   return value
 end

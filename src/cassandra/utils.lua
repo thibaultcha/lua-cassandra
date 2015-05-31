@@ -15,4 +15,21 @@ function _M.big_endian_representation(num, bytes)
   return padding .. table.concat(t)
 end
 
+function _M.shuffle_array(arr)
+  -- see: http://en.wikipedia.org/wiki/Fisher-Yates_shuffle
+  local n = #arr
+  while n >= 2 do
+    local k = math.random(n)
+    arr[n], arr[k] = arr[k], arr[n]
+    n = n - 1
+  end
+  return arr
+end
+
+function _M.split_by_colon(str)
+  local fields = {}
+  str:gsub("([^:]+)", function(c) fields[#fields+1] = c end)
+  return fields[1], fields[2]
+end
+
 return _M

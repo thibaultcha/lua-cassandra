@@ -44,7 +44,7 @@ local function send_frame_and_get_response(self, op_code, frame_body, tracing)
   if not bytes then
     return nil, string.format("Failed to send frame to %s: %s", self.host, err)
   end
-  local response, err = self.reader.read_frame(self)
+  local response, err = self.reader.reveive_frame(self)
   if not response then
     return nil, err
   end
@@ -153,8 +153,18 @@ function _M:execute(operation, args, options)
   local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
   if not response then
     return nil, err
-  elseif response.op_code ~= self.constants.op_codes.RESULT then
-    return nil, "result expected"
+  end
+
+  return self.reader.parse_response(self, response)
+end
+
+function _M:prepare(query, tracing)
+  if not tracing then tracing = false end
+
+  local frame_body = self.marshaller.long_string_representation(query)
+  local response, err = send_frame_and_get_response(self, self.constants.op_codes.PREPARE, frame_body, tracing)
+  if not response then
+    return nil, err
   end
 
   return self.reader.parse_response(self, response)

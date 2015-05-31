@@ -32,7 +32,7 @@ end
 -- @param  `session`      The session on which to listen for a response.
 -- @return `parsed_frame` The parsed frame ready to be read.
 -- @return `err`          Any error encountered during the receiving.
-function _M.read_frame(session)
+function _M.reveive_frame(session)
   local unmarshaller = session.unmarshaller
 
   local header, err = session.socket:receive(8)
@@ -41,6 +41,9 @@ function _M.read_frame(session)
   end
   local header_buffer = unmarshaller.create_buffer(header)
   local version = unmarshaller.read_raw_byte(header_buffer)
+  if version ~= session.constants.version_codes.RESPONSE then
+    return nil, string.format("Invalid response version received from %s", self.host)
+  end
   local flags = unmarshaller.read_raw_byte(header_buffer)
   local stream = unmarshaller.read_raw_byte(header_buffer)
   local op_code = unmarshaller.read_raw_byte(header_buffer)
@@ -56,16 +59,7 @@ function _M.read_frame(session)
     body = ""
   end
 
-  if version ~= session.constants.version_codes.RESPONSE then
-    return nil, string.format("Invalid response version received from %s", self.host)
-  end
-
   local body_buffer = unmarshaller.create_buffer(body)
-
-  if op_code == session.constants.op_codes.ERROR then
-    return nil, read_error(session, body_buffer)
-  end
-
   return {
     flags = flags,
     stream = stream,
@@ -152,6 +146,11 @@ end
 function _M.parse_response(session, response)
   local result, tracing_id
 
+  -- Check if frame is an error
+  if response.op_code == session.constants.op_codes.ERROR then
+    return nil, read_error(session, response.buffer)
+  end
+
   if response.flags == 0x02 then -- tracing
     tracing_id = session.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
     response.buffer.pos = 17
@@ -171,6 +170,17 @@ function _M.parse_response(session, response)
       has_more_pages = metadata.has_more_pages,
       paging_state = metadata.paging_state
     }
+  elseif result_kind == session.constants.result_kinds.PREPARED then
+    local id = session.unmarshaller.read_short_bytes(response.buffer)
+    local metadata = parse_metadata(session, response.buffer)
+    local result_metadata = parse_metadata(session, response.buffer)
+    assert(response.buffer.pos == #(response.buffer.str) + 1)
+    result = {
+      id = id,
+      type = "PREPARED",
+      metadata = metadata,
+      result_metadata = result_metadata
+    }
   elseif result_kind == session.constants.result_kinds.SET_KEYSPACE then
     result = {
       type = "SET_KEYSPACE",
@@ -184,7 +194,7 @@ function _M.parse_response(session, response)
       table = session.unmarshaller.read_string(response.buffer)
     }
   else
-    return string.format("Invalid result kind: %x", result_kind)
+    return nil, string.format("Invalid result kind: %x", result_kind)
   end
 
   result.tracing_id = tracing_id

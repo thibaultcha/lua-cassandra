@@ -80,7 +80,7 @@ function _M:connect(contact_points, port)
   end
 
   if not self.socket then
-    error("session does not have a socket, create a new session first.", 2)
+    error("session does not have a socket, create a new session first", 2)
   end
 
   local ok, err
@@ -119,10 +119,18 @@ end
 -- @see http://w3.impa.br/~diego/software/luasocketp.html#close
 function _M:close()
   if not self.socket then
-    error("session does not have a socket, create a new session first.", 2)
+    error("session does not have a socket, create a new session first", 2)
   end
   return self.socket:close()
 end
+
+-- Default query options.
+-- @see `:execute()`
+local default_options = {
+  --page_size = 5000,
+  --auto_paging = false,
+  tracing = false
+}
 
 -- Execute an operation (string query, prepared statement, batch statement).
 -- Will send the query, parse the response and return it.
@@ -137,9 +145,12 @@ function _M:execute(operation, args, options)
   if not operation.consistency_level then
     options.consistency_level = self.constants.consistency.ONE
   end
+  for k, v in pairs(options) do
+    if options[k] == nil then options[k] = default_options[k] end
+  end
 
   local frame_body, op_code = self.writer.build_body(self, operation, args, options)
-  local response, err = send_frame_and_get_response(self, op_code, frame_body)
+  local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
   if not response then
     return nil, err
   elseif response.op_code ~= self.constants.op_codes.RESULT then

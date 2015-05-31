@@ -29,7 +29,7 @@ local function read_error(session, buffer)
 end
 
 -- Make a session listen for a response and decode the received frame
--- @param `session`       The session on which to listen for a response.
+-- @param  `session`      The session on which to listen for a response.
 -- @return `parsed_frame` The parsed frame ready to be read.
 -- @return `err`          Any error encountered during the receiving.
 function _M.read_frame(session)
@@ -61,10 +61,6 @@ function _M.read_frame(session)
   end
 
   local body_buffer = unmarshaller.create_buffer(body)
-  if flags == 0x02 then -- tracing
-    tracing_id = unmarshaller.read_uuid(string.sub(body, 1, 16))
-    body_buffer.pos = 17
-  end
 
   if op_code == session.constants.op_codes.ERROR then
     return nil, read_error(session, body_buffer)
@@ -74,8 +70,8 @@ function _M.read_frame(session)
     flags = flags,
     stream = stream,
     op_code = op_code,
-    buffer = body_buffer,
-    tracing_id = tracing_id
+    body = body, -- TODO remove
+    buffer = body_buffer
   }
 end
 
@@ -154,7 +150,13 @@ local function parse_rows(session, buffer, metadata)
 end
 
 function _M.parse_response(session, response)
-  local result
+  local result, tracing_id
+
+  if response.flags == 0x02 then -- tracing
+    tracing_id = session.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
+    response.buffer.pos = 17
+  end
+
   local result_kind = session.unmarshaller.read_int(response.buffer)
 
   if result_kind == session.constants.result_kinds.VOID then
@@ -185,9 +187,7 @@ function _M.parse_response(session, response)
     return string.format("Invalid result kind: %x", result_kind)
   end
 
-  if response.tracing_id then
-    result.tracing_id = response.tracing_id
-  end
+  result.tracing_id = tracing_id
 
   return result
 end

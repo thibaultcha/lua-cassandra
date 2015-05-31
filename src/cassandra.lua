@@ -112,6 +112,25 @@ function _M:connect(contact_points, port)
   return true
 end
 
+-- Close a session.
+-- Wrapper around the cosocket (or luasocket) `:close()`.
+-- @throw Any error due to a wrong usage of the driver.
+-- @see http://wiki.nginx.org/HttpLuaModule#tcpsock:close
+-- @see http://w3.impa.br/~diego/software/luasocketp.html#close
+function _M:close()
+  if not self.socket then
+    error("session does not have a socket, create a new session first.", 2)
+  end
+  return self.socket:close()
+end
+
+-- Execute an operation (string query, prepared statement, batch statement).
+-- Will send the query, parse the response and return it.
+-- @param  `operation` The operation to execute.
+-- @param  `args`      (Optional) An array of arguments to bind to the operation.
+-- @param  `options`   (Optional) A table of options to assign to this query.
+-- @return `response`  The parsed response from Cassandra.
+-- @return `err`       Any error encountered during the execution.
 function _M:execute(operation, args, options)
   if not options then options = {} end
   -- Default options

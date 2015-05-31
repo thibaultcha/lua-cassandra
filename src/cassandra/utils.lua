@@ -32,4 +32,12 @@ function _M.split_by_colon(str)
   return fields[1], fields[2]
 end
 
+function _M.hasbit(x, p)
+  return x % (p + p) >= p
+end
+
+function _M.setbit(x, p)
+  return _M.hasbit(x, p) and x or x + p
+end
+
 return _M

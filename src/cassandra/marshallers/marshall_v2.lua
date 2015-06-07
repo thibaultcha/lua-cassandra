@@ -79,7 +79,7 @@ function _M.uuid_representation(value)
   return table.concat(buffer)
 end
 
--- 'inspired' by https://github.com/fperrad/lua-MessagePack/blob/master/src/MessagePack.lua
+-- "inspired" by https://github.com/fperrad/lua-MessagePack/blob/master/src/MessagePack.lua
 function _M.double_representation(number)
   local sign = 0
   if number < 0.0 then
@@ -226,22 +226,22 @@ function _M.value_representation(value, cass_type, short)
   local value_lua_type = type(value)
   if cass_type then
     infered_type = cass_type
-  elseif value_lua_type == 'number' and math.floor(value) == value then
+  elseif value_lua_type == "number" and math.floor(value) == value then
     infered_type = _M.TYPES.int
-  elseif value_lua_type == 'number' then
+  elseif value_lua_type == "number" then
     infered_type = _M.TYPES.float
-  elseif value_lua_type == 'boolean' then
+  elseif value_lua_type == "boolean" then
     infered_type = _M.TYPES.boolean
-  elseif value_lua_type == 'table' and value.type == 'null' then
+  elseif value_lua_type == "table" and value.type == "null" then
     if short then
       infered_type = _M.short_representation(-1)
     else
       infered_type = _M.int_representation(-1)
     end
-  elseif value_lua_type == 'table' and value.type and value.value then
-    value = value.value
-  elseif value_lua_type == 'table' and value.type then
+  elseif value_lua_type == "table" and value.type and value.value then
+    -- Value passed as a binded parameter.
     infered_type = _M.TYPES[value.type]
+    value = value.value
   else
     infered_type = _M.TYPES.varchar
   end

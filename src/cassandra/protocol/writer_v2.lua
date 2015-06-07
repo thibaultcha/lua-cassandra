@@ -14,10 +14,13 @@ end
 function _M.build_body(session, operation, args, options)
   local op_code, op_repr
   if type(operation) == "string" then
+    -- Raw string query
     op_code = session.constants.op_codes.QUERY
     op_repr = session.marshaller.long_string_representation(operation)
-  else
-    error("operation not yet supported")
+  elseif operation.id then
+    -- Prepared statement
+    op_code = session.constants.op_codes.EXECUTE
+    op_repr = session.marshaller.short_bytes_representation(operation.id)
   end
 
   -- Flags of the <query_parameters>

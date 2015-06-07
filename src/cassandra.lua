@@ -3,7 +3,19 @@ local utils = require "cassandra.utils"
 local _M = {
   CQL_VERSION = "3.0.0"
 }
-_M.__index = _M
+
+-- Shorthand to create type annotations
+-- Ex:
+--   session:execute("...", {session.uuid(some_uuid_str)})
+function _M:__index(key)
+  if self.marshaller.TYPES[key] then
+    return function(value)
+      return {type = key, value = value}
+    end
+  end
+
+  return _M[key]
+end
 
 -- Instanciate a new session.
 -- Create a socket with the cosocket API if available, fallback on luasocket otherwise.
@@ -157,6 +169,10 @@ function _M:execute(operation, args, options)
   end
 
   return self.reader.parse_response(self, response)
+end
+
+function _M:set_keyspace(keyspace)
+  return self:execute(string.format("USE %s", keyspace))
 end
 
 function _M:prepare(query, tracing)

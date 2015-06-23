@@ -242,8 +242,10 @@ describe("Cassandra", function()
       end)
       describe("Pagination", function()
         setup(function()
+          local err = select(2, session:execute("TRUNCATE users"))
+          assert.falsy(err)
           for i = 1, 200 do
-            local err = select(2, session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)",
+            err = select(2, session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)",
             { "user"..i, i }))
             if err then error(err) end
           end
@@ -251,7 +253,7 @@ describe("Cassandra", function()
         it("should fetch everything given that the default page size is big enough", function()
           local res, err = session:execute("SELECT * FROM users")
           assert.falsy(err)
-          assert.equal(201, #res)
+          assert.equal(200, #res)
         end)
         it("should support a page_size option", function()
           local rows, err = session:execute("SELECT * FROM users", nil, {page_size = 200})
@@ -285,6 +287,54 @@ describe("Cassandra", function()
           })
           assert.falsy(err)
           assert.equal(100, #res)
+        end)
+        describe("auto_paging", function()
+          it("should return an iterator if given an `auto_paging` options", function()
+            local page_tracker = 0
+            for _, rows, page, err in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true}) do
+              assert.falsy(err)
+              page_tracker = page_tracker + 1
+              assert.equal(page_tracker, page)
+              assert.equal(10, #rows)
+            end
+
+            assert.equal(20, page_tracker)
+          end)
+          it("should return the latest page of a set", function()
+            -- When the latest page contains only 1 element
+            local page_tracker = 0
+            for _, rows, page, err in session:execute("SELECT * FROM users", nil, {page_size = 199, auto_paging = true}) do
+              assert.falsy(err)
+              page_tracker = page_tracker + 1
+              assert.equal(page_tracker, page)
+            end
+
+            assert.equal(2, page_tracker)
+
+            -- Even if all results are fetched in the first page
+            page_tracker = 0
+            for _, rows, page, err in session:execute("SELECT * FROM users", nil, {auto_paging = true}) do
+              assert.falsy(err)
+              page_tracker = page_tracker + 1
+              assert.equal(page_tracker, page)
+              assert.equal(200, #rows)
+            end
+
+            assert.same(1, page_tracker)
+          end)
+          it("should return any error", function()
+            -- This test validates the behaviour of err being returned if no
+            -- results are returned (most likely because of an invalid query)
+            local page_tracker = 0
+            for _, rows, page, err in session:execute("SELECT * FROM users WHERE col = 500", nil, {auto_paging = true}) do
+              assert.truthy(err) -- 'col' is not a valid column
+              assert.equal(0, page)
+              page_tracker = page_tracker + 1
+            end
+
+            -- Assert the loop has been run once.
+            assert.equal(1, page_tracker)
+          end)
         end)
       end)
     end)

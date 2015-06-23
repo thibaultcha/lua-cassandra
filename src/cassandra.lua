@@ -145,6 +145,36 @@ local default_options = {
   tracing = false
 }
 
+local function page_iterator(session, operation, args, options)
+  local page = 0
+  local once = false
+  return function(operation, paging_state)
+    -- Latest fetched rows have been returned for sure, end the iteration
+    if not paging_state and once then return nil end
+
+    local rows, err = session:execute(operation, args, {
+      page_size = options.page_size,
+      paging_state = paging_state
+    })
+
+    once = true
+
+    -- If we have some results, retrieve the paging_state
+    local paging_state
+    if rows ~= nil then
+      page = page + 1
+      paging_state = rows.meta.paging_state
+    end
+
+    -- Allow the iterator to return the latest page of rows or an error
+    if err or (paging_state == nil and rows and #rows > 0) then
+      paging_state = false
+    end
+
+    return paging_state, rows, page, err
+  end, operation, nil
+end
+
 -- Execute an operation (string query, prepared statement, batch statement).
 -- Will send the query, parse the response and return it.
 -- @param  `operation` The operation to execute.
@@ -162,6 +192,10 @@ function _M:execute(operation, args, options)
     if options[k] == nil then options[k] = default_options[k] end
   end
 
+  if options.auto_paging then
+    return page_iterator(self, operation, args, options)
+  end
+
   local frame_body, op_code = self.writer.build_body(self, operation, args, options)
   local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
   if not response then
@@ -176,8 +210,6 @@ function _M:set_keyspace(keyspace)
 end
 
 function _M:prepare(query, tracing)
-  if not tracing then tracing = false end
-
   local frame_body = self.marshaller.long_string_representation(query)
   local response, err = send_frame_and_get_response(self, self.constants.op_codes.PREPARE, frame_body, tracing)
   if not response then

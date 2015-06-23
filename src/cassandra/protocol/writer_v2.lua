@@ -29,12 +29,20 @@ function _M.build_body(session, operation, args, options)
     flags_repr = utils.setbit(flags_repr, session.constants.query_flags.VALUES)
   end
 
-  -- TODO: implement options
-  local result_page_size = ""
   local paging_state = ""
+  if options.paging_state then
+    flags_repr = utils.setbit(flags_repr, session.constants.query_flags.PAGING_STATE)
+    paging_state = session.marshaller.bytes_representation(options.paging_state)
+  end
+
+  local page_size = ""
+  if options.page_size > 0 then
+    flags_repr = utils.setbit(flags_repr, session.constants.query_flags.PAGE_SIZE)
+    page_size = session.marshaller.int_representation(options.page_size)
+  end
 
   -- <query_parameters>: <consistency><flags>[<n><value_i><...>][<result_page_size>][<paging_state>]
-  local query_parameters = session.marshaller.short_representation(options.consistency_level)..string.char(flags_repr)..session.marshaller.values_representation(args)..result_page_size..paging_state
+  local query_parameters = session.marshaller.short_representation(options.consistency_level)..string.char(flags_repr)..session.marshaller.values_representation(args)..page_size..paging_state
 
   -- frame body: <query><query_parameters>
   return op_repr..query_parameters, op_code

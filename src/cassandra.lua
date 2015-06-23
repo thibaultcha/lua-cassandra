@@ -140,7 +140,7 @@ end
 -- Default query options.
 -- @see `:execute()`
 local default_options = {
-  --page_size = 5000,
+  page_size = 5000,
   --auto_paging = false,
   tracing = false
 }
@@ -155,10 +155,10 @@ local default_options = {
 function _M:execute(operation, args, options)
   if not options then options = {} end
   -- Default options
-  if not operation.consistency_level then
+  if not options.consistency_level then
     options.consistency_level = self.constants.consistency.ONE
   end
-  for k in pairs(options) do
+  for k in pairs(default_options) do
     if options[k] == nil then options[k] = default_options[k] end
   end
 

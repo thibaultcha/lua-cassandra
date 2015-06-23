@@ -172,7 +172,7 @@ function _M:execute(operation, args, options)
 end
 
 function _M:set_keyspace(keyspace)
-  return self:execute(string.format("USE %s", keyspace))
+  return self:execute(string.format("USE \"%s\"", keyspace))
 end
 
 function _M:prepare(query, tracing)

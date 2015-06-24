@@ -141,37 +141,36 @@ end
 -- @see `:execute()`
 local default_options = {
   page_size = 5000,
-  --auto_paging = false,
+  auto_paging = false,
   tracing = false
 }
 
 local function page_iterator(session, operation, args, options)
   local page = 0
-  local once = false
-  return function(operation, paging_state)
-    -- Latest fetched rows have been returned for sure, end the iteration
-    if not paging_state and once then return nil end
+  local rows, err
+  return function(operation, previous_rows)
+    if previous_rows and previous_rows.meta.has_more_pages == false then
+      return nil -- End iteration after error
+    end
 
-    local rows, err = session:execute(operation, args, {
+    rows, err = session:execute(operation, args, {
       page_size = options.page_size,
-      paging_state = paging_state
+      paging_state =  previous_rows and previous_rows.meta.paging_state
     })
 
-    once = true
-
-    -- If we have some results, retrieve the paging_state
-    local paging_state
-    if rows ~= nil then
+    -- If we have some results, increment the page
+    if rows ~= nil and #rows > 0 then
       page = page + 1
-      paging_state = rows.meta.paging_state
+    else
+      if err then
+        -- Just expose the error with 1 last iteration
+        return {meta={has_more_pages=false}}, err, page
+      elseif rows.meta.has_more_pages == false then
+        return nil -- End of the iteration
+      end
     end
 
-    -- Allow the iterator to return the latest page of rows or an error
-    if err or (paging_state == nil and rows and #rows > 0) then
-      paging_state = false
-    end
-
-    return paging_state, rows, page, err
+    return rows, err, page
   end, operation, nil
 end
 

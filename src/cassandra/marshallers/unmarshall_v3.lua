@@ -65,4 +65,44 @@ function _M.read_value(buffer, type)
   return _M.decoders[type.id](bytes, type)
 end
 
+local function read_udt_type(buffer, type, column_name)
+  local udt_ksname = _M.read_string(buffer)
+  local udt_name = _M.read_string(buffer)
+  local n = _M.read_short(buffer)
+  local fields = {}
+  for _ = 1, n do
+    fields[#fields + 1] = {
+      name = _M.read_string(buffer),
+      type = _M.read_option(buffer)
+    }
+  end
+  return {
+    id = type.id,
+    udt_name = udt_name,
+    udt_keyspace = udt_ksname,
+    name = column_name,
+    fields = fields
+  }
+end
+
+local function read_tuple_type(buffer, type, column_name)
+  local n = _M.read_short(buffer)
+  local fields = {}
+  for _ = 1, n do
+    fields[#fields + 1] = {
+      type = _M.read_option(buffer)
+    }
+  end
+  return {
+    id = type.id,
+    name = column_name,
+    fields = fields
+  }
+end
+
+_M.type_decoders = {
+  [marshall_v3.TYPES.udt] = read_udt_type,
+  [marshall_v3.TYPES.tuple] = read_tuple_type
+}
+
 return _M

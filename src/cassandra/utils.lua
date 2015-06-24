@@ -40,4 +40,18 @@ function _M.setbit(x, p)
   return _M.hasbit(x, p) and x or x + p
 end
 
+function _M.deep_copy(orig)
+  local copy
+  if type(orig) == "table" then
+    copy = {}
+    for orig_key, orig_value in next, orig, nil do
+      copy[_M.deep_copy(orig_key)] = _M.deep_copy(orig_value)
+    end
+    setmetatable(copy, _M.deep_copy(getmetatable(orig)))
+  else
+    copy = orig
+  end
+  return copy
+end
+
 return _M

@@ -21,6 +21,10 @@ return {
     REQUEST=0x02,
     RESPONSE=0x82
   },
+  flags = {
+    COMPRESSION=0x01, -- not implemented
+    TRACING=0x02
+  },
   op_codes = {
     ERROR=0x00,
     STARTUP=0x01,
@@ -47,8 +51,11 @@ return {
   },
   query_flags = {
     VALUES=0x01,
+    SKIP_METADATA=0x02, -- not implemented
     PAGE_SIZE=0x04,
-    PAGING_STATE=0x08
+    PAGING_STATE=0x08,
+    -- 0x09
+    SERIAL_CONSISTENCY=0x10
   },
   consistency = {
     ANY=0x0000,

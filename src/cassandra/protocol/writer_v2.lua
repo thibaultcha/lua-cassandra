@@ -4,7 +4,7 @@ local _M = {}
 
 function _M.build_frame(session, op_code, body, tracing)
   local version = string.char(session.constants.version_codes.REQUEST)
-  local flags = tracing and "\002" or "\000"
+  local flags = tracing and session.constants.flags.TRACING or "\000"
   local stream_id = "\000"
   local length = session.marshaller.int_representation(#body)
   local frame = version..flags..stream_id..string.char(op_code)..length..body

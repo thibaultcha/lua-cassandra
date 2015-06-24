@@ -50,18 +50,18 @@ function _M.value_representation(value, cass_type)
   local value_lua_type = type(value)
   if cass_type then
     infered_type = cass_type
-  elseif value_lua_type == 'number' and math.floor(value) == value then
+  elseif value_lua_type == "number" and math.floor(value) == value then
     infered_type = _M.TYPES.int
-  elseif value_lua_type == 'number' then
+  elseif value_lua_type == "number" then
     infered_type = _M.TYPES.float
-  elseif value_lua_type == 'boolean' then
+  elseif value_lua_type == "boolean" then
     infered_type = _M.TYPES.boolean
-  elseif value_lua_type == 'table' and value.type == 'null' then
-    infered_type = _M.int_representation(-1)
-  elseif value_lua_type == 'table' and value.type and value.value then
-    value = value.value
-  elseif value_lua_type == 'table' and value.type then
+  elseif value_lua_type == "table" and value.type == "null" then
+      infered_type = _M.int_representation(-1)
+  elseif value_lua_type == "table" and value.type and value.value then
+    -- Value passed as a binded parameter.
     infered_type = _M.TYPES[value.type]
+    value = value.value
   else
     infered_type = _M.TYPES.varchar
   end

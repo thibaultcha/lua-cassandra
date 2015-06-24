@@ -337,6 +337,106 @@ describe("Session", function()
           end)
         end)
       end)
+    end) -- describe :execute()
+    describe("BatchStatement", function()
+      setup(function()
+        local err = select(2, session:execute("TRUNCATE users"))
+        assert.falsy(err)
+      end)
+      it("should instanciate a batch statement", function()
+        local batch = cassandra:BatchStatement()
+        assert.truthy(batch)
+        assert.equal("table", type(batch.queries))
+        assert.True(batch.is_batch_statement)
+      end)
+      it("should instanciate a logged batch by default", function()
+        local batch = cassandra:BatchStatement()
+        assert.equal(cassandra.constants.batch_types.LOGGED, batch.type)
+      end)
+      it("should instanciate different types of batch", function()
+        -- Unlogged
+        local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
+        assert.equal(cassandra.constants.batch_types.UNLOGGED, batch.type)
+        -- Counter
+        batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
+        assert.equal(cassandra.constants.batch_types.COUNTER, batch.type)
+      end)
+      it("should be possible to add queries to a batch", function()
+        local batch = cassandra:BatchStatement()
+        assert.has_no_error(function()
+          batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"Laura"})
+          batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"James"})
+        end)
+        assert.equal(2, #batch.queries)
+      end)
+      it("should be possible to execute a batch", function()
+        local batch = cassandra:BatchStatement()
+        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
+        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
+
+        local res, err = session:execute(batch)
+        assert.falsy(err)
+        assert.truthy(res)
+        assert.equal("VOID", res.type)
+
+        -- Check insertion
+        res, err = session:execute("SELECT * FROM users")
+        assert.falsy(err)
+        assert.equal(2, #res)
+      end)
+      it("should execute unlogged batch statement", function()
+        local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
+        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
+        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
+
+        local res, err = session:execute(batch)
+        assert.falsy(err)
+        assert.truthy(res)
+        assert.equal("VOID", res.type)
+
+        -- Check insertion
+        res, err = session:execute("SELECT * FROM users")
+        assert.falsy(err)
+        assert.equal(4, #res)
+      end)
+      describe("Counter batch", function()
+        setup(function()
+          local err = select(2, session:execute([[
+            CREATE TABLE IF NOT EXISTS counter_test_table(
+              key text PRIMARY KEY,
+              value counter
+            )
+          ]]))
+          assert.falsy(err)
+        end)
+        it("should execute counter batch statement", function()
+          local batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
+
+          -- Query
+          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = 'key'")
+
+          -- Binded queries
+          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
+          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
+
+          -- Prepared statement
+          local stmt, err = session:prepare [[
+            UPDATE counter_test_table SET value = value + 1 WHERE key = ?
+          ]]
+          assert.falsy(err)
+          batch:add(stmt, {"key"})
+
+          local result, err = session:execute(batch)
+          assert.falsy(err)
+          assert.truthy(result)
+
+          local rows, err = session:execute [[
+            SELECT value from counter_test_table WHERE key = 'key'
+          ]]
+          assert.falsy(err)
+          assert.same(4, rows[1].value)
+        end)
+      end)
     end)
-  end)
+  end) -- describe Functional Use Case
 end)

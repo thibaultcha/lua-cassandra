@@ -21,6 +21,10 @@ function _M.build_body(session, operation, args, options)
     -- Prepared statement
     op_code = session.constants.op_codes.EXECUTE
     op_repr = session.marshaller.short_bytes_representation(operation.id)
+  elseif operation.is_batch_statement then
+    -- Batch statement
+    op_code = session.constants.op_codes.BATCH
+    op_repr = session.marshaller.batch_representation(operation)
   end
 
   -- Flags of the <query_parameters>

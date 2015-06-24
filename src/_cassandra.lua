@@ -61,4 +61,21 @@ function _CASS:new()
   return setmetatable(session_t, session)
 end
 
+local batch_statement_mt = {
+  __index = {
+    add = function(self, query, args)
+      table.insert(self.queries, {query = query, args = args})
+    end,
+    is_batch_statement = true
+  }
+}
+
+function _CASS:BatchStatement(batch_type)
+  if not batch_type then
+    batch_type = self.constants.batch_types.LOGGED
+  end
+
+  return setmetatable({type = batch_type, queries = {}}, batch_statement_mt)
+end
+
 return setmetatable({}, _CASS)

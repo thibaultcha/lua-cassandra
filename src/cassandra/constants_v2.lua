@@ -40,6 +40,11 @@ return {
     AUTH_RESPONSE=0x0F,
     AUTH_SUCCESS=0x10,
   },
+  batch_types = {
+    LOGGED=0,
+    UNLOGGED=1,
+    COUNTER=2
+  },
   query_flags = {
     VALUES=0x01,
     PAGE_SIZE=0x04,

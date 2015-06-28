@@ -1,6 +1,8 @@
-local big_endian_representation = require("cassandra.utils").big_endian_representation
+local Object = require "cassandra.classic"
+local utils = require "cassandra.utils"
+local big_endian_representation = utils.big_endian_representation
 
-local _M = {}
+local _M = Object:extend()
 
 _M.TYPES = {
   custom    = 0x00,
@@ -24,6 +26,10 @@ _M.TYPES = {
   map       = 0x21,
   set       = 0x22
 }
+
+function _M:new(constants)
+  self.constants = constants
+end
 
 function _M.identity_representation(value)
   return value
@@ -266,37 +272,69 @@ function _M.values_representation(args)
   return table.concat(values)
 end
 
-function _M.batch_representation(batch)
+-- <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+function _M:query_representation(args, options)
+  local consistency_repr = self.short_representation(options.consistency_level)
+  local args_representation = self.values_representation(args)
+
+  -- <flags>
+  local flags_repr = 0
+  if args then
+    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.VALUES)
+  end
+
+  local paging_state = ""
+  if options.paging_state then
+    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.PAGING_STATE)
+    paging_state = self.bytes_representation(options.paging_state)
+  end
+
+  local page_size = ""
+  if options.page_size > 0 then
+    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.PAGE_SIZE)
+    page_size = self.int_representation(options.page_size)
+  end
+
+  local serial_consistency = ""
+  if options.serial_consistency ~= nil then
+    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.SERIAL_CONSISTENCY)
+    serial_consistency = self.short_representation(options.serial_consistency)
+  end
+
+  return consistency_repr..string.char(flags_repr)..args_representation..page_size..paging_state..serial_consistency
+end
+
+-- <type><n><query_1>...<query_n><consistency>
+function _M:batch_representation(batch, options)
   local b = {}
   -- <type>
   b[#b + 1] = string.char(batch.type)
   -- <n> (number of queries)
-  b[#b + 1] = _M.short_representation(#batch.queries)
+  b[#b + 1] = self.short_representation(#batch.queries)
   -- <query_i> (operations)
   for _, query in ipairs(batch.queries) do
     local kind
     local string_or_id
     if type(query.query) == "string" then
-      kind = _M.boolean_representation(false)
-      string_or_id = _M.long_string_representation(query.query)
+      kind = self.boolean_representation(false)
+      string_or_id = self.long_string_representation(query.query)
     else
-      kind = _M.boolean_representation(true)
-      string_or_id = _M.short_bytes_representation(query.query.id)
+      kind = self.boolean_representation(true)
+      string_or_id = self.short_bytes_representation(query.query.id)
     end
 
-    -- The behaviour is sligthly different than from <query_parameters>
-    -- for <query_parameters>:
-    --   [<n><value_1>...<value_n>] (n cannot be 0), otherwise is being mixed up with page_size
-    -- for batch <query_i>:
-    --   <kind><string_or_id><n><value_1>...<value_n> (n can be 0, but is required)
+    -- <kind><string_or_id><n><value_1>...<value_n> (n can be 0, but is required)
     if query.args then
-      b[#b + 1] = kind..string_or_id.._M.values_representation(query.args)
+      b[#b + 1] = kind..string_or_id..self.values_representation(query.args)
     else
-      b[#b + 1] = kind..string_or_id.._M.short_representation(0)
+      b[#b + 1] = kind..string_or_id..self.short_representation(0)
     end
   end
 
-  -- <type><n><query_1>...<query_n>
+  -- <consistency>
+  b[#b + 1] = self.short_representation(options.consistency_level)
+
+  -- <type><n><query_1>...<query_n><consistency>
   return table.concat(b)
 end
 

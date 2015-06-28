@@ -3,12 +3,15 @@ local session = require "cassandra.session"
 local _M = {}
 
 function _M:__call(protocol)
+  local Marshaller = require("cassandra.marshallers.marshall_"..protocol)
+  local constants = require("cassandra.constants.constants_"..protocol)
+
   local cassandra_t = {
     protocol = protocol,
     writer = require("cassandra.protocol.writer_"..protocol),
     reader = require("cassandra.protocol.reader_"..protocol),
-    constants = require("cassandra.constants.constants_"..protocol),
-    marshaller = require("cassandra.marshallers.marshall_"..protocol),
+    constants = constants,
+    marshaller = Marshaller(constants),
     unmarshaller = require("cassandra.marshallers.unmarshall_"..protocol)
   }
 

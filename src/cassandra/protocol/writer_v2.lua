@@ -11,45 +11,28 @@ function _M.build_frame(session, op_code, body, tracing)
   return frame
 end
 
+-- Query: <query><query_parameters>
+-- Batch: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
 function _M.build_body(session, operation, args, options)
-  local op_code, op_repr
+  local op_code, op_repr, op_parameters = "", "", ""
   if type(operation) == "string" then
     -- Raw string query
     op_code = session.constants.op_codes.QUERY
     op_repr = session.marshaller.long_string_representation(operation)
+    op_parameters = session.marshaller:query_representation(args, options)
   elseif operation.id then
     -- Prepared statement
     op_code = session.constants.op_codes.EXECUTE
     op_repr = session.marshaller.short_bytes_representation(operation.id)
+    op_parameters = session.marshaller:query_representation(args, options)
   elseif operation.is_batch_statement then
     -- Batch statement
     op_code = session.constants.op_codes.BATCH
-    op_repr = session.marshaller.batch_representation(operation)
+    op_repr = session.marshaller:batch_representation(operation, options)
   end
 
-  -- Flags of the <query_parameters>
-  local flags_repr = 0
-  if args then
-    flags_repr = utils.setbit(flags_repr, session.constants.query_flags.VALUES)
-  end
-
-  local paging_state = ""
-  if options.paging_state then
-    flags_repr = utils.setbit(flags_repr, session.constants.query_flags.PAGING_STATE)
-    paging_state = session.marshaller.bytes_representation(options.paging_state)
-  end
-
-  local page_size = ""
-  if options.page_size > 0 then
-    flags_repr = utils.setbit(flags_repr, session.constants.query_flags.PAGE_SIZE)
-    page_size = session.marshaller.int_representation(options.page_size)
-  end
-
-  -- <query_parameters>: <consistency><flags>[<n><value_i><...>][<result_page_size>][<paging_state>]
-  local query_parameters = session.marshaller.short_representation(options.consistency_level)..string.char(flags_repr)..session.marshaller.values_representation(args)..page_size..paging_state
-
-  -- frame body: <query><query_parameters>
-  return op_repr..query_parameters, op_code
+  -- frame body
+  return op_repr..op_parameters, op_code
 end
 
 return _M

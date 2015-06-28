@@ -2,10 +2,10 @@ local cassandra_v2 = require "cassandra.v2"
 local cassandra_v3 = require "cassandra"
 
 describe("Session", function()
-for _, cass in ipairs({{v = "v2", c = cassandra_v2}, {v = "v3", c = cassandra_v3}}) do
+for _, cass in ipairs({{v = "v2", c = cassandra_v2}, { v = "v3", c = cassandra_v3}}) do
 local cassandra = cass.c
 
-describe("Protocol "..cass.v, function()
+describe("Protocol #"..cass.v, function()
   describe(":new()", function()
     it("should instanciate a session", function()
       local session = cassandra:new()
@@ -38,11 +38,6 @@ describe("Protocol "..cass.v, function()
         assert.True(ok)
       end)
     end)
-    -- it("should fail if connecting without a session", function()
-    --   assert.has_error(function()
-    --     cassandra.connect({--[[empty session]]}, "127.0.0.1")
-    --   end, "session does not have a socket, create a new session first")
-    -- end)
     it("should warn is already connected when connecting twice", function()
       local session = cassandra:new()
       local ok, err = session:connect({"localhost", "127.0.0.1"})
@@ -91,11 +86,6 @@ describe("Protocol "..cass.v, function()
       assert.equal(1, closed)
       assert.falsy(err)
     end)
-    -- it("should throw an error if closing a non-initialised session", function()
-    --   assert.has_error(function()
-    --     cassandra.close({--[[empty session]]})
-    --   end, "session does not have a socket, create a new session first")
-    -- end)
   end)
 
   describe(":execute()", function()
@@ -129,13 +119,6 @@ describe("Protocol "..cass.v, function()
         local res, err = session:execute("DESCRIBE")
         assert.falsy(res)
         assert.equal("Cassandra returned error (Syntax_error): line 1:0 no viable alternative at input 'DESCRIBE' ([DESCRIBE])", tostring(err))
-      end)
-    end)
-    describe("query tracing", function()
-      it("should be possible to query with tracing", function()
-        local rows, err = session:execute("SELECT * FROM system.local", nil, {tracing = true})
-        assert.falsy(err)
-        assert.truthy(rows.tracing_id)
       end)
     end)
   end)
@@ -182,7 +165,7 @@ describe("Protocol "..cass.v, function()
       assert.True(ok)
       local _, err = session:execute [[
         CREATE KEYSPACE IF NOT EXISTS lua_cassandra_tests
-        WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 2}
+        WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
       ]]
       assert.falsy(err)
     end)
@@ -247,191 +230,206 @@ describe("Protocol "..cass.v, function()
         assert.equal("Bob", res[1].name)
         assert.equal(42, res[1].age)
       end)
-      describe("Pagination", function()
-        setup(function()
-          local err = select(2, session:execute("TRUNCATE users"))
+      describe("execute options", function()
+        it("should be possible to query with tracing", function()
+          local rows, err = session:execute("SELECT * FROM system.local", nil, {tracing = true})
           assert.falsy(err)
-          for i = 1, 200 do
-            err = select(2, session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)",
-            { "user"..i, i }))
-            if err then error(err) end
-          end
+          assert.truthy(rows.tracing_id)
         end)
-        it("should fetch everything given that the default page size is big enough", function()
-          local res, err = session:execute("SELECT * FROM users")
-          assert.falsy(err)
-          assert.equal(200, #res)
-        end)
-        it("should support a page_size option", function()
-          local rows, err = session:execute("SELECT * FROM users", nil, {page_size = 200})
-          assert.falsy(err)
-          assert.same(200, #rows)
-
-          rows, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
-          assert.falsy(err)
-          assert.same(100, #rows)
-        end)
-        it("should return metadata flags about pagination", function()
-          local res, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
-          assert.falsy(err)
-          assert.True(res.meta.has_more_pages)
-          assert.truthy(res.meta.paging_state)
-
-          -- Full page
-          res, err = session:execute("SELECT * FROM users")
-          assert.falsy(err)
-          assert.False(res.meta.has_more_pages)
-          assert.falsy(res.meta.paging_state)
-        end)
-        it("should fetch the next page if given a `paging_state` option", function()
-          local res, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
-          assert.falsy(err)
-          assert.equal(100, #res)
-
-          res, err = session:execute("SELECT * FROM users", nil, {
-            page_size = 100,
-            paging_state = res.meta.paging_state
-          })
-          assert.falsy(err)
-          assert.equal(100, #res)
-        end)
-        describe("auto_paging", function()
-          it("should return an iterator if given an `auto_paging` options", function()
-            local page_tracker = 0
-            for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true}) do
-              assert.falsy(err)
-              page_tracker = page_tracker + 1
-              assert.equal(page_tracker, page)
-              assert.equal(10, #rows)
-            end
-
-            assert.equal(20, page_tracker)
-          end)
-          it("should return the latest page of a set", function()
-            -- When the latest page contains only 1 element
-            local page_tracker = 0
-            for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 199, auto_paging = true}) do
-              assert.falsy(err)
-              page_tracker = page_tracker + 1
-              assert.equal(page_tracker, page)
-            end
-
-            assert.equal(2, page_tracker)
-
-            -- Even if all results are fetched in the first page
-            page_tracker = 0
-            for rows, err, page in session:execute("SELECT * FROM users", nil, {auto_paging = true}) do
-              assert.falsy(err)
-              page_tracker = page_tracker + 1
-              assert.equal(page_tracker, page)
-              assert.equal(200, #rows)
-            end
-
-            assert.same(1, page_tracker)
-          end)
-          it("should return any error", function()
-            -- This test validates the behaviour of err being returned if no
-            -- results are returned (most likely because of an invalid query)
-            local page_tracker = 0
-            for rows, err, page in session:execute("SELECT * FROM users WHERE col = 500", nil, {auto_paging = true}) do
-              assert.truthy(err) -- 'col' is not a valid column
-              assert.equal(0, page)
-              page_tracker = page_tracker + 1
-            end
-
-            -- Assert the loop has been run once.
-            assert.equal(1, page_tracker)
-          end)
-        end)
+      it("should support the serial_consitency flag", function()
+        -- serial_consistency only works for conditional update statements but
+        -- we are here tracking the driver's behaviour when passing the flag
+        local _, err = session:execute([[
+          INSERT INTO users(id, age, name) VALUES(uuid(), 30, 'leo') IF NOT EXISTS
+          ]], nil, {serial_consistency = cassandra.constants.consistency.LOCAL_SERIAL})
+        assert.falsy(err)
       end)
-    end) -- describe :execute()
-    describe("BatchStatement", function()
+    end)
+    describe("Pagination", function()
       setup(function()
         local err = select(2, session:execute("TRUNCATE users"))
         assert.falsy(err)
+        for i = 1, 200 do
+          err = select(2, session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)",
+          { "user"..i, i }))
+          if err then error(err) end
+        end
       end)
-      it("should instanciate a batch statement", function()
-        local batch = cassandra:BatchStatement()
-        assert.truthy(batch)
-        assert.equal("table", type(batch.queries))
-        assert.True(batch.is_batch_statement)
-      end)
-      it("should instanciate a logged batch by default", function()
-        local batch = cassandra:BatchStatement()
-        assert.equal(cassandra.constants.batch_types.LOGGED, batch.type)
-      end)
-      it("should instanciate different types of batch", function()
-        -- Unlogged
-        local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
-        assert.equal(cassandra.constants.batch_types.UNLOGGED, batch.type)
-        -- Counter
-        batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
-        assert.equal(cassandra.constants.batch_types.COUNTER, batch.type)
-      end)
-      it("should be possible to add queries to a batch", function()
-        local batch = cassandra:BatchStatement()
-        assert.has_no_error(function()
-          batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"Laura"})
-          batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"James"})
-        end)
-        assert.equal(2, #batch.queries)
-      end)
-      it("should be possible to execute a batch", function()
-        local batch = cassandra:BatchStatement()
-        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
-        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
-
-        local res, err = session:execute(batch)
+      it("should fetch everything given that the default page size is big enough", function()
+        local res, err = session:execute("SELECT * FROM users")
         assert.falsy(err)
-        assert.truthy(res)
-        assert.equal("VOID", res.type)
+        assert.equal(200, #res)
+      end)
+      it("should support a page_size option", function()
+        local rows, err = session:execute("SELECT * FROM users", nil, {page_size = 200})
+        assert.falsy(err)
+        assert.same(200, #rows)
 
-        -- Check insertion
+        rows, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
+        assert.falsy(err)
+        assert.same(100, #rows)
+      end)
+      it("should return metadata flags about pagination", function()
+        local res, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
+        assert.falsy(err)
+        assert.True(res.meta.has_more_pages)
+        assert.truthy(res.meta.paging_state)
+
+        -- Full page
         res, err = session:execute("SELECT * FROM users")
         assert.falsy(err)
-        assert.equal(2, #res)
+        assert.False(res.meta.has_more_pages)
+        assert.falsy(res.meta.paging_state)
       end)
-      it("should execute unlogged batch statement", function()
-        local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
-        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
-        batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
-
-        local res, err = session:execute(batch)
+      it("should fetch the next page if given a `paging_state` option", function()
+        local res, err = session:execute("SELECT * FROM users", nil, {page_size = 100})
         assert.falsy(err)
-        assert.truthy(res)
-        assert.equal("VOID", res.type)
+        assert.equal(100, #res)
 
-        -- Check insertion
-        res, err = session:execute("SELECT * FROM users")
+        res, err = session:execute("SELECT * FROM users", nil, {
+          page_size = 100,
+          paging_state = res.meta.paging_state
+        })
         assert.falsy(err)
-        assert.equal(4, #res)
+        assert.equal(100, #res)
       end)
-      describe("Counter batch", function()
-        setup(function()
-          local err = select(2, session:execute([[
-            CREATE TABLE IF NOT EXISTS counter_test_table(
-              key text PRIMARY KEY,
-              value counter
-            )
-          ]]))
-          assert.falsy(err)
+      describe("auto_paging", function()
+        it("should return an iterator if given an `auto_paging` options", function()
+          local page_tracker = 0
+          for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true}) do
+            assert.falsy(err)
+            page_tracker = page_tracker + 1
+            assert.equal(page_tracker, page)
+            assert.equal(10, #rows)
+          end
+
+          assert.equal(20, page_tracker)
         end)
-        it("should execute counter batch statement", function()
-          local batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
+        it("should return the latest page of a set", function()
+          -- When the latest page contains only 1 element
+          local page_tracker = 0
+          for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 199, auto_paging = true}) do
+            assert.falsy(err)
+            page_tracker = page_tracker + 1
+            assert.equal(page_tracker, page)
+          end
 
-          -- Query
-          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = 'key'")
+          assert.equal(2, page_tracker)
 
-          -- Binded queries
-          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
-          batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
+          -- Even if all results are fetched in the first page
+          page_tracker = 0
+          for rows, err, page in session:execute("SELECT * FROM users", nil, {auto_paging = true}) do
+            assert.falsy(err)
+            page_tracker = page_tracker + 1
+            assert.equal(page_tracker, page)
+            assert.equal(200, #rows)
+          end
 
-          -- Prepared statement
-          local stmt, res, err
-          stmt, err = session:prepare [[
-            UPDATE counter_test_table SET value = value + 1 WHERE key = ?
-          ]]
-          assert.falsy(err)
+          assert.same(1, page_tracker)
+        end)
+        it("should return any error", function()
+          -- This test validates the behaviour of err being returned if no
+          -- results are returned (most likely because of an invalid query)
+          local page_tracker = 0
+          for rows, err, page in session:execute("SELECT * FROM users WHERE col = 500", nil, {auto_paging = true}) do
+            assert.truthy(err) -- 'col' is not a valid column
+            assert.equal(0, page)
+            page_tracker = page_tracker + 1
+          end
+
+          -- Assert the loop has been run once.
+          assert.equal(1, page_tracker)
+        end)
+      end)
+    end)
+  end) -- describe :execute()
+  describe("BatchStatement", function()
+    setup(function()
+      local err = select(2, session:execute("TRUNCATE users"))
+      assert.falsy(err)
+    end)
+    it("should instanciate a batch statement", function()
+      local batch = cassandra:BatchStatement()
+      assert.truthy(batch)
+      assert.equal("table", type(batch.queries))
+      assert.True(batch.is_batch_statement)
+    end)
+    it("should instanciate a logged batch by default", function()
+      local batch = cassandra:BatchStatement()
+      assert.equal(cassandra.constants.batch_types.LOGGED, batch.type)
+    end)
+    it("should instanciate different types of batch", function()
+      -- Unlogged
+      local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
+      assert.equal(cassandra.constants.batch_types.UNLOGGED, batch.type)
+      -- Counter
+      batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
+      assert.equal(cassandra.constants.batch_types.COUNTER, batch.type)
+    end)
+    it("should be possible to add queries to a batch", function()
+      local batch = cassandra:BatchStatement()
+      assert.has_no_error(function()
+        batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"Laura"})
+        batch:add("INSERT INTO users(id, name) VALUES(uuid(), ?)", {"James"})
+      end)
+      assert.equal(2, #batch.queries)
+    end)
+    it("should be possible to execute a batch", function()
+      local batch = cassandra:BatchStatement()
+      batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
+      batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
+
+      local res, err = session:execute(batch)
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      -- Check insertion
+      res, err = session:execute("SELECT * FROM users")
+      assert.falsy(err)
+      assert.equal(2, #res)
+    end)
+    it("should execute unlogged batch statement", function()
+      local batch = cassandra:BatchStatement(cassandra.constants.batch_types.UNLOGGED)
+      batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {21, "Laura"})
+      batch:add("INSERT INTO users(id, age, name) VALUES(uuid(), ?, ?)", {22, "James"})
+
+      local res, err = session:execute(batch)
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      -- Check insertion
+      res, err = session:execute("SELECT * FROM users")
+      assert.falsy(err)
+      assert.equal(4, #res)
+    end)
+    describe("Counter batch", function()
+      setup(function()
+        local err = select(2, session:execute([[
+          CREATE TABLE IF NOT EXISTS counter_test_table(
+            key text PRIMARY KEY,
+            value counter
+          )
+        ]]))
+        assert.falsy(err)
+      end)
+      it("should execute counter batch statement", function()
+        local batch = cassandra:BatchStatement(cassandra.constants.batch_types.COUNTER)
+
+        -- Query
+        batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = 'key'")
+
+        -- Binded queries
+        batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
+        batch:add("UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"key"})
+
+        -- Prepared statement
+        local stmt, res, err
+        stmt, err = session:prepare [[
+          UPDATE counter_test_table SET value = value + 1 WHERE key = ?
+        ]]
+        assert.falsy(err)
           batch:add(stmt, {"key"})
 
           res, err = session:execute(batch)

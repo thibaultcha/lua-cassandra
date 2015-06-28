@@ -1,10 +1,7 @@
-local marshall_v2 = require "cassandra.marshallers.marshall_v2"
+local Object = require "cassandra.classic"
+local Marshall_v2 = require "cassandra.marshallers.marshall_v2"
 
-local _M = {}
-
-for k, v in pairs(marshall_v2) do
-  _M[k] = v
-end
+local _M = Marshall_v2:extend()
 
 -- Extend
 
@@ -68,6 +65,33 @@ function _M.value_representation(value, cass_type)
 
   local representation = _M.encoders[infered_type](value)
   return _M.bytes_representation(representation)
+end
+
+-- <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+function _M:query_representation(args, options)
+  local repr = _M.super.query_representation(self, args, options)
+
+  -- TODO timestamp
+  -- TODO named values
+
+  return repr
+end
+
+-- <type><n><query_1>...<query_n><consistency><flags>[serial_consistency>][<timestamp>]
+function _M:batch_representation(batch, options)
+  local repr = _M.super.batch_representation(self, batch, options)
+  local flags_repr = 0
+
+  local serial_consistency = ""
+  if options.serial_consistency ~= nil then
+    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.SERIAL_CONSISTENCY)
+    serial_consistency = self.short_representation(options.serial_consistency)
+  end
+
+  -- TODO timestamp
+  -- TODO named values
+
+  return repr..string.char(flags_repr)..serial_consistency
 end
 
 return _M

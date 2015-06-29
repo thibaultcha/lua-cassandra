@@ -153,16 +153,23 @@ end
 
 function _M.inet_representation(value)
   local digits = {}
-  -- ipv6
-  for d in string.gmatch(value, "([^:]+)") do
-    if #d == 4 then
-      for i = 1, #d, 2 do
+  local hexadectets = {}
+  local ip = value:lower():gsub("::",":0000:")
+  if value:match(":") then
+    -- ipv6
+    for hdt in string.gmatch(ip, "[%x]+") do
+      hexadectets[#hexadectets+1] = string.rep("0", 4 - #hdt) .. hdt
+    end
+    for idx, d in ipairs(hexadectets) do
+      while d == "0000" and 8 > #hexadectets do
+        table.insert(hexadectets, idx + 1, "0000")
+      end
+      for i = 1, 4, 2 do
         digits[#digits + 1] = string.char(tonumber(string.sub(d, i, i + 1), 16))
       end
     end
-  end
-  -- ipv4
-  if #digits == 0 then
+  else
+    -- ipv4
     for d in string.gmatch(value, "(%d+)") do
       table.insert(digits, string.char(d))
     end

@@ -103,10 +103,10 @@ When developing, use the `Makefile` for doing the following operations:
 [documentation-reference]: http://thibaultcha.github.io/lua-cassandra/
 [documentation-manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
 
-[badge-travis-url]: https://travis-ci.org/thibaultcha/lua-cassandra
-[badge-travis-image]: https://img.shields.io/travis/thibaultcha/lua-cassandra.svg?style=flat
+[badge-travis-url]: https://travis-ci.org/thibaultCha/lua-cassandra
+[badge-travis-image]: https://img.shields.io/travis/thibaultCha/lua-cassandra.svg?style=flat
 
-[badge-coveralls-url]: https://coveralls.io/r/thibaultcha/lua-cassandra?branch=master
-[badge-coveralls-image]: https://coveralls.io/repos/thibaultcha/lua-cassandra/badge.svg?branch=master&style=flat
+[badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
+[badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
 [badge-version-image]: https://img.shields.io/badge/version-0.5--7-green.svg?style=flat

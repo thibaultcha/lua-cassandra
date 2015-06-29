@@ -1,6 +1,6 @@
 # lua-cassandra ![Module Version][badge-version-image]
 
-> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the [improvements][improvements-anchor] section for more details.
+> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the improvements section for more details.
 
 [![Build Status][badge-travis-image]][badge-travis-url]
 [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
@@ -60,23 +60,21 @@ print(user.user_id) -- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
 print(user.age) -- 42
 ```
 
-You can check more examples in the [tests](https://github.com/thibaultcha/lua-cassandra/blob/master/spec/integration_spec.lua) or [here][anchor-examples].
+You can check more examples on the [documentation][documentation-reference] or in the [tests](https://github.com/thibaultcha/lua-cassandra/blob/master/spec/integration_spec.lua).
 
-## Documentation
+## Documentation and examples
 
-Coming soon.
+Refer to the online [manual][documentation-manual] and [reference][documentation-reference].
 
-## Examples
+## Improvements
 
-Coming soon.
-
-## Improvements from root project
+This fork provides the following improvements over the root project:
 
 - [x] Support for binary protocol v3
   - [x] User Defined Types and Tuples support
   - [x] Serial Consistency support for batch requests
 - [x] Keyspace switch fix
-– [x] IPv6 encoding fix
+- [x] IPv6 encoding fix
 
 ## Roadmap
 
@@ -84,36 +82,26 @@ Coming soon.
 - [ ] Support for binary protocol v3 named values when binding a query
 - [ ] Support for binary protocol v3 default timestamp option
 
-## Running unit tests
+## Makefile Operations
 
-We use `busted` and require `luasocket` to mock `ngx.socket.tcp()`. To run the tests, start a local cassandra instance and run:
+When developing, use the `Makefile` for doing the following operations:
 
-```bash
-$ make dev
-$ make test
-```
+| Name          | Description                                   |
+| -------------:| ----------------------------------------------|
+| `dev`         | Install busted, luacov and luacheck           |
+| `test`        | Run the unit tests                            |
+| `lint`        | Lint all Lua files in the repo                |
+| `coverage`    | Run unit tests + coverage report              |
+| `clean`       | Clean coverage report                         |
 
-This will run tests for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.1.x`.
+**Note:** Before running `make lint` or `make test` you will need to run `make dev`.
 
-## Running coverage
-
-```bash
-$ make dev
-$ make coverage
-```
-
-Report will be in `./luacov.report.out`.
-
-## Running linting
-
-```bash
-$ make dev
-$ make lint
-```
+**Note bis:** Tests are running for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.1.x`.
 
 [luarocks-url]: https://luarocks.org
-[anchor-examples]: #examples
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
+[documentation-reference]: http://thibaultcha.github.io/lua-cassandra/
+[documentation-manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
 
 [badge-travis-url]: https://travis-ci.org/thibaultcha/lua-cassandra
 [badge-travis-image]: https://img.shields.io/travis/thibaultcha/lua-cassandra.svg?style=flat

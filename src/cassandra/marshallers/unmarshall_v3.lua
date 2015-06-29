@@ -1,13 +1,7 @@
 local marshall_v3 = require "cassandra.marshallers.marshall_v3"
-local unmarshall_v2 = require "cassandra.marshallers.unmarshall_v2"
+local Unmarshall_v2 = require "cassandra.marshallers.unmarshall_v2"
 
-local _M = {}
-
-for k, v in pairs(unmarshall_v2) do
-  _M[k] = v
-end
-
--- Extend
+local _M = Unmarshall_v2:extend()
 
 function _M.read_list(bytes, type)
   local element_type = type.value

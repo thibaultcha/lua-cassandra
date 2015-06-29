@@ -1,6 +1,12 @@
 local utils = require "cassandra.utils"
+local Object = require "cassandra.classic"
 
-local _M = {}
+local _M = Object:extend()
+
+function _M:new(unmarshaller, constants)
+  self.unmarshaller = unmarshaller
+  self.constants = constants
+end
 
 local error_mt = {}
 error_mt = {
@@ -16,10 +22,10 @@ error_mt = {
   end
 }
 
-function _M.read_error(session, buffer)
-  local error_code = session.unmarshaller.read_int(buffer)
-  local error_code_translation = session.constants.error_codes_translation[error_code]
-  local error_message = session.unmarshaller.read_string(buffer)
+function _M:read_error(buffer)
+  local error_code = self.unmarshaller.read_int(buffer)
+  local error_code_translation = self.constants.error_codes_translation[error_code]
+  local error_message = self.unmarshaller.read_string(buffer)
   local err = {
     code = error_code,
     message = string.format("Cassandra returned error (%s): %s", error_code_translation, error_message),
@@ -32,8 +38,8 @@ end
 -- @param  `session`      The session on which to listen for a response.
 -- @return `parsed_frame` The parsed frame ready to be read.
 -- @return `err`          Any error encountered during the receiving.
-function _M.receive_frame(session)
-  local unmarshaller = session.unmarshaller
+function _M:receive_frame(session)
+  local unmarshaller = self.unmarshaller
 
   local header, err = session.socket:receive(8)
   if not header then
@@ -41,7 +47,7 @@ function _M.receive_frame(session)
   end
   local header_buffer = unmarshaller.create_buffer(header)
   local version = unmarshaller.read_raw_byte(header_buffer)
-  if version ~= session.constants.version_codes.RESPONSE then
+  if version ~= self.constants.version_codes.RESPONSE then
     return nil, string.format("Invalid response version received from %s", session.host)
   end
   local flags = unmarshaller.read_raw_byte(header_buffer)
@@ -69,24 +75,24 @@ function _M.receive_frame(session)
   }
 end
 
-function _M.parse_metadata(session, buffer)
+function _M:parse_metadata(buffer)
   -- Flags parsing
-  local flags = session.unmarshaller.read_int(buffer)
-  local global_tables_spec = utils.hasbit(flags, session.constants.rows_flags.GLOBAL_TABLES_SPEC)
-  local has_more_pages = utils.hasbit(flags, session.constants.rows_flags.HAS_MORE_PAGES)
-  local columns_count = session.unmarshaller.read_int(buffer)
+  local flags = self.unmarshaller.read_int(buffer)
+  local global_tables_spec = utils.hasbit(flags, self.constants.rows_flags.GLOBAL_TABLES_SPEC)
+  local has_more_pages = utils.hasbit(flags, self.constants.rows_flags.HAS_MORE_PAGES)
+  local columns_count = self.unmarshaller.read_int(buffer)
 
   -- Potential paging metadata
   local paging_state
   if has_more_pages then
-    paging_state = session.unmarshaller.read_bytes(buffer)
+    paging_state = self.unmarshaller.read_bytes(buffer)
   end
 
   -- Potential global_tables_spec metadata
   local global_keyspace_name, global_table_name
   if global_tables_spec then
-    global_keyspace_name = session.unmarshaller.read_string(buffer)
-    global_table_name = session.unmarshaller.read_string(buffer)
+    global_keyspace_name = self.unmarshaller.read_string(buffer)
+    global_table_name = self.unmarshaller.read_string(buffer)
   end
 
   -- Columns metadata
@@ -95,13 +101,13 @@ function _M.parse_metadata(session, buffer)
     local ksname = global_keyspace_name
     local tablename = global_table_name
     if not global_tables_spec then
-      ksname = session.unmarshaller.read_string(buffer)
-      tablename = session.unmarshaller.read_string(buffer)
+      ksname = self.unmarshaller.read_string(buffer)
+      tablename = self.unmarshaller.read_string(buffer)
     end
-    local column_name = session.unmarshaller.read_string(buffer)
+    local column_name = self.unmarshaller.read_string(buffer)
     columns[#columns + 1] = {
       name = column_name,
-      type = session.unmarshaller.read_option(buffer),
+      type = self.unmarshaller.read_option(buffer),
       table = tablename,
       keyspace = ksname
     }
@@ -115,10 +121,10 @@ function _M.parse_metadata(session, buffer)
   }
 end
 
-function _M.parse_rows(session, buffer, metadata)
+function _M:parse_rows(buffer, metadata)
   local columns = metadata.columns
   local columns_count = metadata.columns_count
-  local rows_count = session.unmarshaller.read_int(buffer)
+  local rows_count = self.unmarshaller.read_int(buffer)
   local values = {}
   local row_mt = {
     __index = function(t, i)
@@ -134,7 +140,7 @@ function _M.parse_rows(session, buffer, metadata)
   for _ = 1, rows_count do
     local row = setmetatable({}, row_mt)
     for i = 1, columns_count do
-      local value = session.unmarshaller.read_value(buffer, columns[i].type)
+      local value = self.unmarshaller.read_value(buffer, columns[i].type)
       row[columns[i].name] = value
     end
     values[#values + 1] = row
@@ -143,37 +149,37 @@ function _M.parse_rows(session, buffer, metadata)
   return values
 end
 
-function _M.parse_response(session, response)
+function _M:parse_response(response)
   local result, tracing_id
 
   -- Check if frame is an error
-  if response.op_code == session.constants.op_codes.ERROR then
-    return nil, _M.read_error(session, response.buffer)
+  if response.op_code == self.constants.op_codes.ERROR then
+    return nil, self:read_error(response.buffer)
   end
 
-  if response.flags == session.constants.flags.TRACING then -- tracing
-    tracing_id = session.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
+  if response.flags == self.constants.flags.TRACING then -- tracing
+    tracing_id = self.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
     response.buffer.pos = 17
   end
 
-  local result_kind = session.unmarshaller.read_int(response.buffer)
+  local result_kind = self.unmarshaller.read_int(response.buffer)
 
-  if result_kind == session.constants.result_kinds.VOID then
+  if result_kind == self.constants.result_kinds.VOID then
     result = {
       type = "VOID"
     }
-  elseif result_kind == session.constants.result_kinds.ROWS then
-    local metadata = _M.parse_metadata(session, response.buffer)
-    result = _M.parse_rows(session, response.buffer, metadata)
+  elseif result_kind == self.constants.result_kinds.ROWS then
+    local metadata = self:parse_metadata(response.buffer)
+    result = self:parse_rows(response.buffer, metadata)
     result.type = "ROWS"
     result.meta = {
       has_more_pages = metadata.has_more_pages,
       paging_state = metadata.paging_state
     }
-  elseif result_kind == session.constants.result_kinds.PREPARED then
-    local id = session.unmarshaller.read_short_bytes(response.buffer)
-    local metadata = _M.parse_metadata(session, response.buffer)
-    local result_metadata = _M.parse_metadata(session, response.buffer)
+  elseif result_kind == self.constants.result_kinds.PREPARED then
+    local id = self.unmarshaller.read_short_bytes(response.buffer)
+    local metadata = self:parse_metadata(response.buffer)
+    local result_metadata = self:parse_metadata(response.buffer)
     assert(response.buffer.pos == #(response.buffer.str) + 1)
     result = {
       id = id,
@@ -181,17 +187,17 @@ function _M.parse_response(session, response)
       metadata = metadata,
       result_metadata = result_metadata
     }
-  elseif result_kind == session.constants.result_kinds.SET_KEYSPACE then
+  elseif result_kind == self.constants.result_kinds.SET_KEYSPACE then
     result = {
       type = "SET_KEYSPACE",
-      keyspace = session.unmarshaller.read_string(response.buffer)
+      keyspace = self.unmarshaller.read_string(response.buffer)
     }
-  elseif result_kind == session.constants.result_kinds.SCHEMA_CHANGE then
+  elseif result_kind == self.constants.result_kinds.SCHEMA_CHANGE then
     result = {
       type = "SCHEMA_CHANGE",
-      change = session.unmarshaller.read_string(response.buffer),
-      keyspace = session.unmarshaller.read_string(response.buffer),
-      table = session.unmarshaller.read_string(response.buffer)
+      change = self.unmarshaller.read_string(response.buffer),
+      keyspace = self.unmarshaller.read_string(response.buffer),
+      table = self.unmarshaller.read_string(response.buffer)
     }
   else
     return nil, string.format("Invalid result kind: %x", result_kind)

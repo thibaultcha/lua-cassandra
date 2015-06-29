@@ -3,16 +3,24 @@ local session = require "cassandra.session"
 local _M = {}
 
 function _M:__call(protocol)
-  local Marshaller = require("cassandra.marshallers.marshall_"..protocol)
   local constants = require("cassandra.constants.constants_"..protocol)
+  local Marshaller = require("cassandra.marshallers.marshall_"..protocol)
+  local Unmarshaller = require("cassandra.marshallers.unmarshall_"..protocol)
+  local Writer = require("cassandra.protocol.writer_"..protocol)
+  local Reader = require("cassandra.protocol.reader_"..protocol)
+
+  local marshaller = Marshaller(constants)
+  local unmarshaller = Unmarshaller()
+  local writer = Writer(marshaller, constants)
+  local reader = Reader(unmarshaller, constants)
 
   local cassandra_t = {
     protocol = protocol,
-    writer = require("cassandra.protocol.writer_"..protocol),
-    reader = require("cassandra.protocol.reader_"..protocol),
+    writer = writer,
+    reader = reader,
     constants = constants,
-    marshaller = Marshaller(constants),
-    unmarshaller = require("cassandra.marshallers.unmarshall_"..protocol)
+    marshaller = marshaller,
+    unmarshaller = unmarshaller
   }
 
   return setmetatable(cassandra_t, _M)

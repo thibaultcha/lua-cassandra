@@ -1,4 +1,5 @@
 local marshall_v2 = require "cassandra.marshallers.marshall_v2"
+local Object = require "cassandra.classic"
 
 local function read_raw_bytes(buffer, n_bytes)
   local bytes = string.sub(buffer.str, buffer.pos, buffer.pos + n_bytes - 1)
@@ -20,7 +21,7 @@ local function string_to_number(str, signed)
   return number
 end
 
-local _M = {}
+local _M = Object:extend()
 
 function _M.create_buffer(str)
   return { str = str, pos = 1 }

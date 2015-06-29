@@ -8,12 +8,12 @@ _M.__index = _M
 
 local function send_frame_and_get_response(self, op_code, frame_body, tracing)
   local bytes, response, err
-  local frame = self.writer.build_frame(self, op_code, frame_body, tracing)
+  local frame = self.writer:build_frame(op_code, frame_body, tracing)
   bytes, err = self.socket:send(frame)
   if not bytes then
     return nil, string.format("Failed to send frame to %s: %s", self.host, err)
   end
-  response, err = self.reader.receive_frame(self)
+  response, err = self.reader:receive_frame(self)
   if not response then
     return nil, err
   end
@@ -151,13 +151,13 @@ function _M:execute(operation, args, options)
     return page_iterator(self, operation, args, options)
   end
 
-  local frame_body, op_code = self.writer.build_body(self, operation, args, options)
+  local frame_body, op_code = self.writer:build_body(operation, args, options)
   local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
   if not response then
     return nil, err
   end
 
-  return self.reader.parse_response(self, response)
+  return self.reader:parse_response(response)
 end
 
 function _M:set_keyspace(keyspace)
@@ -171,7 +171,7 @@ function _M:prepare(query, tracing)
     return nil, err
   end
 
-  return self.reader.parse_response(self, response)
+  return self.reader:parse_response(response)
 end
 
 return _M

@@ -1,6 +1,6 @@
 # lua-cassandra
 
-> This project is a fork of [jbochi#lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come.
+> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come.
 
 Pure Lua Cassandra client using CQL binary protocol v2/v3.
 
@@ -13,7 +13,7 @@ It is 100% non-blocking if used in Nginx/Openresty but can also be used with lua
 Installation through [luarocks][luarocks-url] is recommended:
 
 ```bash
-$ luarocks install cassandra
+$ luarocks install lua-cassandra
 ```
 
 #### Manual
@@ -22,41 +22,39 @@ Copy the `src/` folder and require `cassandra.lua`.
 
 ## Usage
 
-Overview:
-
 ```lua
 local cassandra = require "cassandra"
+-- local cassandra = require "cassandra.v2" -- binary protocol v2 for Cassandra 2.0.x
 
 local session = cassandra:new()
 session:set_timeout(1000) -- 1000ms timeout
 
 local connected, err = session:connect("127.0.0.1", 9042)
-
-session:set_keyspace("lua_tests")
+assert(connected)
+session:set_keyspace("demo")
 
 -- simple query
 local table_created, err = session:execute [[
   CREATE TABLE users(
-    user_id uuid PRIMARY KEY,
+    id uuid PRIMARY KEY,
     name varchar,
     age int
   )
 ]]
 
 -- query with arguments
-local ok, err = session:execute([[
-  INSERT INTO users(name, age, user_id) VALUES(?, ?, ?)
-]], {"John O'Reilly", 42, cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11")})
+local ok, err = session:execute("INSERT INTO users(name, age, user_id) VALUES(?, ?, ?)"
+  , {"John O'Reilly", 42, cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11")})
 
 
 -- select statement
-local users, err = session:execute("SELECT name, age, user_id from users")
-
+local users, err = session:execute("SELECT name, age, user_id FROM users")
 assert(1 == #users)
+
 local user = users[1]
-ngx.say(user.name) -- "John O'Reilly"
-ngx.say(user.user_id) -- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
-ngx.say(user.age) -- 42
+print(user.name) -- "John O'Reilly"
+print(user.user_id) -- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
+print(user.age) -- 42
 ```
 
 You can check more examples in the [tests](https://github.com/thibaultcha/lua-cassandra/blob/master/spec/integration_spec.lua) or [here][anchor-examples].
@@ -116,6 +114,12 @@ for rows, err, page in session:execute(query, nil, {auto_paging = true}) do
 end
 ```
 
+## Roadmap
+
+- [] Support for authentication
+- [] Support for binary protocol v3 named values when binding a query
+- [] Support for binary protocol v3 default timestamp option
+
 ## Running unit tests
 
 We use `busted` and require `luasocket` to mock `ngx.socket.tcp()`. To run the tests, start a local cassandra instance and run:
@@ -124,6 +128,8 @@ We use `busted` and require `luasocket` to mock `ngx.socket.tcp()`. To run the t
 $ make dev
 $ make test
 ```
+
+This will run tests for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.1.x`.
 
 ## Running coverage
 
@@ -142,5 +148,5 @@ $ make lint
 ```
 
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
-
+[luarocks-url]: https://luarocks.org
 [anchor-examples]: #examples

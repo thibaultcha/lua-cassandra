@@ -1,8 +1,11 @@
-# lua-cassandra
+# lua-cassandra ![Module Version][badge-version-image]
 
-> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come.
+> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the [improvements][improvements-anchor] section for more details.
 
-Pure Lua Cassandra client using CQL binary protocol v2/v3.
+[![Build Status][badge-travis-image]][badge-travis-url]
+[![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
+
+Lua Cassandra client using CQL binary protocol v2/v3.
 
 It is 100% non-blocking if used in Nginx/Openresty but can also be used with luasocket.
 
@@ -114,11 +117,19 @@ for rows, err, page in session:execute(query, nil, {auto_paging = true}) do
 end
 ```
 
+## Improvements from root project
+
+- [x] Support for binary protocol v3
+  - [x] User Defined Types and Tuples support
+  - [x] Serial Consistency support for batch requests
+- [x] Keyspace switch fix
+– [x] IPv6 encoding fix
+
 ## Roadmap
 
-- [] Support for authentication
-- [] Support for binary protocol v3 named values when binding a query
-- [] Support for binary protocol v3 default timestamp option
+- [ ] Support for authentication
+- [ ] Support for binary protocol v3 named values when binding a query
+- [ ] Support for binary protocol v3 default timestamp option
 
 ## Running unit tests
 
@@ -150,3 +161,11 @@ $ make lint
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
 [luarocks-url]: https://luarocks.org
 [anchor-examples]: #examples
+
+[badge-travis-url]: https://travis-ci.org/thibaultcha/lua-cassandra
+[badge-travis-image]: https://img.shields.io/travis/thibaultcha/lua-cassandra.svg?style=flat
+
+[badge-coveralls-url]: https://coveralls.io/r/thibaultcha/lua-cassandra?branch=master
+[badge-coveralls-image]: https://coveralls.io/repos/thibaultcha/lua-cassandra/badge.svg?branch=master&style=flat
+
+[badge-version-image]: https://img.shields.io/badge/version-0.5--7-green.svg?style=flat

@@ -1,38 +1,49 @@
 local session = require "cassandra.session"
 
-local _CASS = {}
+local _M = {}
 
-function _CASS:__call(protocol)
+function _M:__call(protocol)
+  local constants = require("cassandra.constants.constants_"..protocol)
+  local Marshaller = require("cassandra.marshallers.marshall_"..protocol)
+  local Unmarshaller = require("cassandra.marshallers.unmarshall_"..protocol)
+  local Writer = require("cassandra.protocol.writer_"..protocol)
+  local Reader = require("cassandra.protocol.reader_"..protocol)
+
+  local marshaller = Marshaller(constants)
+  local unmarshaller = Unmarshaller()
+  local writer = Writer(marshaller, constants)
+  local reader = Reader(unmarshaller, constants)
+
   local cassandra_t = {
     protocol = protocol,
-    writer = require("cassandra.protocol.writer_"..protocol),
-    reader = require("cassandra.protocol.reader_"..protocol),
-    constants = require("cassandra.constants_"..protocol),
-    marshaller = require("cassandra.marshallers.marshall_"..protocol),
-    unmarshaller = require("cassandra.marshallers.unmarshall_"..protocol)
+    writer = writer,
+    reader = reader,
+    constants = constants,
+    marshaller = marshaller,
+    unmarshaller = unmarshaller
   }
 
-  return setmetatable(cassandra_t, _CASS)
+  return setmetatable(cassandra_t, _M)
 end
 
 -- Shorthand to create type annotations
 -- Ex:
 --   session:execute("...", {cassandra.uuid(some_uuid_str)})
-function _CASS:__index(key)
+function _M:__index(key)
   if self.marshaller.TYPES[key] then
     return function(value)
       return {type = key, value = value}
     end
   end
 
-  return _CASS[key]
+  return _M[key]
 end
 
 -- Instanciate a new session.
 -- Create a socket with the cosocket API if available, fallback on luasocket otherwise.
 -- @return `session` The created session.
 -- @return `err`     Any error encountered during the socket creation.
-function _CASS:new()
+function _M:new()
   local tcp
   if ngx and ngx.get_phase ~= nil and ngx.get_phase() ~= "init" then
     -- openresty
@@ -70,7 +81,7 @@ local batch_statement_mt = {
   }
 }
 
-function _CASS:BatchStatement(batch_type)
+function _M:BatchStatement(batch_type)
   if not batch_type then
     batch_type = self.constants.batch_types.LOGGED
   end
@@ -78,4 +89,4 @@ function _CASS:BatchStatement(batch_type)
   return setmetatable({type = batch_type, queries = {}}, batch_statement_mt)
 end
 
-return setmetatable({}, _CASS)
+return setmetatable({}, _M)

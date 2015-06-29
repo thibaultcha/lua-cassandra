@@ -8,12 +8,12 @@ _M.__index = _M
 
 local function send_frame_and_get_response(self, op_code, frame_body, tracing)
   local bytes, response, err
-  local frame = self.writer.build_frame(self, op_code, frame_body, tracing)
+  local frame = self.writer:build_frame(op_code, frame_body, tracing)
   bytes, err = self.socket:send(frame)
   if not bytes then
     return nil, string.format("Failed to send frame to %s: %s", self.host, err)
   end
-  response, err = self.reader.reveive_frame(self)
+  response, err = self.reader:receive_frame(self)
   if not response then
     return nil, err
   end
@@ -21,7 +21,7 @@ local function send_frame_and_get_response(self, op_code, frame_body, tracing)
 end
 
 local function startup(self)
-  local frame_body = self.marshaller.string_map_representation({["CQL_VERSION"]=_M.CQL_VERSION})
+  local frame_body = self.marshaller.string_map_representation({CQL_VERSION = _M.CQL_VERSION})
   local response, err = send_frame_and_get_response(self, self.constants.op_codes.STARTUP, frame_body)
   if not response then
     return false, err
@@ -104,12 +104,12 @@ local default_options = {
 local function page_iterator(session, operation, args, options)
   local page = 0
   local rows, err
-  return function(operation, previous_rows)
+  return function(paginated_operation, previous_rows)
     if previous_rows and previous_rows.meta.has_more_pages == false then
       return nil -- End iteration after error
     end
 
-    rows, err = session:execute(operation, args, {
+    rows, err = session:execute(paginated_operation, args, {
       page_size = options.page_size,
       paging_state =  previous_rows and previous_rows.meta.paging_state
     })
@@ -151,13 +151,13 @@ function _M:execute(operation, args, options)
     return page_iterator(self, operation, args, options)
   end
 
-  local frame_body, op_code = self.writer.build_body(self, operation, args, options)
+  local frame_body, op_code = self.writer:build_body(operation, args, options)
   local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
   if not response then
     return nil, err
   end
 
-  return self.reader.parse_response(self, response)
+  return self.reader:parse_response(response)
 end
 
 function _M:set_keyspace(keyspace)
@@ -171,7 +171,7 @@ function _M:prepare(query, tracing)
     return nil, err
   end
 
-  return self.reader.parse_response(self, response)
+  return self.reader:parse_response(response)
 end
 
 return _M

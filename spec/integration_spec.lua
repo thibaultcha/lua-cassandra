@@ -490,13 +490,14 @@ describe("Only v3", function()
       session:execute("DROP TABLE user_profiles")
     end)
     it("should be possible to insert and get value back", function()
-      local err = select(2, session:execute([[
+      local rows, err
+      err = select(2, session:execute([[
         INSERT INTO user_profiles(email, address) VALUES (?, ?)
       ]], {"email@domain.com", cassandra_v3.udt({ "montgomery street", "san francisco", 94111, nil })}))
 
       assert.falsy(err)
 
-      local rows, err = session:execute("SELECT address FROM user_profiles WHERE email = 'email@domain.com'")
+      rows, err = session:execute("SELECT address FROM user_profiles WHERE email = 'email@domain.com'")
       assert.falsy(err)
       assert.same(1, #rows)
       local row = rows[1]

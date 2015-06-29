@@ -1,9 +1,7 @@
-local Object = require "cassandra.classic"
+local utils = require "cassandra.utils"
 local Marshall_v2 = require "cassandra.marshallers.marshall_v2"
 
 local _M = Marshall_v2:extend()
-
--- Extend
 
 _M.TYPES.udt = 0x30
 _M.TYPES.tuple = 0x31

@@ -1,0 +1,28 @@
+language: erlang
+
+env:
+  global:
+    - LUAROCKS=2.2.2
+  matrix:
+    - LUA=lua5.1
+    - LUA=lua5.2
+    - LUA=lua5.3
+    - LUA=luajit
+
+branches:
+  only:
+    - master
+
+before_install:
+  - bash .travis/setup_lua.sh
+  - sudo make dev
+
+services:
+  - cassandra
+
+script:
+  - "make coverage"
+  - "make lint"
+
+after_success:
+  - luacov-coveralls -i cassandra

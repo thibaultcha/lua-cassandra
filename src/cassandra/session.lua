@@ -1,3 +1,11 @@
+--------
+-- This module provides a session to interact with a Cassandra cluster.
+-- A session must be opened, can be reused and closed once you're done with it.
+-- In the context of Nginx, a session used the underlying cosocket API which allows
+-- one to put a socket in the connection pool, before reusing it later. Otherwise,
+-- we fallback on luasocket as the underlying socket implementation.
+-- @module session
+
 local utils = require "cassandra.utils"
 
 local _M = {
@@ -32,10 +40,16 @@ local function startup(self)
   return true
 end
 
--- Connect a session to a node coordinator.
--- @throw Any error due to a wrong usage of the driver.
--- @return `connected` A boolean indicating the success of the connection.
--- @return `err`       Any server/client error encountered during the connection.
+--- Connect a session to a node coordinator.
+-- @raise Any error due to a wrong usage of the driver (invalid parameter, non correctly initialized session...).
+-- @param contact_points A string or an array of strings containing the IP addresse(s) to connect to.
+-- Strings can be of the form "host:port" if some nodes are running on another
+-- port than the specified or default one.
+-- @param port Default: 9042. The port on which to connect to.
+-- @return connected  boolean indicating the success of the connection.
+-- @return err Any server/client error encountered during the connection.
+-- @usage local ok, err = session:connect("127.0.0.1", 9042)
+-- @usage local ok, err = session:connect({"127.0.0.1", "52.5.149.55:9888"}, 9042)
 function _M:connect(contact_points, port)
   if port == nil then port = 9042 end
   if contact_points == nil then
@@ -81,11 +95,13 @@ function _M:connect(contact_points, port)
   return true
 end
 
--- Close a session.
--- Wrapper around the cosocket (or luasocket) `:close()`.
--- @throw Any error due to a wrong usage of the driver.
--- @see http://wiki.nginx.org/HttpLuaModule#tcpsock:close
--- @see http://w3.impa.br/~diego/software/luasocketp.html#close
+--- Close a connected session.
+-- Wrapper around the cosocket (or luasocket) "close()" depending on
+-- what context you are using it.
+-- @raise Any error due to a wrong usage of the driver.
+-- @see tcpsock:close()
+-- @see luasocket:close()
+-- @return The underlying closing result from tcpsock or luasocket
 function _M:close()
   if not self.socket then
     error("session does not have a socket, create a new session first", 2)
@@ -93,7 +109,7 @@ function _M:close()
   return self.socket:close()
 end
 
--- Default query options.
+--- Default query options.
 -- @see `:execute()`
 local default_options = {
   page_size = 5000,
@@ -130,13 +146,12 @@ local function page_iterator(session, operation, args, options)
   end, operation, nil
 end
 
--- Execute an operation (string query, prepared statement, batch statement).
--- Will send the query, parse the response and return it.
--- @param  `operation` The operation to execute.
--- @param  `args`      (Optional) An array of arguments to bind to the operation.
--- @param  `options`   (Optional) A table of options to assign to this query.
--- @return `response`  The parsed response from Cassandra.
--- @return `err`       Any error encountered during the execution.
+--- Execute an operation (query, prepared statement, batch statement).
+-- @param  operation The operation to execute. Whether it being a plain string query, a prepared statement or a batch.
+-- @param  args (Optional) An array of arguments to bind to the operation if it is a query or a statement.
+-- @param  options (Optional) A table of options for this query.
+-- @return response The parsed response from Cassandra.
+-- @return err Any error encountered during the execution.
 function _M:execute(operation, args, options)
   if not options then options = {} end
   -- Default options
@@ -160,10 +175,18 @@ function _M:execute(operation, args, options)
   return self.reader:parse_response(response)
 end
 
+--- Set a keyspace for that session.
+-- Execute a "USE keyspace_name" query.
+-- @param keyspace Name of the keyspace to use.
+-- @return Results from @{execute}.
 function _M:set_keyspace(keyspace)
   return self:execute(string.format("USE \"%s\"", keyspace))
 end
 
+--- Prepare a query.
+-- @param query The query to prepare.
+-- @param tracing A boolean indicating if the preparation of this query should be traced.
+-- @return statement A prepared statement to be given to @{execute}.
 function _M:prepare(query, tracing)
   local frame_body = self.marshaller.long_string_representation(query)
   local response, err = send_frame_and_get_response(self, self.constants.op_codes.PREPARE, frame_body, tracing)

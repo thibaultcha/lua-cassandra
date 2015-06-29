@@ -21,7 +21,7 @@ $ luarocks install lua-cassandra
 
 #### Manual
 
-Copy the `src/` folder and require `cassandra.lua`.
+Simply copy the `src/` folder in your application.
 
 ## Usage
 
@@ -68,54 +68,7 @@ Coming soon.
 
 ## Examples
 
-Batches:
-
-```lua
--- Create a batch statement
-local batch = cassandra:BatchStatement()
-
--- Add a query
-batch:add("INSERT INTO users (name, age, user_id) VALUES (?, ?, ?)",
-          {"James", 32, cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93")})
-
--- Add a prepared statement
-local stmt, err = session:prepare("INSERT INTO users (name, age, user_id) VALUES (?, ?, ?)")
-batch:add(stmt, {"John", 45, cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11")})
-
--- Execute the batch
-local result, err = session:execute(batch)
-```
-
-Pagination might be very useful to build web services:
-
-```lua
--- Assuming our users table contains 1000 rows
-
-local query = "SELECT * FROM users"
-local rows, err = session:execute(query, nil, {page_size = 500}) -- default page_size is 5000
-
-assert.same(500, #rows) -- rows contains the 500 first rows
-
-if rows.meta.has_more_pages then
-  local next_rows, err = session:execute(query, nil, {paging_state = rows.meta.paging_state})
-
-  assert.same(500, #next_rows) -- next_rows contains the next (and last) 500 rows
-end
-```
-
-Automated pagination:
-
-```lua
--- Assuming our users table now contains 10.000 rows
-
-local query = "SELECT * FROM users"
-
-for rows, err, page in session:execute(query, nil, {auto_paging = true}) do
-  assert.same(5000, #rows) -- rows contains 5000 rows on each iteration in this case
-  -- err: in case any fetch returns an error
-  -- page: will be 1 on the first iteration, 2 on the second, etc.
-end
-```
+Coming soon.
 
 ## Improvements from root project
 
@@ -158,9 +111,9 @@ $ make dev
 $ make lint
 ```
 
-[lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
 [luarocks-url]: https://luarocks.org
 [anchor-examples]: #examples
+[lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
 
 [badge-travis-url]: https://travis-ci.org/thibaultcha/lua-cassandra
 [badge-travis-image]: https://img.shields.io/travis/thibaultcha/lua-cassandra.svg?style=flat

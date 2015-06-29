@@ -1,3 +1,20 @@
+--------
+-- This module allows the creation of sessions and provides shorthand
+-- annotations for type encoding and batch statement creation.
+-- Depending on how it will be initialized, it supports either the binary
+-- protocol v2 or v3:
+--
+--    require "cassandra" -- binary protocol v3 (Cassandra 2.0.x and 2.1.x)
+--    require "cassandra.v2" -- binary procotol v2 (Cassandra 2.0.x)
+--
+-- Shorthands to give a type to a value in a query:
+--
+--    session:execute("SELECT * FROM users WHERE id = ?", {
+--      cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93")
+--    })
+--
+-- @module cassandra
+
 local session = require "cassandra.session"
 
 local _M = {}
@@ -39,10 +56,12 @@ function _M:__index(key)
   return _M[key]
 end
 
--- Instanciate a new session.
--- Create a socket with the cosocket API if available, fallback on luasocket otherwise.
--- @return `session` The created session.
--- @return `err`     Any error encountered during the socket creation.
+--- Instanciate a new session.
+-- Create a socket with the cosocket API if in Nginx and available, fallback to luasocket otherwise.
+-- The instanciated session will communicate using the binary protocol of the current cassandra
+-- implementation being required.
+-- @return session The created session.
+-- @return err     Any error encountered during the socket creation.
 function _M:new()
   local tcp
   if ngx and ngx.get_phase ~= nil and ngx.get_phase() ~= "init" then
@@ -81,6 +100,10 @@ local batch_statement_mt = {
   }
 }
 
+--- Instanciate a batch Statement.
+-- The instanciated batch will then provide an ":add()" method to add queries,
+-- and can be executed by a session's ":execute()" function.
+-- @param batch_type The type of this batch. Can be one of:
 function _M:BatchStatement(batch_type)
   if not batch_type then
     batch_type = self.constants.batch_types.LOGGED

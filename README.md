@@ -1,9 +1,6 @@
-# lua-cassandra ![Module Version][badge-version-image]
+# lua-cassandra ![Module Version][badge-version-image] [![Build Status][badge-travis-image]][badge-travis-url] [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
 > This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the improvements section for more details.
-
-[![Build Status][badge-travis-image]][badge-travis-url]
-[![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
 Lua Cassandra client using CQL binary protocol v2/v3.
 
@@ -109,4 +106,4 @@ When developing, use the `Makefile` for doing the following operations:
 [badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-0.5--7-green.svg?style=flat
+[badge-version-image]: https://img.shields.io/badge/version-0.5--7-blue.svg?style=flat

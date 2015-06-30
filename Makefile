@@ -23,4 +23,4 @@ coverage: clean
 	@luacov cassandra
 
 lint:
-	@luacheck -q .
+	@find . -not -path './doc/*' -name '*.lua' | xargs luacheck -q

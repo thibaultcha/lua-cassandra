@@ -11,7 +11,22 @@ describe("Protocol #"..cass.v, function()
       local session = cassandra:new()
       assert.truthy(session)
       assert.truthy(session.socket)
-      -- TODO: check protocols versions
+    end)
+  end)
+
+  describe(":set_keepalive()", function()
+    it("should return an error if trying to use the cosocket API from luasocket", function()
+      local session = cassandra:new()
+      local err = select(2, session:set_keepalive())
+      assert.equal("luasocket does not support reusable sockets", err)
+    end)
+  end)
+
+  describe(":get_reused_times()", function()
+    it("should return an error if trying to use the cosocket API from luasocket", function()
+      local session = cassandra:new()
+      local err = select(2, session:get_reused_times())
+      assert.equal("luasocket does not support reusable sockets", err)
     end)
   end)
 

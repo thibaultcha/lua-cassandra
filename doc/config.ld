@@ -7,10 +7,10 @@ style = "!pale"
 kind_names={topic = "Manual"}
 examples = {"doc/examples"}
 
-custom_see_handler("^(%w+):close", function(name)
-  if name == "tcpsock" then
-    return name..":close()", "http://wiki.nginx.org/HttpLuaModule#tcpsock:close"
+custom_see_handler("^(%w+):(%w+)", function(lib, name)
+  if lib == "tcpsock" then
+    return lib..":"..name.."()", "http://wiki.nginx.org/HttpLuaModule#tcpsock:"..name
   else
-    return name..":close()", "http://w3.impa.br/~diego/software/luasocketp.html#close"
+    return lib..":"..name.."()", "http://w3.impa.br/~diego/software/luasocket/tcp.html#"..name
   end
 end)

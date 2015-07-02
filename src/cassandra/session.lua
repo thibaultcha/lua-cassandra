@@ -62,10 +62,6 @@ function _M:connect(contact_points, port)
     contact_points = {contact_points}
   end
 
-  if not self.socket then
-    error("session does not have a socket, create a new session first", 2)
-  end
-
   local ok, err
   for _, contact_point in ipairs(contact_points) do
     -- Extract port if string is of the form "host:port"
@@ -95,17 +91,50 @@ function _M:connect(contact_points, port)
   return true
 end
 
+--- Change the timeout value of the underlying socket object.
+-- Wrapper around the cosocket (or luasocket) "settimeout()" depending on
+-- what context you are using it.
+-- See the related implementation of "settimeout()" for parameters.
+-- @raise Exception if the session does not have an underlying socket (not correctly initialized).
+-- @see tcpsock:settimeout()
+-- @see luasocket:settimeout()
+-- @return The underlying result from tcpsock or luasocket
+function _M:set_timeout(...)
+  return self.socket:settimeout(...)
+end
+
+--- Put the underlying socket into the cosocket connection pool.
+-- This method is only available when using the cosocket API.
+-- Wrapper around the cosocket "setkeepalive()" method.
+-- @raise Exception if the session does not have an underlying socket (not correctly initialized).
+-- @see tcpsock:setkeepalive()
+function _M:set_keepalive(...)
+  if not self.socket.setkeepalive then
+    return nil, "luasocket does not support reusable sockets"
+  end
+  return self.socket:setkeepalive(...)
+end
+
+--- Return the number of successfully reused times for the underlying socket.
+-- This method is only available when using the cosocket API.
+-- Wrapper round the cosocket "getreusedtimes()" method.
+-- @raise Exception if the session does not have an underlying socket (not correctly initialized).
+-- @see tcpsock:getreusedtimes()
+function _M:get_reused_times()
+  if not self.socket.getreusedtimes then
+    return nil, "luasocket does not support reusable sockets"
+  end
+  return self.socket:getreusedtimes()
+end
+
 --- Close a connected session.
 -- Wrapper around the cosocket (or luasocket) "close()" depending on
 -- what context you are using it.
--- @raise Any error due to a wrong usage of the driver.
+-- @raise Exception if the session does not have an underlying socket (not correctly initialized).
 -- @see tcpsock:close()
 -- @see luasocket:close()
 -- @return The underlying closing result from tcpsock or luasocket
 function _M:close()
-  if not self.socket then
-    error("session does not have a socket, create a new session first", 2)
-  end
   return self.socket:close()
 end
 

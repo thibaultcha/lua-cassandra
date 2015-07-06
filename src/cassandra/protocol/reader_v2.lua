@@ -70,7 +70,7 @@ function _M:receive_frame(session)
     flags = flags,
     stream = stream,
     op_code = op_code,
-    body = body, -- TODO remove
+    --body = body, -- TODO remove
     buffer = body_buffer
   }
 end
@@ -158,7 +158,8 @@ function _M:parse_response(response)
   end
 
   if response.flags == self.constants.flags.TRACING then -- tracing
-    tracing_id = self.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
+    --tracing_id = self.unmarshaller.read_uuid(string.sub(response.body, 1, 16))
+    tracing_id = self.unmarshaller.read_uuid(response.buffer)
     response.buffer.pos = 17
   end
 

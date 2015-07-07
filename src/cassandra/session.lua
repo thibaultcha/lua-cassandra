@@ -4,9 +4,10 @@
 -- In the context of Nginx, a session used the underlying cosocket API which allows
 -- one to put a socket in the connection pool, before reusing it later. Otherwise,
 -- we fallback on luasocket as the underlying socket implementation.
--- @module session
+-- @module Session
 
 local utils = require "cassandra.utils"
+local cerror = require "cassandra.error"
 
 local _M = {
   CQL_VERSION = "3.0.0"
@@ -19,11 +20,11 @@ function _M:send_frame_and_get_response(op_code, frame_body, tracing)
   local frame = self.writer:build_frame(op_code, frame_body, tracing)
   bytes, err = self.socket:send(frame)
   if not bytes then
-    return nil, string.format("Failed to send frame to %s: %s", self.host, err)
+    return nil, cerror(string.format("Failed to send frame to %s: %s", self.host, err))
   end
   response, err = self.reader:receive_frame(self)
   if not response then
-    return nil, err
+    return nil, cerror(err)
   end
   return response
 end
@@ -36,15 +37,15 @@ end
 -- @param self The session, since this method is not public.
 -- @param resposne The response received by the startup message.
 -- @return ok A boolean indicating wether or not the authentication was successful.
--- @return err Any server/client error encountered during the authentication.
+-- @return err Any server/client `Error` encountered during the authentication.
 local function answer_auth(self, response)
   local auth_challenge = self.unmarshaller.read_string(response.buffer)
 
   if not self.authenticator then
-    return false, "cluster requires authentication, but no authenticator was given to the session"
+    return false, cerror("cluster requires authentication, but no authenticator was given to the session")
   elseif auth_challenge ~= self.authenticator.class_name then
-    return false, string.format("cluster requires '%s' authenticator but session has '%s'",
-      auth_challenge, self.authenticator.class_name)
+    return false, cerror(string.format("cluster requires '%s' authenticator but session has '%s'",
+      auth_challenge, self.authenticator.class_name))
   end
 
   return self.authenticator:authenticate(self)
@@ -60,10 +61,13 @@ local function startup(self)
   if response.op_code == self.constants.op_codes.AUTHENTICATE then
     return answer_auth(self, response)
   elseif response.op_code ~= self.constants.op_codes.READY then
-    return false, "server is not ready"
+    return false, cerror("server is not ready")
   end
   return true
 end
+
+--- Socket functions.
+-- @section Socket
 
 --- Connect a session to a node coordinator.
 -- @raise Any error due to a wrong usage of the driver (invalid parameter, non correctly initialized session...).
@@ -72,7 +76,7 @@ end
 -- port than the specified or default one.
 -- @param port Default: 9042. The port on which to connect to.
 -- @return connected  boolean indicating the success of the connection.
--- @return err Any server/client error encountered during the connection.
+-- @return err Any server/client `Error` encountered during the connection.
 -- @usage local ok, err = session:connect("127.0.0.1", 9042)
 -- @usage local ok, err = session:connect({"127.0.0.1", "52.5.149.55:9888"}, 9042)
 function _M:connect(contact_points, port, authenticator)
@@ -104,10 +108,8 @@ function _M:connect(contact_points, port, authenticator)
   end
 
   if not ok then
-    return false, err
+    return false, cerror(err)
   end
-
-  self.authenticator = authenticator
 
   if not self.ready then
     self.ready, err = startup(self)
@@ -115,6 +117,8 @@ function _M:connect(contact_points, port, authenticator)
       return false, err
     end
   end
+
+  self.authenticator = authenticator
 
   return true
 end
@@ -126,7 +130,7 @@ end
 -- @raise Exception if the session does not have an underlying socket (not correctly initialized).
 -- @see tcpsock:settimeout()
 -- @see luasocket:settimeout()
--- @return The underlying result from tcpsock or luasocket
+-- @return The underlying result from tcpsock or luasocket.
 function _M:set_timeout(...)
   return self.socket:settimeout(...)
 end
@@ -138,7 +142,7 @@ end
 -- @see tcpsock:setkeepalive()
 function _M:set_keepalive(...)
   if not self.socket.setkeepalive then
-    return nil, "luasocket does not support reusable sockets"
+    return nil, cerror("luasocket does not support reusable sockets")
   end
   return self.socket:setkeepalive(...)
 end
@@ -150,7 +154,7 @@ end
 -- @see tcpsock:getreusedtimes()
 function _M:get_reused_times()
   if not self.socket.getreusedtimes then
-    return nil, "luasocket does not support reusable sockets"
+    return nil, cerror("luasocket does not support reusable sockets")
   end
   return self.socket:getreusedtimes()
 end
@@ -203,12 +207,15 @@ local function page_iterator(session, operation, args, options)
   end, operation, nil
 end
 
+--- Queries functions.
+-- @section operations
+
 --- Execute an operation (query, prepared statement, batch statement).
 -- @param  operation The operation to execute. Whether it being a plain string query, a prepared statement or a batch.
 -- @param  args (Optional) An array of arguments to bind to the operation if it is a query or a statement.
 -- @param  options (Optional) A table of options for this query.
 -- @return response The parsed response from Cassandra.
--- @return err Any error encountered during the execution.
+-- @return err Any `Error` encountered during the execution.
 function _M:execute(operation, args, options)
   if not options then options = {} end
   -- Default options

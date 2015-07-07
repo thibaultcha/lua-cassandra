@@ -1,5 +1,6 @@
 local utils = require "cassandra.utils"
 local Object = require "cassandra.classic"
+local cerror = require "cassandra.error"
 
 local _M = Object:extend()
 
@@ -23,15 +24,11 @@ error_mt = {
 }
 
 function _M:read_error(buffer)
-  local error_code = self.unmarshaller.read_int(buffer)
-  local error_code_translation = self.constants.error_codes_translation[error_code]
-  local error_message = self.unmarshaller.read_string(buffer)
-  local err = {
-    code = error_code,
-    message = string.format("Cassandra returned error (%s): %s", error_code_translation, error_message),
-    raw_message = error_message
-  }
-  return setmetatable(err, error_mt)
+  local code = self.unmarshaller.read_int(buffer)
+  local code_translation = self.constants.error_codes_translation[code]
+  local message = self.unmarshaller.read_string(buffer)
+  local formatted_message = string.format("Cassandra returned error (%s): %s", code_translation, message)
+  return cerror(formatted_message, message, code)
 end
 
 -- Make a session listen for a response and decode the received frame

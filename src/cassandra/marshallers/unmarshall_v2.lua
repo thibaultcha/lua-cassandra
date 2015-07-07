@@ -181,9 +181,17 @@ end
 
 function _M.read_uuid(bytes)
   local buffer = {}
+
   for i = 1, #bytes do
     buffer[i] = string.format("%02x", string.byte(bytes, i))
   end
+
+  if #buffer < 5 then
+    local inspect = require "inspect"
+    print("bytes: | "..#bytes.." | "..inspect(bytes))
+    print("buffer: | "..#buffer.." | "..inspect(buffer))
+  end
+
   table.insert(buffer, 5, "-")
   table.insert(buffer, 8, "-")
   table.insert(buffer, 11, "-")

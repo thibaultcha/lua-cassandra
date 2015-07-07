@@ -13,7 +13,7 @@ dev:
 	done;
 
 test:
-	@busted
+	@busted -v
 
 clean:
 	@rm -f luacov.*

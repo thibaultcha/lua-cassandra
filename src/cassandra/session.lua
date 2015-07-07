@@ -14,7 +14,7 @@ local _M = {
 
 _M.__index = _M
 
-local function send_frame_and_get_response(self, op_code, frame_body, tracing)
+function _M:send_frame_and_get_response(op_code, frame_body, tracing)
   local bytes, response, err
   local frame = self.writer:build_frame(op_code, frame_body, tracing)
   bytes, err = self.socket:send(frame)
@@ -28,13 +28,38 @@ local function send_frame_and_get_response(self, op_code, frame_body, tracing)
   return response
 end
 
+-- Answer an AUTHENTICATE reply from the server
+-- The STARTUP message is susceptible to receive an authenticate
+-- challenge from the server. In that case we use one of the provided
+-- authenticator depending on the authenticator set in Cassandra.
+-- @private
+-- @param self The session, since this method is not public.
+-- @param resposne The response received by the startup message.
+-- @return ok A boolean indicating wether or not the authentication was successful.
+-- @return err Any server/client error encountered during the authentication.
+local function answer_auth(self, response)
+  local auth_challenge = self.unmarshaller.read_string(response.buffer)
+
+  if not self.authenticator then
+    return false, "cluster requires authentication, but no authenticator was given to the session"
+  elseif auth_challenge ~= self.authenticator.class_name then
+    return false, string.format("cluster requires '%s' authenticator but session has '%s'",
+      auth_challenge, self.authenticator.class_name)
+  end
+
+  return self.authenticator:authenticate(self)
+end
+
 local function startup(self)
   local frame_body = self.marshaller.string_map_representation({CQL_VERSION = _M.CQL_VERSION})
-  local response, err = send_frame_and_get_response(self, self.constants.op_codes.STARTUP, frame_body)
+  local response, err = self:send_frame_and_get_response(self.constants.op_codes.STARTUP, frame_body)
   if not response then
     return false, err
   end
-  if response.op_code ~= self.constants.op_codes.READY then
+
+  if response.op_code == self.constants.op_codes.AUTHENTICATE then
+    return answer_auth(self, response)
+  elseif response.op_code ~= self.constants.op_codes.READY then
     return false, "server is not ready"
   end
   return true
@@ -50,12 +75,13 @@ end
 -- @return err Any server/client error encountered during the connection.
 -- @usage local ok, err = session:connect("127.0.0.1", 9042)
 -- @usage local ok, err = session:connect({"127.0.0.1", "52.5.149.55:9888"}, 9042)
-function _M:connect(contact_points, port)
+function _M:connect(contact_points, port, authenticator)
   if port == nil then port = 9042 end
+
   if contact_points == nil then
     error("no contact points provided", 2)
   elseif type(contact_points) == "table" then
-    -- shuffle the contact points so we don't try  to connect always on the same order,
+    -- shuffle the contact points so we don't try to always connect on the same order,
     -- avoiding pressure on the same node cordinator.
     utils.shuffle_array(contact_points)
   else
@@ -80,6 +106,8 @@ function _M:connect(contact_points, port)
   if not ok then
     return false, err
   end
+
+  self.authenticator = authenticator
 
   if not self.ready then
     self.ready, err = startup(self)
@@ -196,7 +224,7 @@ function _M:execute(operation, args, options)
   end
 
   local frame_body, op_code = self.writer:build_body(operation, args, options)
-  local response, err = send_frame_and_get_response(self, op_code, frame_body, options.tracing)
+  local response, err = self:send_frame_and_get_response(op_code, frame_body, options.tracing)
   if not response then
     return nil, err
   end
@@ -218,7 +246,7 @@ end
 -- @return statement A prepared statement to be given to @{execute}.
 function _M:prepare(query, tracing)
   local frame_body = self.marshaller.long_string_representation(query)
-  local response, err = send_frame_and_get_response(self, self.constants.op_codes.PREPARE, frame_body, tracing)
+  local response, err = self:send_frame_and_get_response(self.constants.op_codes.PREPARE, frame_body, tracing)
   if not response then
     return nil, err
   end

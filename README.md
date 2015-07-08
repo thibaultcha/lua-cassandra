@@ -70,12 +70,12 @@ This fork provides the following improvements over the root project:
 - [x] Support for binary protocol v3
   - [x] User Defined Types and Tuples support
   - [x] Serial Consistency support for batch requests
+- [x] Support for authentication
 - [x] Keyspace switch fix
 - [x] IPv6 encoding fix
 
 ## Roadmap
 
-- [ ] Support for authentication
 - [ ] Support for binary protocol v3 named values when binding a query
 - [ ] Support for binary protocol v3 default timestamp option
 

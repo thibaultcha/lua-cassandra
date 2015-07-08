@@ -17,7 +17,7 @@ before_install:
   - sudo make dev
 
 script:
-  - "busted --coverage"
+  - "busted -v --coverage"
   - "make lint"
 
 after_success: "luacov-coveralls -i cassandra"

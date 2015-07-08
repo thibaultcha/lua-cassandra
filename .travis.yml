@@ -14,6 +14,7 @@ before_install:
   - bash .travis/setup_lua.sh
   - bash .travis/setup_cassandra.sh
   - sudo luarocks install luasocket
+  - sudo luarocks install inspect
   - sudo make dev
 
 script:

@@ -20,7 +20,7 @@ describe("Marshallers v2", function()
     varchar = {"string"},
     varint = {0, 4200, -42},
     timeuuid = {"1144bada-852c-11e3-89fb-e0b9a54a6d11"},
-    inet = {"127.0.0.1"}
+    inet = {"127.0.0.1", "2001:0db8:85a3:0042:1000:8a2e:0370:7334", "2001:db8::1", "2001:db8:85a3::10", "2001:db8:85a3::100", "::1", "::"}
   }
 
   for fix_type, fix_values in pairs(fixtures) do

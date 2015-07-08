@@ -20,12 +20,18 @@ describe("Marshallers v2", function()
     varchar = {"string"},
     varint = {0, 4200, -42},
     timeuuid = {"1144bada-852c-11e3-89fb-e0b9a54a6d11"},
-    inet = {"127.0.0.1"}
+    inet = {["127.0.0.1"] = "127.0.0.1",
+            ["2001:0db8:85a3:0042:1000:8a2e:0370:7334"] = "2001:0db8:85a3:0042:1000:8a2e:0370:7334",
+            ["2001:0db8:0000:0000:0000:0000:0000:0001"] = "2001:db8::1",
+            ["2001:0db8:85a3:0000:0000:0000:0000:0010"] = "2001:db8:85a3::10",
+            ["2001:0db8:85a3:0000:0000:0000:0000:0100"] = "2001:db8:85a3::100",
+            ["0000:0000:0000:0000:0000:0000:0000:0001"] = "::1",
+            ["0000:0000:0000:0000:0000:0000:0000:0000"] = "::"}
   }
 
   for fix_type, fix_values in pairs(fixtures) do
     it("should encode and decode a ["..fix_type.."]", function()
-      for _, fix_value in ipairs(fix_values) do
+      for expected, fix_value in pairs(fix_values) do
         local encoded = marshall_v2.value_representation(fix_value, marshall_v2.TYPES[fix_type])
         local buffer = unsmarshall_v2.create_buffer(encoded)
         local decoded = unsmarshall_v2.read_value(buffer, { id = marshall_v2.TYPES[fix_type] })
@@ -33,6 +39,8 @@ describe("Marshallers v2", function()
         if fix_type == "float" then
           local delta = 0.0000001
           assert.True(math.abs(decoded - fix_value) < delta)
+        elseif fix_type == "inet" then
+          assert.equal(expected, decoded)
         else
           assert.equal(fix_value, decoded)
         end

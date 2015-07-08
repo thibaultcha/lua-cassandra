@@ -34,9 +34,9 @@
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
+  <li><strong>authentication.lua</strong></li>
   <li><a href="../examples/basic.lua.html">basic.lua</a></li>
-  <li><strong>batch.lua</strong></li>
+  <li><a href="../examples/batch.lua.html">batch.lua</a></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
 </ul>
 <h2>Modules</h2>
@@ -56,24 +56,22 @@
 
 <div id="content">
 
-    <h2>batch.lua</h2>
+    <h2>authentication.lua</h2>
 <pre>
 <span class="comment">--------
-</span><span class="comment">--- Example of batch statements execution.
+</span><span class="comment">-- Example with the <a href="../modules/PasswordAuthenticator.html#">PasswordAuthenticator</a> IAuthenticator
+</span><span class="comment">-- @see http://docs.datastax.com/en/cassandra/1.2/cassandra/security/security_config_native_authenticate_t.html
 </span>
-<span class="comment">-- Create a batch statement
-</span><span class="keyword">local</span> batch = cassandra:BatchStatement()
+<span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> PasswordAuthenticator = <span class="global">require</span> <span class="string">"cassandra.authenticators.PasswordAuthenticator"</span>
 
-<span class="comment">-- Add a query
-</span>batch:add(<span class="string">"INSERT INTO users (name, age, user_id) VALUES (?, ?, ?)"</span>,
-          {<span class="string">"James"</span>, <span class="number">32</span>, cassandra.uuid(<span class="string">"2644bada-852c-11e3-89fb-e0b9a54a6d93"</span>)})
+<span class="keyword">local</span> auth = PasswordAuthenticator(<span class="string">"user"</span>, <span class="string">"password"</span>)
+<span class="keyword">local</span> session = cassandra:new()
 
-<span class="comment">-- Add a prepared statement
-</span><span class="keyword">local</span> stmt, err = session:prepare(<span class="string">"INSERT INTO users (name, age, user_id) VALUES (?, ?, ?)"</span>)
-batch:add(stmt, {<span class="string">"John"</span>, <span class="number">45</span>, cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>)})
+<span class="keyword">local</span> ok, err = session:connect(<span class="string">"127.0.0.1"</span>, <span class="keyword">nil</span>, auth)
 
-<span class="comment">-- Execute the batch
-</span><span class="keyword">local</span> result, err = session:execute(batch)</pre>
+<span class="comment">-- Authenticated
+</span><span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM system_auth.users"</span>)</pre>
 
 
 </div> <!-- id="content" -->

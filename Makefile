@@ -1,4 +1,4 @@
-DEV_ROCKS=busted luacov luacov-coveralls luacheck
+DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 
 .PHONY: dev clean test coverage lint
 

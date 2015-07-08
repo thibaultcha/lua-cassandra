@@ -13,9 +13,10 @@
 --      cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93")
 --    })
 --
--- @module cassandra
+-- @module Cassandra
 
 local session = require "cassandra.session"
+local batch_mt = require "cassandra.batch"
 
 local _M = {}
 
@@ -56,12 +57,12 @@ function _M:__index(key)
   return _M[key]
 end
 
---- Instanciate a new session.
+--- Instanciate a new `Session`.
 -- Create a socket with the cosocket API if in Nginx and available, fallback to luasocket otherwise.
 -- The instanciated session will communicate using the binary protocol of the current cassandra
 -- implementation being required.
 -- @return session The created session.
--- @return err     Any error encountered during the socket creation.
+-- @return err     Any `Error` encountered during the socket creation.
 function _M:new()
   local tcp
   if ngx and ngx.get_phase ~= nil and ngx.get_phase() ~= "init" then
@@ -91,25 +92,18 @@ function _M:new()
   return setmetatable(session_t, session)
 end
 
-local batch_statement_mt = {
-  __index = {
-    add = function(self, query, args)
-      table.insert(self.queries, {query = query, args = args})
-    end,
-    is_batch_statement = true
-  }
-}
-
---- Instanciate a batch Statement.
+--- Instanciate a `BatchStatement`.
 -- The instanciated batch will then provide an ":add()" method to add queries,
 -- and can be executed by a session's ":execute()" function.
--- @param batch_type The type of this batch. Can be one of:
+-- See the related `BatchStatement` module and `batch.lua` example.
+-- See http://docs.datastax.com/en/cql/3.1/cql/cql_reference/batch_r.html
+-- @param batch_type The type of this batch. Can be one of: 'Logged, Unlogged, Counter'
 function _M:BatchStatement(batch_type)
   if not batch_type then
     batch_type = self.constants.batch_types.LOGGED
   end
 
-  return setmetatable({type = batch_type, queries = {}}, batch_statement_mt)
+  return setmetatable({type = batch_type, queries = {}}, batch_mt)
 end
 
 return setmetatable({}, _M)

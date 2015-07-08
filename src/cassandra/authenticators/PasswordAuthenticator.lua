@@ -1,14 +1,16 @@
 --- The client authenticator for the Cassandra `PasswordAuthenticator` IAuthenticator.
--- To be instanciated with a user/password couple and given to a `session` when
--- connecting it.
+-- To be instanciated with a user/password couple and given to a `Session` when
+-- connecting it. See the related `authentication.lua` example.
 -- @see http://docs.datastax.com/en/cassandra/1.2/cassandra/security/security_config_native_authenticate_t.html
 -- @usage local auth = PasswordAuthenticator("user", "password")
+-- @module PasswordAuthenticator
 
 local Object = require "cassandra.classic"
 local marshaller = require "cassandra.marshallers.marshall_v2"
 
 local _M = Object:extend()
 
+-- The IAuthenticator class name for which this client authenticator works
 _M.class_name = "org.apache.cassandra.auth.PasswordAuthenticator"
 
 function _M:new(user, password)

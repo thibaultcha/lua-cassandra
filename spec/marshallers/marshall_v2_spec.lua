@@ -31,7 +31,7 @@ describe("Marshallers v2", function()
 
   for fix_type, fix_values in pairs(fixtures) do
     it("should encode and decode a ["..fix_type.."]", function()
-      for expected, fix_value in ipairs(fix_values) do
+      for expected, fix_value in pairs(fix_values) do
         local encoded = marshall_v2.value_representation(fix_value, marshall_v2.TYPES[fix_type])
         local buffer = unsmarshall_v2.create_buffer(encoded)
         local decoded = unsmarshall_v2.read_value(buffer, { id = marshall_v2.TYPES[fix_type] })

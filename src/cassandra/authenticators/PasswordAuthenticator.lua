@@ -10,9 +10,6 @@ local marshaller = require "cassandra.marshallers.marshall_v2"
 
 local _M = Object:extend()
 
--- The IAuthenticator class name for which this client authenticator works
-_M.class_name = "org.apache.cassandra.auth.PasswordAuthenticator"
-
 function _M:new(user, password)
   if user == nil then
     error("no user provided for PasswordAuthenticator")

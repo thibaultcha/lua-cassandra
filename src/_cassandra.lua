@@ -64,15 +64,17 @@ end
 -- @return session The created session.
 -- @return err     Any `Error` encountered during the socket creation.
 function _M:new()
-  local tcp
+  local tcp, socket_type
   if ngx and ngx.get_phase ~= nil and ngx.get_phase() ~= "init" then
     -- openresty
     tcp = ngx.socket.tcp
+    socket_type = "ngx"
   else
     -- fallback to luasocket
     -- It's also a fallback for openresty in the
     -- "init" phase that doesn't support Cosockets
     tcp = require("socket").tcp
+    socket_type = "luasocket"
   end
 
   local socket, err = tcp()
@@ -82,6 +84,7 @@ function _M:new()
 
   local session_t = {
     socket = socket,
+    socket_type = socket_type,
     writer = self.writer,
     reader = self.reader,
     constants = self.constants,

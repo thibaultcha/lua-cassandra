@@ -34,11 +34,11 @@
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><strong>authentication.lua</strong></li>
+  <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
   <li><a href="../examples/basic.lua.html">basic.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
-  <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
+  <li><strong>ssl.lua</strong></li>
 </ul>
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -57,22 +57,64 @@
 
 <div id="content">
 
-    <h2>authentication.lua</h2>
+    <h2>ssl.lua</h2>
 <pre>
 <span class="comment">--------
-</span><span class="comment">-- Example with the <a href="../modules/PasswordAuthenticator.html#">PasswordAuthenticator</a> IAuthenticator
-</span><span class="comment">-- @see http://docs.datastax.com/en/cassandra/1.2/cassandra/security/security_config_native_authenticate_t.html
+</span><span class="comment">-- Example of SSL enabled connection using luasocket
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 <span class="keyword">local</span> PasswordAuthenticator = <span class="global">require</span> <span class="string">"cassandra.authenticators.PasswordAuthenticator"</span>
 
-<span class="keyword">local</span> auth = PasswordAuthenticator(<span class="string">"user"</span>, <span class="string">"password"</span>)
 <span class="keyword">local</span> session = cassandra:new()
+<span class="keyword">local</span> auth = PasswordAuthenticator(<span class="string">"cassandra"</span>, <span class="string">"cassandra"</span>)
 
-<span class="keyword">local</span> ok, err = session:connect(<span class="string">"127.0.0.1"</span>, <span class="keyword">nil</span>, auth)
+<span class="keyword">local</span> ok, err = session:connect({<span class="string">"x.x.x.x"</span>, <span class="string">"y.y.y.y"</span>}, <span class="keyword">nil</span>, {
+  authenticator = auth,
+  ssl = <span class="keyword">true</span>,
+  ssl_verify = <span class="keyword">true</span>,
+  ca_file = <span class="string">"/path/to/your/ca-certificate.pem"</span>
+})
+<span class="keyword">if</span> <span class="keyword">not</span> ok <span class="keyword">then</span>
+  <span class="global">print</span>(err.message)
+<span class="keyword">end</span>
 
-<span class="comment">-- Authenticated
-</span><span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM system_auth.users"</span>)</pre>
+<span class="keyword">local</span> res, err = session:execute(<span class="string">"SELECT * FROM system_auth.users"</span>)
+
+<span class="comment">--------
+</span><span class="comment">-- Example of SSL enabled connection from nginx
+</span>
+worker_processes <span class="number">1</span>;
+error_log logs/error.log;
+events {
+  worker_connections <span class="number">1024</span>;
+}
+http {
+  server {
+    listen <span class="number">8080</span>;
+    location / {
+      lua_ssl_trusted_certificate <span class="string">"/path/to/your/ca-certificate.pem"</span>;
+      default_type text/html;
+      content_by_lua <span class="string">'
+        local cassandra = require "cassandra"
+        local PasswordAuthenticator = require "cassandra.authenticators.PasswordAuthenticator"
+
+        local session = cassandra:new()
+        local auth = PasswordAuthenticator("cassandra", "cassandra")
+
+        local ok, err = session:connect({"x.x.x.x", "y.y.y.y"}, nil, {
+          authenticator = auth,
+          ssl = true,
+          ssl_verify = true
+        })
+        if not ok then
+          ngx.log(ngx.ERR, err.message)
+        end
+
+        local res, err = session:execute("SELECT * FROM system_auth.users")
+      '</span>;
+    }
+  }
+}</pre>
 
 
 </div> <!-- id="content" -->

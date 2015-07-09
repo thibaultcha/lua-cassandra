@@ -39,8 +39,6 @@ end
 -- @return ok A boolean indicating wether or not the authentication was successful.
 -- @return err Any server/client `Error` encountered during the authentication.
 local function answer_auth(self, response)
-  local auth_challenge = self.unmarshaller.read_string(response.buffer)
-
   if not self.authenticator then
     return false, cerror("Remote end requires authentication")
   end
@@ -72,12 +70,20 @@ end
 -- Strings can be of the form "host:port" if some nodes are running on another
 -- port than the specified or default one.
 -- @param port Default: 9042. The port on which to connect to.
+-- @param options Options for the connection.
+--   `auth`: An authenticator if remote requires authentication. See `auth.lua`.
+--   `ssl`: A boolean indicating if the connection must use SSL.
+--   `ssl_verify`: A boolean indicating whether to perform SSL verification. If using
+--   nginx, see the `lua_ssl_trusted_certificate` directive. If using Luasocket,
+--   see the `ca_file` option. See the `ssl.lua` example
+--   `ca_file`: Path to the certificate authority file. See the `ssl.lua` example.
 -- @return connected  boolean indicating the success of the connection.
 -- @return err Any server/client `Error` encountered during the connection.
 -- @usage local ok, err = session:connect("127.0.0.1", 9042)
 -- @usage local ok, err = session:connect({"127.0.0.1", "52.5.149.55:9888"}, 9042)
 function _M:connect(contact_points, port, options)
   if port == nil then port = 9042 end
+  if options == nil then options = {} end
 
   if contact_points == nil then
     error("no contact points provided", 2)
@@ -111,7 +117,8 @@ function _M:connect(contact_points, port, options)
 
   if options.ssl then
     if self.socket_type == "luasocket" then
-      local ok, res = pcall(require, "ssl")
+      local res
+      ok, res = pcall(require, "ssl")
       if not ok and string.find(res, "module '.*' not found") then
         return false, cerror("LuaSec not found. Please install LuaSec to use SSL.")
       end
@@ -125,7 +132,7 @@ function _M:connect(contact_points, port, options)
       }
 
       self.socket = ssl.wrap(self.socket, params)
-      local ok = self.socket:dohandshake()
+      ok = self.socket:dohandshake()
       if not ok then
         return false, cerror("Invalid handshake")
       end

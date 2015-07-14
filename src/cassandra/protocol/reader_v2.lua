@@ -10,9 +10,9 @@ function _M:new(unmarshaller, constants)
 end
 
 function _M:read_error(buffer)
-  local code = self.unmarshaller.read_int(buffer)
+  local code = self.unmarshaller:read_int(buffer)
   local code_translation = self.constants.error_codes_translation[code]
-  local message = self.unmarshaller.read_string(buffer)
+  local message = self.unmarshaller:read_string(buffer)
   local formatted_message = string.format("Cassandra returned error (%s): %s", code_translation, message)
   return cerror(formatted_message, message, code)
 end
@@ -28,15 +28,15 @@ function _M:receive_frame(session)
   if not header then
     return nil, string.format("Failed to read frame header from %s: %s", session.host, err)
   end
-  local header_buffer = unmarshaller.create_buffer(header)
-  local version = unmarshaller.read_raw_byte(header_buffer)
+  local header_buffer = unmarshaller:create_buffer(header)
+  local version = unmarshaller:read_raw_byte(header_buffer)
   if version ~= self.constants.version_codes.RESPONSE then
     return nil, string.format("Invalid response version received from %s", session.host)
   end
-  local flags = unmarshaller.read_raw_byte(header_buffer)
-  local stream = unmarshaller.read_raw_byte(header_buffer)
-  local op_code = unmarshaller.read_raw_byte(header_buffer)
-  local length = unmarshaller.read_int(header_buffer)
+  local flags = unmarshaller:read_raw_byte(header_buffer)
+  local stream = unmarshaller:read_raw_byte(header_buffer)
+  local op_code = unmarshaller:read_raw_byte(header_buffer)
+  local length = unmarshaller:read_int(header_buffer)
 
   local body
   if length > 0 then
@@ -48,7 +48,7 @@ function _M:receive_frame(session)
     body = ""
   end
 
-  local body_buffer = unmarshaller.create_buffer(body)
+  local body_buffer = unmarshaller:create_buffer(body)
   return {
     flags = flags,
     stream = stream,
@@ -75,7 +75,7 @@ _M.result_kind_parsers = {
     return result
   end,
   [constants.result_kinds.PREPARED] = function(self, buffer)
-    local id = self.unmarshaller.read_short_bytes(buffer)
+    local id = self.unmarshaller:read_short_bytes(buffer)
     local metadata = self:parse_metadata(buffer)
     local result_metadata = self:parse_metadata(buffer)
     assert(buffer.pos == #(buffer.str) + 1)
@@ -89,15 +89,15 @@ _M.result_kind_parsers = {
   [constants.result_kinds.SET_KEYSPACE] = function(self, buffer)
     return {
       type = "SET_KEYSPACE",
-      keyspace = self.unmarshaller.read_string(buffer)
+      keyspace = self.unmarshaller:read_string(buffer)
     }
   end,
   [constants.result_kinds.SCHEMA_CHANGE] = function(self, buffer)
     return  {
       type = "SCHEMA_CHANGE",
-      change = self.unmarshaller.read_string(buffer),
-      keyspace = self.unmarshaller.read_string(buffer),
-      table = self.unmarshaller.read_string(buffer)
+      change = self.unmarshaller:read_string(buffer),
+      keyspace = self.unmarshaller:read_string(buffer),
+      table = self.unmarshaller:read_string(buffer)
     }
   end
 }
@@ -111,11 +111,11 @@ function _M:parse_response(response)
   end
 
   if response.flags == self.constants.flags.TRACING then
-    tracing_id = self.unmarshaller.read_uuid(string.sub(response.buffer.str, 1, 16))
+    tracing_id = self.unmarshaller:read_uuid(string.sub(response.buffer.str, 1, 16))
     response.buffer.pos = 17
   end
 
-  local result_kind = self.unmarshaller.read_int(response.buffer)
+  local result_kind = self.unmarshaller:read_int(response.buffer)
   if _M.result_kind_parsers[result_kind] then
     result = _M.result_kind_parsers[result_kind](self, response.buffer)
   else
@@ -127,27 +127,27 @@ function _M:parse_response(response)
 end
 
 function _M:parse_column_type(buffer, column_name)
-  return self.unmarshaller.read_option(buffer)
+  return self.unmarshaller:read_option(buffer)
 end
 
 function _M:parse_metadata(buffer)
   -- Flags parsing
-  local flags = self.unmarshaller.read_int(buffer)
+  local flags = self.unmarshaller:read_int(buffer)
   local global_tables_spec = utils.hasbit(flags, self.constants.rows_flags.GLOBAL_TABLES_SPEC)
   local has_more_pages = utils.hasbit(flags, self.constants.rows_flags.HAS_MORE_PAGES)
-  local columns_count = self.unmarshaller.read_int(buffer)
+  local columns_count = self.unmarshaller:read_int(buffer)
 
   -- Potential paging metadata
   local paging_state
   if has_more_pages then
-    paging_state = self.unmarshaller.read_bytes(buffer)
+    paging_state = self.unmarshaller:read_bytes(buffer)
   end
 
   -- Potential global_tables_spec metadata
   local global_keyspace_name, global_table_name
   if global_tables_spec then
-    global_keyspace_name = self.unmarshaller.read_string(buffer)
-    global_table_name = self.unmarshaller.read_string(buffer)
+    global_keyspace_name = self.unmarshaller:read_string(buffer)
+    global_table_name = self.unmarshaller:read_string(buffer)
   end
 
   -- Columns metadata
@@ -156,10 +156,10 @@ function _M:parse_metadata(buffer)
     local ksname = global_keyspace_name
     local tablename = global_table_name
     if not global_tables_spec then
-      ksname = self.unmarshaller.read_string(buffer)
-      tablename = self.unmarshaller.read_string(buffer)
+      ksname = self.unmarshaller:read_string(buffer)
+      tablename = self.unmarshaller:read_string(buffer)
     end
-    local column_name = self.unmarshaller.read_string(buffer)
+    local column_name = self.unmarshaller:read_string(buffer)
     local column_type = self:parse_column_type(buffer, column_name)
     columns[#columns + 1] = {
       name = column_name,
@@ -180,7 +180,7 @@ end
 function _M:parse_rows(buffer, metadata)
   local columns = metadata.columns
   local columns_count = metadata.columns_count
-  local rows_count = self.unmarshaller.read_int(buffer)
+  local rows_count = self.unmarshaller:read_int(buffer)
   local values = {}
   local row_mt = {
     __index = function(t, i)
@@ -196,7 +196,7 @@ function _M:parse_rows(buffer, metadata)
   for _ = 1, rows_count do
     local row = setmetatable({}, row_mt)
     for i = 1, columns_count do
-      local value = self.unmarshaller.read_value(buffer, columns[i].type)
+      local value = self.unmarshaller:read_value(buffer, columns[i].type)
       row[columns[i].name] = value
     end
     values[#values + 1] = row

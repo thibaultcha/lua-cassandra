@@ -1,5 +1,6 @@
-local Object = require "cassandra.classic"
 local utils = require "cassandra.utils"
+local Object = require "cassandra.classic"
+local constants = require "cassandra.constants.constants_v2"
 local big_endian_representation = utils.big_endian_representation
 
 local _M = Object:extend()
@@ -27,43 +28,42 @@ _M.TYPES = {
   set       = 0x22
 }
 
-function _M:new(constants)
-  self.constants = constants
+function _M:new()
 end
 
-function _M.identity_representation(value)
+function _M:identity_representation(value)
   return value
 end
 
-function _M.int_representation(num)
+function _M:int_representation(num)
   return big_endian_representation(num, 4)
 end
 
-function _M.short_representation(num)
+function _M:short_representation(num)
   return big_endian_representation(num, 2)
 end
 
-function _M.string_representation(str)
-  return _M.short_representation(#str) .. str
+function _M:string_representation(str)
+  return self:short_representation(#str)..str
 end
 
-function _M.long_string_representation(str)
-  return _M.int_representation(#str) .. str
+function _M:long_string_representation(str)
+  return self:int_representation(#str)..str
 end
 
-function _M.bytes_representation(bytes)
-  return _M.int_representation(#bytes) .. bytes
+function _M:bytes_representation(bytes)
+  return self:int_representation(#bytes)..bytes
 end
 
-function _M.short_bytes_representation(bytes)
-  return _M.short_representation(#bytes) .. bytes
+function _M:short_bytes_representation(bytes)
+  return self:short_representation(#bytes)..bytes
 end
 
-function _M.boolean_representation(value)
+function _M:boolean_representation(value)
   return value and "\001" or "\000"
 end
 
-function _M.bigint_representation(n)
+function _M:bigint_representation(n)
   local first_byte = n >= 0 and 0 or 0xFF
   return string.char(first_byte, -- only 53 bits from double
                      math.floor(n / 0x1000000000000) % 0x100,
@@ -75,7 +75,7 @@ function _M.bigint_representation(n)
                      n % 0x100)
 end
 
-function _M.uuid_representation(value)
+function _M:uuid_representation(value)
   local str = string.gsub(value, "-", "")
   local buffer = {}
   for i = 1, #str, 2 do
@@ -86,7 +86,7 @@ function _M.uuid_representation(value)
 end
 
 -- "inspired" by https://github.com/fperrad/lua-MessagePack/blob/master/src/MessagePack.lua
-function _M.double_representation(number)
+function _M:double_representation(number)
   local sign = 0
   if number < 0.0 then
     sign = 0x80
@@ -117,7 +117,7 @@ function _M.double_representation(number)
   end
 end
 
-function _M.float_representation(number)
+function _M:float_representation(number)
   if number == 0 then
     return string.char(0x00, 0x00, 0x00, 0x00)
   elseif number ~= number then
@@ -151,7 +151,7 @@ function _M.float_representation(number)
   end
 end
 
-function _M.inet_representation(value)
+function _M:inet_representation(value)
   local digits = {}
   local hexadectets = {}
   local ip = value:lower():gsub("::",":0000:")
@@ -177,38 +177,38 @@ function _M.inet_representation(value)
   return table.concat(digits)
 end
 
-function _M.list_representation(elements)
-  local buffer = {_M.short_representation(#elements)}
+function _M:list_representation(elements)
+  local buffer = {self:short_representation(#elements)}
   for _, value in ipairs(elements) do
-    buffer[#buffer + 1] = _M.value_representation(value, nil, true)
+    buffer[#buffer + 1] = self:value_representation(value, nil, true)
   end
   return table.concat(buffer)
 end
 
-function _M.set_representation(elements)
-  return _M.list_representation(elements)
+function _M:set_representation(elements)
+  return self:list_representation(elements)
 end
 
-function _M.map_representation(map)
+function _M:map_representation(map)
   local buffer = {}
   local size = 0
   for key, value in pairs(map) do
-    buffer[#buffer + 1] = _M.value_representation(key, nil, true)
-    buffer[#buffer + 1] = _M.value_representation(value, nil, true)
+    buffer[#buffer + 1] = self:value_representation(key, nil, true)
+    buffer[#buffer + 1] = self:value_representation(value, nil, true)
     size = size + 1
   end
-  return _M.short_representation(size) .. table.concat(buffer)
+  return self:short_representation(size)..table.concat(buffer)
 end
 
-function _M.string_map_representation(map)
+function _M:string_map_representation(map)
   local buffer = {}
   local n = 0
   for k, v in pairs(map) do
-    buffer[#buffer + 1] = _M.string_representation(k)
-    buffer[#buffer + 1] = _M.string_representation(v)
+    buffer[#buffer + 1] = self:string_representation(k)
+    buffer[#buffer + 1] = self:string_representation(v)
     n = n + 1
   end
-  return _M.short_representation(n) .. table.concat(buffer)
+  return self:short_representation(n)..table.concat(buffer)
 end
 
 _M.encoders = {
@@ -234,7 +234,7 @@ _M.encoders = {
   [_M.TYPES.set]       = _M.set_representation
 }
 
-function _M.value_representation(value, cass_type, short)
+function _M:value_representation(value, cass_type, short)
   local infered_type
   local value_lua_type = type(value)
   if cass_type then
@@ -247,9 +247,9 @@ function _M.value_representation(value, cass_type, short)
     infered_type = _M.TYPES.boolean
   elseif value_lua_type == "table" and value.type == "null" then
     if short then
-      infered_type = _M.short_representation(-1)
+      infered_type = self:short_representation(-1)
     else
-      infered_type = _M.int_representation(-1)
+      infered_type = self:int_representation(-1)
     end
   elseif value_lua_type == "table" and value.type and value.value then
     -- Value passed as a binded parameter.
@@ -259,53 +259,53 @@ function _M.value_representation(value, cass_type, short)
     infered_type = _M.TYPES.varchar
   end
 
-  local representation = _M.encoders[infered_type](value)
+  local representation = _M.encoders[infered_type](self, value)
 
   if short then
-    return _M.short_bytes_representation(representation)
+    return self:short_bytes_representation(representation)
   else
-    return _M.bytes_representation(representation)
+    return self:bytes_representation(representation)
   end
 end
 
-function _M.values_representation(args)
+function _M:values_representation(args)
   if not args then
     return ""
   end
-  local values = {_M.short_representation(#args)}
+  local values = {self:short_representation(#args)}
   for _, value in ipairs(args) do
-    values[#values + 1] = _M.value_representation(value)
+    values[#values + 1] = self:value_representation(value)
   end
   return table.concat(values)
 end
 
 -- <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
 function _M:query_representation(args, options)
-  local consistency_repr = self.short_representation(options.consistency_level)
-  local args_representation = self.values_representation(args)
+  local consistency_repr = self:short_representation(options.consistency_level)
+  local args_representation = self:values_representation(args)
 
   -- <flags>
   local flags_repr = 0
   if args then
-    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.VALUES)
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.VALUES)
   end
 
   local paging_state = ""
   if options.paging_state then
-    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.PAGING_STATE)
-    paging_state = self.bytes_representation(options.paging_state)
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGING_STATE)
+    paging_state = self:bytes_representation(options.paging_state)
   end
 
   local page_size = ""
   if options.page_size > 0 then
-    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.PAGE_SIZE)
-    page_size = self.int_representation(options.page_size)
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGE_SIZE)
+    page_size = self:int_representation(options.page_size)
   end
 
   local serial_consistency = ""
   if options.serial_consistency ~= nil then
-    flags_repr = utils.setbit(flags_repr, self.constants.query_flags.SERIAL_CONSISTENCY)
-    serial_consistency = self.short_representation(options.serial_consistency)
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.SERIAL_CONSISTENCY)
+    serial_consistency = self:short_representation(options.serial_consistency)
   end
 
   return consistency_repr..string.char(flags_repr)..args_representation..page_size..paging_state..serial_consistency
@@ -317,29 +317,29 @@ function _M:batch_representation(batch, options)
   -- <type>
   b[#b + 1] = string.char(batch.type)
   -- <n> (number of queries)
-  b[#b + 1] = self.short_representation(#batch.queries)
+  b[#b + 1] = self:short_representation(#batch.queries)
   -- <query_i> (operations)
   for _, query in ipairs(batch.queries) do
     local kind
     local string_or_id
     if type(query.query) == "string" then
-      kind = self.boolean_representation(false)
-      string_or_id = self.long_string_representation(query.query)
+      kind = self:boolean_representation(false)
+      string_or_id = self:long_string_representation(query.query)
     else
-      kind = self.boolean_representation(true)
-      string_or_id = self.short_bytes_representation(query.query.id)
+      kind = self:boolean_representation(true)
+      string_or_id = self:short_bytes_representation(query.query.id)
     end
 
     -- <kind><string_or_id><n><value_1>...<value_n> (n can be 0, but is required)
     if query.args then
-      b[#b + 1] = kind..string_or_id..self.values_representation(query.args)
+      b[#b + 1] = kind..string_or_id..self:values_representation(query.args)
     else
-      b[#b + 1] = kind..string_or_id..self.short_representation(0)
+      b[#b + 1] = kind..string_or_id..self:short_representation(0)
     end
   end
 
   -- <consistency>
-  b[#b + 1] = self.short_representation(options.consistency_level)
+  b[#b + 1] = self:short_representation(options.consistency_level)
 
   -- <type><n><query_1>...<query_n><consistency>
   return table.concat(b)

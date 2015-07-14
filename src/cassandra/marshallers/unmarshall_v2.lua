@@ -1,5 +1,5 @@
-local marshall_v2 = require "cassandra.marshallers.marshall_v2"
 local Object = require "cassandra.classic"
+local Marshall_v2 = require "cassandra.marshallers.marshall_v2"
 
 local function read_raw_bytes(buffer, n_bytes)
   local bytes = string.sub(buffer.str, buffer.pos, buffer.pos + n_bytes - 1)
@@ -23,53 +23,53 @@ end
 
 local _M = Object:extend()
 
-function _M.create_buffer(str)
-  return { str = str, pos = 1 }
+function _M:create_buffer(str)
+  return {str = str, pos = 1}
 end
 
-function _M.read_raw_byte(buffer)
+function _M:read_raw_byte(buffer)
   return string.byte(read_raw_bytes(buffer, 1))
 end
 
-function _M.read_raw(value)
+function _M:read_raw(value)
   return value
 end
 
-function _M.read_short(buffer)
+function _M:read_short(buffer)
   return string_to_number(read_raw_bytes(buffer, 2), false)
 end
 
-function _M.read_int(buffer)
+function _M:read_int(buffer)
   return string_to_number(read_raw_bytes(buffer, 4), true)
 end
 
-function _M.read_signed_number(bytes)
+function _M:read_signed_number(bytes)
   return string_to_number(bytes, true)
 end
 
-function _M.read_string(buffer)
-  local str_size = _M.read_short(buffer)
+function _M:read_string(buffer)
+  local str_size = self:read_short(buffer)
   return read_raw_bytes(buffer, str_size)
 end
 
-function _M.read_boolean(bytes)
+function _M:read_boolean(bytes)
   return string.byte(bytes) == 1
 end
 
-function _M.read_bytes(buffer)
-  local size = _M.read_int(buffer, true)
+function _M:read_bytes(buffer)
+  local size = self:read_int(buffer, true)
   if size < 0 then
     return nil
   end
   return read_raw_bytes(buffer, size)
 end
 
-function _M.read_short_bytes(buffer)
-  local size = _M.read_short(buffer)
+function _M:read_short_bytes(buffer)
+  local size = self:read_short(buffer)
   return read_raw_bytes(buffer, size)
 end
 
-function _M.read_bigint(bytes)
+function _M:read_bigint(bytes)
   local b1, b2, b3, b4, b5, b6, b7, b8 = string.byte(bytes, 1, 8)
   if b1 < 0x80 then
     return ((((((b1 * 0x100 + b2) * 0x100 + b3) * 0x100 + b4) * 0x100 + b5) * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
@@ -78,7 +78,7 @@ function _M.read_bigint(bytes)
   end
 end
 
-function _M.read_double(bytes)
+function _M:read_double(bytes)
   local b1, b2, b3, b4, b5, b6, b7, b8 = string.byte(bytes, 1, 8)
   local sign = b1 > 0x7F
   local exponent = (b1 % 0x80) * 0x10 + math.floor(b2 / 0x10)
@@ -103,7 +103,7 @@ function _M.read_double(bytes)
   return number
 end
 
-function _M.read_float(bytes)
+function _M:read_float(bytes)
   local b1, b2, b3, b4 = string.byte(bytes, 1, 4)
   local exponent = (b1 % 0x80) * 0x02 + math.floor(b2 / 0x80)
   local mantissa = math.ldexp(((b2 % 0x80) * 0x100 + b3) * 0x100 + b4, -23)
@@ -125,7 +125,7 @@ function _M.read_float(bytes)
   return math.ldexp(mantissa, exponent - 0x7F)
 end
 
-function _M.read_inet(bytes)
+function _M:read_inet(bytes)
   local buffer = {}
   if #bytes == 16 then
     -- ipv6
@@ -140,46 +140,46 @@ function _M.read_inet(bytes)
   return table.concat(buffer, ".")
 end
 
-function _M.read_list(bytes, type)
+function _M:read_list(bytes, type)
   local element_type = type.value
-  local buffer = _M.create_buffer(bytes)
-  local n = _M.read_short(buffer)
+  local buffer = self:create_buffer(bytes)
+  local n = self:read_short(buffer)
   local elements = {}
   for _ = 1, n do
-    elements[#elements + 1] = _M.read_value(buffer, element_type, true)
+    elements[#elements + 1] = self:read_value(buffer, element_type, true)
   end
   return elements
 end
 
-function _M.read_map(bytes, type)
+function _M:read_map(bytes, type)
   local key_type = type.value[1]
   local value_type = type.value[2]
-  local buffer = _M.create_buffer(bytes)
-  local n = _M.read_short(buffer)
+  local buffer = self:create_buffer(bytes)
+  local n = self:read_short(buffer)
   local map = {}
   for _ = 1, n do
-    local key = _M.read_value(buffer, key_type, true)
-    map[key] = _M.read_value(buffer, value_type, true)
+    local key = self:read_value(buffer, key_type, true)
+    map[key] = self:read_value(buffer, value_type, true)
   end
   return map
 end
 
-function _M.read_option(buffer)
-  local type_id = _M.read_short(buffer)
+function _M:read_option(buffer)
+  local type_id = self:read_short(buffer)
   local type_value = nil
-  if type_id == marshall_v2.TYPES.custom then
-    type_value = _M.read_string(buffer)
-  elseif type_id == marshall_v2.TYPES.list then
-    type_value = _M.read_option(buffer)
-  elseif type_id == marshall_v2.TYPES.map then
-    type_value = {_M.read_option(buffer), _M.read_option(buffer)}
-  elseif type_id == marshall_v2.TYPES.set then
-    type_value = _M.read_option(buffer)
+  if type_id == Marshall_v2.TYPES.custom then
+    type_value = self:read_string(buffer)
+  elseif type_id == Marshall_v2.TYPES.list then
+    type_value = self:read_option(buffer)
+  elseif type_id == Marshall_v2.TYPES.map then
+    type_value = {self:read_option(buffer), self:read_option(buffer)}
+  elseif type_id == Marshall_v2.TYPES.set then
+    type_value = self:read_option(buffer)
   end
   return {id=type_id, value=type_value}
 end
 
-function _M.read_uuid(bytes)
+function _M:read_uuid(bytes)
   local buffer = {}
   for i = 1, #bytes do
     buffer[i] = string.format("%02x", string.byte(bytes, i))
@@ -193,39 +193,39 @@ end
 
 _M.decoders = {
   -- custom=0x00,
-  [marshall_v2.TYPES.ascii]=_M.read_raw,
-  [marshall_v2.TYPES.bigint]=_M.read_bigint,
-  [marshall_v2.TYPES.blob]=_M.read_raw,
-  [marshall_v2.TYPES.boolean]=_M.read_boolean,
-  [marshall_v2.TYPES.counter]=_M.read_bigint,
+  [Marshall_v2.TYPES.ascii]=_M.read_raw,
+  [Marshall_v2.TYPES.bigint]=_M.read_bigint,
+  [Marshall_v2.TYPES.blob]=_M.read_raw,
+  [Marshall_v2.TYPES.boolean]=_M.read_boolean,
+  [Marshall_v2.TYPES.counter]=_M.read_bigint,
   -- decimal=0x06,
-  [marshall_v2.TYPES.double]=_M.read_double,
-  [marshall_v2.TYPES.float]=_M.read_float,
-  [marshall_v2.TYPES.int]=_M.read_signed_number,
-  [marshall_v2.TYPES.text]=_M.read_raw,
-  [marshall_v2.TYPES.timestamp]=_M.read_bigint,
-  [marshall_v2.TYPES.uuid]=_M.read_uuid,
-  [marshall_v2.TYPES.varchar]=_M.read_raw,
-  [marshall_v2.TYPES.varint]=_M.read_signed_number,
-  [marshall_v2.TYPES.timeuuid]=_M.read_uuid,
-  [marshall_v2.TYPES.inet]=_M.read_inet,
-  [marshall_v2.TYPES.list]=_M.read_list,
-  [marshall_v2.TYPES.map]=_M.read_map,
-  [marshall_v2.TYPES.set]=_M.read_list
+  [Marshall_v2.TYPES.double]=_M.read_double,
+  [Marshall_v2.TYPES.float]=_M.read_float,
+  [Marshall_v2.TYPES.int]=_M.read_signed_number,
+  [Marshall_v2.TYPES.text]=_M.read_raw,
+  [Marshall_v2.TYPES.timestamp]=_M.read_bigint,
+  [Marshall_v2.TYPES.uuid]=_M.read_uuid,
+  [Marshall_v2.TYPES.varchar]=_M.read_raw,
+  [Marshall_v2.TYPES.varint]=_M.read_signed_number,
+  [Marshall_v2.TYPES.timeuuid]=_M.read_uuid,
+  [Marshall_v2.TYPES.inet]=_M.read_inet,
+  [Marshall_v2.TYPES.list]=_M.read_list,
+  [Marshall_v2.TYPES.map]=_M.read_map,
+  [Marshall_v2.TYPES.set]=_M.read_list
 }
 
-function _M.read_value(buffer, type, short)
+function _M:read_value(buffer, type, short)
   local bytes
   if short then
-    bytes = _M.read_short_bytes(buffer)
+    bytes = self:read_short_bytes(buffer)
   else
-    bytes = _M.read_bytes(buffer)
+    bytes = self:read_bytes(buffer)
   end
   if bytes == nil then
     return nil
   end
 
-  return _M.decoders[type.id](bytes, type)
+  return _M.decoders[type.id](self, bytes, type)
 end
 
 return _M

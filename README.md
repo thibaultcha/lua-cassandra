@@ -106,4 +106,4 @@ When developing, use the `Makefile` for doing the following operations:
 [badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-0.2.0--0-blue.svg?style=flat
+[badge-version-image]: https://img.shields.io/badge/version-0.3.1--0-blue.svg?style=flat

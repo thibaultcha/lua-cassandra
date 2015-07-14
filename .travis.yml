@@ -21,3 +21,6 @@ script:
   - "make lint"
 
 after_success: "luacov-coveralls -i cassandra"
+
+notifications:
+  email: false

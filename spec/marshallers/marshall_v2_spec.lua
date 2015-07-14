@@ -1,5 +1,8 @@
-local marshall_v2 = require "cassandra.marshallers.marshall_v2"
-local unsmarshall_v2 = require "cassandra.marshallers.unmarshall_v2"
+local Marshall_v2 = require "cassandra.marshallers.marshall_v2"
+local Unsmarshall_v2 = require "cassandra.marshallers.unmarshall_v2"
+
+local marshall_v2 = Marshall_v2()
+local unsmarshall_v2 = Unsmarshall_v2()
 
 describe("Marshallers v2", function()
 
@@ -32,9 +35,9 @@ describe("Marshallers v2", function()
   for fix_type, fix_values in pairs(fixtures) do
     it("should encode and decode a ["..fix_type.."]", function()
       for expected, fix_value in pairs(fix_values) do
-        local encoded = marshall_v2.value_representation(fix_value, marshall_v2.TYPES[fix_type])
-        local buffer = unsmarshall_v2.create_buffer(encoded)
-        local decoded = unsmarshall_v2.read_value(buffer, { id = marshall_v2.TYPES[fix_type] })
+        local encoded = marshall_v2:value_representation(fix_value, marshall_v2.TYPES[fix_type])
+        local buffer = unsmarshall_v2:create_buffer(encoded)
+        local decoded = unsmarshall_v2:read_value(buffer, { id = marshall_v2.TYPES[fix_type] })
 
         if fix_type == "float" then
           local delta = 0.0000001
@@ -50,17 +53,17 @@ describe("Marshallers v2", function()
 
   it("should encode and decode a [list]", function()
     local list_fixtures = {
-      { value_type = "text", value = {"abc", "def"} },
-      { value_type = "int", value = {0, 1, 2, 42, -42} },
+      {value_type = "text", value = {"abc", "def"}},
+      {value_type = "int", value = {0, 1, 2, 42, -42}},
     }
 
     for _, fixture in ipairs(list_fixtures) do
-      local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.list)
-      local buffer = unsmarshall_v2.create_buffer(encoded)
+      local encoded = marshall_v2:value_representation(fixture.value, marshall_v2.TYPES.list)
+      local buffer = unsmarshall_v2:create_buffer(encoded)
 
       local value_type = { id = marshall_v2.TYPES[fixture.value_type] }
 
-      local decoded = unsmarshall_v2.read_value(buffer, {
+      local decoded = unsmarshall_v2:read_value(buffer, {
         id = marshall_v2.TYPES.list,
         value = value_type
       })
@@ -70,19 +73,19 @@ describe("Marshallers v2", function()
 
   it("should encode and decode a [map]", function()
     local map_fixtures = {
-      { key_type = "text", value_type = "text", value = {k1='v1', k2='v2'} },
-      { key_type = "text", value_type = "int", value = {k1=1, k2=2} },
-      { key_type = "text", value_type = "int", value = {} },
+      {key_type = "text", value_type = "text", value = {k1='v1', k2='v2'}},
+      {key_type = "text", value_type = "int", value = {k1=1, k2=2}},
+      {key_type = "text", value_type = "int", value = {}},
     }
 
     for _, fixture in ipairs(map_fixtures) do
-      local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.map)
-      local buffer = unsmarshall_v2.create_buffer(encoded)
+      local encoded = marshall_v2:value_representation(fixture.value, marshall_v2.TYPES.map)
+      local buffer = unsmarshall_v2:create_buffer(encoded)
 
-      local key_type = { id = marshall_v2.TYPES[fixture.key_type] }
-      local value_type = { id = marshall_v2.TYPES[fixture.value_type] }
+      local key_type = {id = marshall_v2.TYPES[fixture.key_type]}
+      local value_type = {id = marshall_v2.TYPES[fixture.value_type]}
 
-      local decoded = unsmarshall_v2.read_value(buffer, {
+      local decoded = unsmarshall_v2:read_value(buffer, {
         id = marshall_v2.TYPES.map,
         value = {key_type, value_type}
       })
@@ -92,17 +95,17 @@ describe("Marshallers v2", function()
 
   it("should encode and decode a [set]", function()
     local set_fixtures = {
-      { value_type = "text", value = {"abc", "def"} },
-      { value_type = "int", value = {0, 1, 2, 42, -42} },
+      {value_type = "text", value = {"abc", "def"}},
+      {value_type = "int", value = {0, 1, 2, 42, -42}},
     }
 
     for _, fixture in ipairs(set_fixtures) do
-      local encoded = marshall_v2.value_representation(fixture.value, marshall_v2.TYPES.set)
-      local buffer = unsmarshall_v2.create_buffer(encoded)
+      local encoded = marshall_v2:value_representation(fixture.value, marshall_v2.TYPES.set)
+      local buffer = unsmarshall_v2:create_buffer(encoded)
 
-      local value_type = { id = marshall_v2.TYPES[fixture.value_type] }
+      local value_type = {id = marshall_v2.TYPES[fixture.value_type]}
 
-      local decoded = unsmarshall_v2.read_value(buffer, {
+      local decoded = unsmarshall_v2:read_value(buffer, {
         id = marshall_v2.TYPES.set,
         value = value_type
       })

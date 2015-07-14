@@ -47,7 +47,7 @@ local function answer_auth(self, response)
 end
 
 local function startup(self)
-  local frame_body = self.marshaller.string_map_representation({CQL_VERSION = _M.CQL_VERSION})
+  local frame_body = self.marshaller:string_map_representation({CQL_VERSION = _M.CQL_VERSION})
   local response, err = self:send_frame_and_get_response(self.constants.op_codes.STARTUP, frame_body)
   if not response then
     return false, err
@@ -282,7 +282,7 @@ end
 -- @param tracing A boolean indicating if the preparation of this query should be traced.
 -- @return statement A prepared statement to be given to @{execute}.
 function _M:prepare(query, tracing)
-  local frame_body = self.marshaller.long_string_representation(query)
+  local frame_body = self.marshaller:long_string_representation(query)
   local response, err = self:send_frame_and_get_response(self.constants.op_codes.PREPARE, frame_body, tracing)
   if not response then
     return nil, err

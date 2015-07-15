@@ -134,12 +134,15 @@ function _M:connect(contact_points, port, options)
       }
 
       self.socket = ssl.wrap(self.socket, params)
-      ok = self.socket:dohandshake()
+      ok, err = self.socket:dohandshake()
       if not ok then
-        return false, cerror("Invalid handshake")
+        return false, cerror(err)
       end
     else
-      self.socket:sslhandshake(nil, nil, options.ssl_verify)
+      ok, err = self.socket:sslhandshake(false, nil, options.ssl_verify)
+      if not ok then
+        return false, cerror(err)
+      end
     end
   end
 

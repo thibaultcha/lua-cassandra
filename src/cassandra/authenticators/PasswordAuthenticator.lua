@@ -22,7 +22,7 @@ function _M:new(user, password)
 end
 
 function _M:build_body()
-  return marshaller.bytes_representation(string.format("\0%s\0%s", self.user, self.password))
+  return marshaller:bytes_representation(string.format("\0%s\0%s", self.user, self.password))
 end
 
 function _M:authenticate(session)

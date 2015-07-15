@@ -133,7 +133,11 @@ function _M:connect(contact_points, port, options)
         options = "all"
       }
 
-      self.socket = ssl.wrap(self.socket, params)
+      self.socket, err = ssl.wrap(self.socket, params)
+      if err then
+        return false, cerror(err)
+      end
+
       ok, err = self.socket:dohandshake()
       if not ok then
         return false, cerror(err)

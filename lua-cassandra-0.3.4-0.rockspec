@@ -1,8 +1,8 @@
 package = "lua-cassandra"
-version = "0.3.3-0"
+version = "0.3.4-0"
 source = {
   url = "git://github.com/thibaultCha/lua-cassandra",
-  tag = "0.3.3"
+  tag = "0.3.4"
 }
 description = {
   summary = "Lua Cassandra client",

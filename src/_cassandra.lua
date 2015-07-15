@@ -38,7 +38,10 @@ function _M:__call(protocol)
     reader = reader,
     constants = constants,
     marshaller = marshaller,
-    unmarshaller = unmarshaller
+    unmarshaller = unmarshaller,
+    -- extern
+    consistency = constants.consistency,
+    batch_types = constants.batch_types
   }
 
   return setmetatable(cassandra_t, _M)

@@ -55,6 +55,8 @@ local function startup(self)
 
   if response.op_code == self.constants.op_codes.AUTHENTICATE then
     return answer_auth(self, response)
+  elseif response.op_code == self.constants.op_codes.ERROR then
+    return false, self.reader:read_error(response.buffer)
   elseif response.op_code ~= self.constants.op_codes.READY then
     return false, cerror("server is not ready")
   end
@@ -143,7 +145,7 @@ function _M:connect(contact_points, port, options)
 
   self.authenticator = options.authenticator
 
-  if not self.ready then
+  if self.socket_type ~= "ngx" or self:get_reused_times() < 1 then
     self.ready, err = startup(self)
     if not self.ready then
       return false, err

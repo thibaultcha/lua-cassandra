@@ -1,6 +1,6 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 
-.PHONY: dev clean test coverage lint
+.PHONY: dev clean test coverage lint doc
 
 dev:
 	@for rock in $(DEV_ROCKS) ; do \
@@ -24,3 +24,6 @@ coverage: clean
 
 lint:
 	@find . -not -path './doc/*' -name '*.lua' | xargs luacheck -q
+
+doc:
+	@ldoc -c doc/config.ld src

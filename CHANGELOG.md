@@ -1,24 +1,24 @@
-## [Unreleased][unreleased]
+### [Unreleased][unreleased]
 
 ##### Added
 
 - Better error handling in case of CA certificate error with Luasocket.
 
-## [0.3.5] - 2015/07/15
+### [0.3.5] - 2015/07/15
 
 ##### Added
 
 - Expose consistency and batch types constants in `cassandra`.
 - Better SSL handshake error handling.
 
-## [0.3.3] - 2015/07/14
+### [0.3.3] - 2015/07/14
 
 ##### Fixed
 
 - Binary protocol v3 accidentally used v2 encoding methods.
 - Startup message accidentally being sent for already established connections (with reusable sockets).
 
-## [0.3.0] - 2015/07/07
+### [0.3.0] - 2015/07/07
 
 ##### Added
 
@@ -28,13 +28,13 @@
 
 - IPv6 addresses encoding.
 
-## [0.2.0] - 2015/07/07
+### [0.2.0] - 2015/07/07
 
 ##### Added
 
 - Support for authentication (Password Authenticator).
 
-## [0.1.0] - 2015/07/03
+### 0.1.0 - 2015/07/03
 
 Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additional features and bug fixes.
 

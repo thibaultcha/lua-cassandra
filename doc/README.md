@@ -12,6 +12,7 @@ The following table describes which version(s) of the binary protocol is support
   <tr><td>1.2</td><td>1</td></tr>
   <tr><td>2.0</td><td>1, 2</td></tr>
   <tr><td>2.1</td><td>1, 2, 3</td></tr>
+  <tr><td>2.2</td><td>1, 2, 3</td></tr>
 </table>
 <br />
 

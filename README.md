@@ -2,7 +2,7 @@
 
 > This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the improvements section for more details.
 
-Lua Cassandra client using CQL binary protocol v2/v3.
+Lua Cassandra client using CQL binary protocol v2/v3 for Cassandra 2.0 and later.
 
 It is 100% non-blocking if used in Nginx/Openresty but can also be used with luasocket.
 
@@ -93,7 +93,7 @@ When developing, use the `Makefile` for doing the following operations:
 
 **Note:** Before running `make lint` or `make test` you will need to run `make dev`.
 
-**Note bis:** Tests are running for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.1.x`.
+**Note bis:** Tests are running for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.O` or later.
 
 [luarocks-url]: https://luarocks.org
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra

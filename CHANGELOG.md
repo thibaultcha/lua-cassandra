@@ -1,8 +1,15 @@
 ### [Unreleased][unreleased]
 
+### [0.3.6] - 2015/08/06
+
 ##### Added
 
 - Better error handling in case of CA certificate error with Luasocket.
+- Port number in addition to host in socket errors.
+
+##### Fixed
+
+- Shuffling of contact points array.
 
 ### [0.3.5] - 2015/07/15
 
@@ -51,7 +58,8 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.5...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.6...HEAD
+[0.3.6]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.5...0.3.6
 [0.3.5]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.3...0.3.5
 [0.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.0...0.3.3
 [0.3.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.2.0...0.3.0

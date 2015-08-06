@@ -15,6 +15,8 @@ function _M.big_endian_representation(num, bytes)
   return padding .. table.concat(t)
 end
 
+math.randomseed(os.time())
+
 -- @see http://en.wikipedia.org/wiki/Fisher-Yates_shuffle
 function _M.shuffle_array(arr)
   local n = #arr

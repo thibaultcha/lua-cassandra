@@ -26,12 +26,12 @@ function _M:receive_frame(session)
 
   local header, err = session.socket:receive(8)
   if not header then
-    return nil, string.format("Failed to read frame header from %s: %s", session.host, err)
+    return nil, string.format("Failed to read frame header from %s:%s : %s", session.host, session.port, err)
   end
   local header_buffer = unmarshaller:create_buffer(header)
   local version = unmarshaller:read_raw_byte(header_buffer)
   if version ~= self.constants.version_codes.RESPONSE then
-    return nil, string.format("Invalid response version received from %s", session.host)
+    return nil, string.format("Invalid response version received from %s:%s", session.host, session.port)
   end
   local flags = unmarshaller:read_raw_byte(header_buffer)
   local stream = unmarshaller:read_raw_byte(header_buffer)
@@ -42,7 +42,7 @@ function _M:receive_frame(session)
   if length > 0 then
     body, err = session.socket:receive(length)
     if not body then
-      return nil, string.format("Failed to read frame body from %s: %s", session.host, err)
+      return nil, string.format("Failed to read frame body from %s:%s : %s", session.host, session.port, err)
     end
   else
     body = ""

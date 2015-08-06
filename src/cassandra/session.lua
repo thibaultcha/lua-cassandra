@@ -20,7 +20,7 @@ function _M:send_frame_and_get_response(op_code, frame_body, tracing)
   local frame = self.writer:build_frame(op_code, frame_body, tracing)
   bytes, err = self.socket:send(frame)
   if not bytes then
-    return nil, cerror(string.format("Failed to send frame to %s: %s", self.host, err))
+    return nil, cerror(string.format("Failed to send frame to %s: %s:%s", self.host, self.port, err))
   end
   response, err = self.reader:receive_frame(self)
   if not response then

@@ -2,7 +2,7 @@
 
 This library is a pure Lua implementation of the Cassandra CQL binary protocol. It is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra] with support for more features, a few bug fixes and a more complete documentation.
 
-Among the features it adds, this fork supports both binary protocols v2 and v3.
+Among the features it adds, this fork supports binary protocols v2 and v3.
 
 The following table describes which version(s) of the binary protocol is supported for each version of Cassandra:
 
@@ -12,7 +12,7 @@ The following table describes which version(s) of the binary protocol is support
   <tr><td>1.2</td><td>1</td></tr>
   <tr><td>2.0</td><td>1, 2</td></tr>
   <tr><td>2.1</td><td>1, 2, 3</td></tr>
-  <tr><td>2.2</td><td>1, 2, 3</td></tr>
+  <tr><td>2.2</td><td>1, 2, 3, 4</td></tr>
 </table>
 <br />
 

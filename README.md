@@ -78,6 +78,7 @@ This fork provides the following improvements over the root project:
 
 - [ ] Support for binary protocol v3 named values when binding a query
 - [ ] Support for binary protocol v3 default timestamp option
+- [ ] Support for binary protocol v4
 
 ## Makefile Operations
 

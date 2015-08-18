@@ -1,11 +1,16 @@
 local utils = require "cassandra.utils"
 local constants = require "cassandra.constants.constants_v3"
 local Marshall_v2 = require "cassandra.marshallers.marshall_v2"
+local big_endian_representation = utils.big_endian_representation
 
 local _M = Marshall_v2:extend()
 
 _M.TYPES.udt = 0x30
 _M.TYPES.tuple = 0x31
+
+function _M:long_representation(num)
+  return big_endian_representation(num, 8)
+end
 
 function _M:list_representation(elements)
   local buffer = {self:int_representation(#elements)}
@@ -95,12 +100,42 @@ end
 
 -- <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
 function _M:query_representation(args, options)
-  local repr = self.super.query_representation(self, args, options)
+  local consistency_repr = self:short_representation(options.consistency_level)
+  local args_representation = self:values_representation(args)
 
-  -- TODO timestamp
+  -- <flags>
+  local flags_repr = 0
+  if args then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.VALUES)
+  end
+
+  local paging_state = ""
+  if options.paging_state then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGING_STATE)
+    paging_state = self:bytes_representation(options.paging_state)
+  end
+
+  local page_size = ""
+  if options.page_size > 0 then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGE_SIZE)
+    page_size = self:int_representation(options.page_size)
+  end
+
+  local serial_consistency = ""
+  if options.serial_consistency ~= nil then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.SERIAL_CONSISTENCY)
+    serial_consistency = self:short_representation(options.serial_consistency)
+  end
+
+  local timestamp = ""
+  if options.timestamp then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.DEFAULT_TIMESTAMP)
+    timestamp = self:long_representation(options.timestamp)
+  end
+
   -- TODO named values
 
-  return repr
+  return consistency_repr..string.char(flags_repr)..args_representation..page_size..paging_state..serial_consistency..timestamp
 end
 
 -- <type><n><query_1>...<query_n><consistency><flags>[serial_consistency>][<timestamp>]
@@ -114,10 +149,15 @@ function _M:batch_representation(batch, options)
     serial_consistency = self:short_representation(options.serial_consistency)
   end
 
-  -- TODO timestamp
+  local timestamp = ""
+  if options.timestamp then
+    flags_repr = utils.setbit(flags_repr, constants.query_flags.DEFAULT_TIMESTAMP)
+    timestamp = self:long_representation(options.timestamp)
+  end
+
   -- TODO named values
 
-  return repr..string.char(flags_repr)..serial_consistency
+  return repr..string.char(flags_repr)..serial_consistency..timestamp
 end
 
 return _M

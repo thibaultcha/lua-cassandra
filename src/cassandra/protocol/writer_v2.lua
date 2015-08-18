@@ -17,7 +17,7 @@ function _M:build_frame(op_code, body, tracing)
 end
 
 -- Query: <query><query_parameters>
--- Batch: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
+-- Batch: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>]
 function _M:build_body(operation, args, options)
   local op_code, op_repr, op_parameters = "", "", ""
   if type(operation) == "string" then

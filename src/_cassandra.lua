@@ -39,7 +39,7 @@ function _M:__call(protocol)
     constants = constants,
     marshaller = marshaller,
     unmarshaller = unmarshaller,
-    -- extern
+    -- public
     consistency = constants.consistency,
     batch_types = constants.batch_types
   }

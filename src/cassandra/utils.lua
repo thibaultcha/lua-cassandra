@@ -56,4 +56,36 @@ function _M.deep_copy(orig)
   return copy
 end
 
+-- lua-cjson (by Mark Pulford)
+-- https://github.com/mpx/lua-cjson/blob/master/lua/cjson/util.lua
+-- Modified to not allow any sparse array.
+--
+-- Determine with a Lua table can be treated as an array.
+-- Explicitly returns "not an array" for very sparse arrays.
+-- Returns:
+-- -1   Not an array
+-- 0    Empty table
+-- >0   Highest index in the array
+function _M.is_array(table)
+  local max = 0
+  local count = 0
+  for k, v in pairs(table) do
+    if type(k) == "number" then
+      if k > max then max = k end
+      count = count + 1
+    else
+      return -1
+    end
+  end
+  if max > count then
+    return -1
+  end
+
+  return max
+end
+
+function _M.trim(s)
+  return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
 return _M

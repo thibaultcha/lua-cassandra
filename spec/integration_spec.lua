@@ -512,4 +512,68 @@ describe("Only v3", function()
       assert.same("", row.address.country)
     end)
   end)
+  describe("Default timestamp", function()
+    setup(function()
+      local err = select(2, session:execute([[
+        CREATE TABLE user_profiles (
+          key text PRIMARY KEY,
+          value text
+        )
+      ]]))
+      assert.falsy(err)
+    end)
+    describe("Query", function()
+      it("should override the server-side timestamp", function()
+        local rows, err
+        err = select(2, session:execute([[
+          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+        ]], {"server-side", "foo"}))
+        assert.falsy(err)
+
+        err = select(2, session:execute([[
+          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+        ]], {"client-side", "bar"}, {timestamp = 684346140}))
+        assert.falsy(err)
+
+        rows, err = session:execute([[SELECT writetime(value), key FROM user_profiles]])
+        assert.falsy(err)
+        assert.equal(2, #rows)
+
+        for _, row in ipairs(rows) do
+          if row.key == "client-side" then
+            assert.equal(684346140, row["writetime(value)"])
+          else
+            assert.not_equal(684346140, row["writetime(value)"])
+          end
+        end
+      end)
+    end)
+    describe("BatchStatement", function()
+      it("should override the server-side timestamp", function()
+        local batch = cassandra_v3:BatchStatement()
+        batch:add([[
+          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+        ]], {"batch-server-side", "foo"})
+        batch:add([[
+          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+        ]], {"batch-server-side-2", "bar"})
+
+        local rows, err
+        err = select(2, session:execute(batch, nil, {timestamp = 684346139}))
+        assert.falsy(err)
+
+        rows, err = session:execute([[SELECT writetime(value), key FROM user_profiles]])
+        assert.falsy(err)
+        assert.equal(4, #rows)
+
+        for _, row in ipairs(rows) do
+          if row.key == "batch-server-side" or row.key == "batch-server-side-2" then
+            assert.equal(684346139, row["writetime(value)"])
+          else
+            assert.not_equal(684346139, row["writetime(value)"])
+          end
+        end
+      end)
+    end)
+  end)
 end)

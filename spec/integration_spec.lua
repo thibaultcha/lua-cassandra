@@ -483,7 +483,7 @@ describe("Only v3", function()
       assert.falsy(err)
 
       err = select(2, session:execute([[
-        CREATE TABLE user_profiles (
+        CREATE TABLE users (
           email text PRIMARY KEY,
           address frozen<address>
         )
@@ -492,17 +492,17 @@ describe("Only v3", function()
     end)
     teardown(function()
       session:execute("DROP TYPE address")
-      session:execute("DROP TABLE user_profiles")
+      session:execute("DROP TABLE users")
     end)
     it("should be possible to insert and get value back", function()
       local rows, err
       err = select(2, session:execute([[
-        INSERT INTO user_profiles(email, address) VALUES (?, ?)
+        INSERT INTO users(email, address) VALUES(?, ?)
       ]], {"email@domain.com", cassandra_v3.udt({ "montgomery street", "san francisco", 94111, nil })}))
 
       assert.falsy(err)
 
-      rows, err = session:execute("SELECT address FROM user_profiles WHERE email = 'email@domain.com'")
+      rows, err = session:execute("SELECT address FROM users WHERE email = 'email@domain.com'")
       assert.falsy(err)
       assert.same(1, #rows)
       local row = rows[1]
@@ -512,30 +512,82 @@ describe("Only v3", function()
       assert.same("", row.address.country)
     end)
   end)
-  describe("Default timestamp", function()
+  describe("Named values", function()
     setup(function()
       local err = select(2, session:execute([[
-        CREATE TABLE user_profiles (
+        CREATE TABLE users (
           key text PRIMARY KEY,
           value text
         )
       ]]))
       assert.falsy(err)
     end)
+    teardown(function()
+      session:execute("DROP TABLE users")
+    end)
+    describe("Query", function()
+      it("should bind parameters by name", function()
+        local rows, err
+        err = select(2, session:execute([[
+          INSERT INTO users(key, value) VALUES(?, ?)
+        ]], {key = "named", value = "win"}))
+        assert.falsy(err)
+
+        rows, err = session:execute("SELECT * FROM users")
+        assert.falsy(err)
+        assert.equal("named", rows[1].key)
+        assert.equal("win", rows[1].value)
+      end)
+    end)
+    describe("BatchStatement", function()
+      it("should bind parameters by name", function()
+        local batch = cassandra_v3:BatchStatement()
+        batch:add([[
+          INSERT INTO users(key, value) VALUES(?, ?)
+        ]], {["k"]="a",["v"]="c"})
+        --batch:add([[
+        --  INSERT INTO users(key, value) VALUES(?, ?)
+        --]], {["k"]="b",["v"]="d"})
+
+        local rows, err
+        err = select(2, session:execute(batch))
+        assert.falsy(err)
+
+        rows, err = session:execute("SELECT * FROM users")
+        assert.falsy(err)
+        local inspect = require "inspect"
+        print(inspect(rows))
+        assert.equal(3, #rows)
+      end)
+    end)
+  end)
+  describe("Default timestamp", function()
+    setup(function()
+      local err = select(2, session:execute([[
+        CREATE TABLE users (
+          key text PRIMARY KEY,
+          value text
+        )
+      ]]))
+      assert.falsy(err)
+    end)
+    teardown(function()
+      session:execute("DROP TABLE users")
+    end)
     describe("Query", function()
       it("should override the server-side timestamp", function()
         local rows, err
         err = select(2, session:execute([[
-          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+          INSERT INTO users(key, value) VALUES(?, ?)
         ]], {"server-side", "foo"}))
         assert.falsy(err)
 
         err = select(2, session:execute([[
-          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+          INSERT INTO users(key, value) VALUES(?, ?)
         ]], {"client-side", "bar"}, {timestamp = 684346140}))
         assert.falsy(err)
 
-        rows, err = session:execute([[SELECT writetime(value), key FROM user_profiles]])
+        rows, err = session:execute([[SELECT writetime(value), key FROM users]])
         assert.falsy(err)
         assert.equal(2, #rows)
 
@@ -552,17 +604,17 @@ describe("Only v3", function()
       it("should override the server-side timestamp", function()
         local batch = cassandra_v3:BatchStatement()
         batch:add([[
-          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+          INSERT INTO users(key, value) VALUES(?, ?)
         ]], {"batch-server-side", "foo"})
         batch:add([[
-          INSERT INTO user_profiles(key, value) VALUES (?, ?)
+          INSERT INTO users(key, value) VALUES(?, ?)
         ]], {"batch-server-side-2", "bar"})
 
         local rows, err
         err = select(2, session:execute(batch, nil, {timestamp = 684346139}))
         assert.falsy(err)
 
-        rows, err = session:execute([[SELECT writetime(value), key FROM user_profiles]])
+        rows, err = session:execute([[SELECT writetime(value), key FROM users]])
         assert.falsy(err)
         assert.equal(4, #rows)
 

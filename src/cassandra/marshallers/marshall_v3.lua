@@ -98,66 +98,129 @@ function _M:value_representation(value, cass_type)
   return self:bytes_representation(representation)
 end
 
+function _M:values_representation(args, named)
+  if not args then
+    return ""
+  elseif named then
+    local values = {}
+    for name, value in pairs(args) do
+      values[#values + 1] = self:string_representation(name)..self:value_representation(value)
+    end
+    local len = self:short_representation(#values)
+    table.insert(values, 1, len)
+    return table.concat(values)
+  else
+    return self.super.values_representation(self, args)
+  end
+end
+
 -- <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
 function _M:query_representation(args, options)
   local consistency_repr = self:short_representation(options.consistency_level)
-  local args_representation = self:values_representation(args)
+  local args_representation = ""
 
   -- <flags>
-  local flags_repr = 0
+  local flags = 0
   if args then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.VALUES)
+    flags = utils.setbit(flags, constants.query_flags.VALUES)
+    if utils.is_array(args) ~= -1 then
+      args_representation = self:values_representation(args)
+    else
+      args_representation = self:values_representation(args, true)
+      flags = utils.setbit(flags, constants.query_flags.NAMED_VALUES)
+    end
   end
 
   local paging_state = ""
   if options.paging_state then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGING_STATE)
+    flags = utils.setbit(flags, constants.query_flags.PAGING_STATE)
     paging_state = self:bytes_representation(options.paging_state)
   end
 
   local page_size = ""
   if options.page_size > 0 then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGE_SIZE)
+    flags = utils.setbit(flags, constants.query_flags.PAGE_SIZE)
     page_size = self:int_representation(options.page_size)
   end
 
   local serial_consistency = ""
   if options.serial_consistency ~= nil then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.SERIAL_CONSISTENCY)
+    flags = utils.setbit(flags, constants.query_flags.SERIAL_CONSISTENCY)
     serial_consistency = self:short_representation(options.serial_consistency)
   end
 
   local timestamp = ""
   if options.timestamp then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.DEFAULT_TIMESTAMP)
+    flags = utils.setbit(flags, constants.query_flags.DEFAULT_TIMESTAMP)
     timestamp = self:long_representation(options.timestamp)
   end
 
-  -- TODO named values
-
-  return consistency_repr..string.char(flags_repr)..args_representation..page_size..paging_state..serial_consistency..timestamp
+  return consistency_repr..string.char(flags)..args_representation..page_size..paging_state..serial_consistency..timestamp
 end
 
 -- <type><n><query_1>...<query_n><consistency><flags>[serial_consistency>][<timestamp>]
 function _M:batch_representation(batch, options)
-  local repr = self.super.batch_representation(self, batch, options)
-  local flags_repr = 0
+  local named_values = false
 
+  local b = {}
+  -- <type>
+  b[#b + 1] = string.char(batch.type)
+  -- <n> (number of queries)
+  b[#b + 1] = self:short_representation(#batch.queries)
+  -- <query_i> (operations)
+  for _, query in ipairs(batch.queries) do
+    local kind, string_or_id
+    if type(query.query) == "string" then
+      kind = self:boolean_representation(false)
+      string_or_id = self:long_string_representation(utils.trim(query.query))
+    else
+      kind = self:boolean_representation(true)
+      string_or_id = self:short_bytes_representation(query.query.id)
+    end
+
+    -- <kind><string_or_id><n>[<name_1>]<value_1>...[<name_n>]<value_n> (n can be 0, but is required)
+    if query.args then
+      if utils.is_array(query.args) ~= -1 then
+        b[#b + 1] = kind..string_or_id..self:values_representation(query.args)
+      else
+        -- if true for one query_i, should be true for all
+        named_values = true
+        b[#b + 1] = kind..string_or_id..self:values_representation(query.args, true)
+      end
+    else
+      b[#b + 1] = kind..string_or_id..self:short_representation(0)
+    end
+  end
+
+  -- <consistency>
+  b[#b + 1] = self:short_representation(options.consistency_level)
+
+  -- <flags>
+  local flags = 0
+
+  -- [<serial_consistency>]
   local serial_consistency = ""
   if options.serial_consistency ~= nil then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.SERIAL_CONSISTENCY)
+    flags = utils.setbit(flags, constants.query_flags.SERIAL_CONSISTENCY)
     serial_consistency = self:short_representation(options.serial_consistency)
   end
 
+  -- [<timestamp>]
   local timestamp = ""
-  if options.timestamp then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.DEFAULT_TIMESTAMP)
+  if options.timestamp ~= nil then
+    flags = utils.setbit(flags, constants.query_flags.DEFAULT_TIMESTAMP)
     timestamp = self:long_representation(options.timestamp)
   end
 
-  -- TODO named values
+  if named_values then
+    flags = utils.setbit(flags, constants.query_flags.NAMED_VALUES)
+  end
 
-  return repr..string.char(flags_repr)..serial_consistency..timestamp
+  b[#b + 1] = string.char(flags)
+  b[#b + 1] = serial_consistency
+  b[#b + 1] = timestamp
+
+  return table.concat(b)
 end
 
 return _M

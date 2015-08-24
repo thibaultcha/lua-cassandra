@@ -285,30 +285,30 @@ function _M:query_representation(args, options)
   local args_representation = self:values_representation(args)
 
   -- <flags>
-  local flags_repr = 0
+  local flags = 0
   if args then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.VALUES)
+    flags = utils.setbit(flags, constants.query_flags.VALUES)
   end
 
   local paging_state = ""
   if options.paging_state then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGING_STATE)
+    flags = utils.setbit(flags, constants.query_flags.PAGING_STATE)
     paging_state = self:bytes_representation(options.paging_state)
   end
 
   local page_size = ""
   if options.page_size > 0 then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.PAGE_SIZE)
+    flags = utils.setbit(flags, constants.query_flags.PAGE_SIZE)
     page_size = self:int_representation(options.page_size)
   end
 
   local serial_consistency = ""
   if options.serial_consistency ~= nil then
-    flags_repr = utils.setbit(flags_repr, constants.query_flags.SERIAL_CONSISTENCY)
+    flags = utils.setbit(flags, constants.query_flags.SERIAL_CONSISTENCY)
     serial_consistency = self:short_representation(options.serial_consistency)
   end
 
-  return consistency_repr..string.char(flags_repr)..args_representation..page_size..paging_state..serial_consistency
+  return consistency_repr..string.char(flags)..args_representation..page_size..paging_state..serial_consistency
 end
 
 -- <type><n><query_1>...<query_n><consistency>
@@ -320,8 +320,7 @@ function _M:batch_representation(batch, options)
   b[#b + 1] = self:short_representation(#batch.queries)
   -- <query_i> (operations)
   for _, query in ipairs(batch.queries) do
-    local kind
-    local string_or_id
+    local kind, string_or_id
     if type(query.query) == "string" then
       kind = self:boolean_representation(false)
       string_or_id = self:long_string_representation(query.query)

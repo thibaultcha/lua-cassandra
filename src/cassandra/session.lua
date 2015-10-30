@@ -91,7 +91,7 @@ function _M:connect(contact_points, port, options)
     error("no contact points provided", 2)
   elseif type(contact_points) == "table" then
     -- shuffle the contact points so we don't try to always connect on the same order,
-    -- avoiding pressure on the same node cordinator.
+    -- avoiding pressure on the same node coordinator.
     contact_points = utils.shuffle_array(contact_points)
   else
     contact_points = {contact_points}

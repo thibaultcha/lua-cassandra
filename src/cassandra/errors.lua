@@ -1,0 +1,60 @@
+local type = type
+local tostring = tostring
+local string_format = string.format
+
+--- CONST
+-- @section constants
+
+local ERROR_TYPES = {
+  NoHostAvailableError = {
+    info = "Represents an error when a query cannot be performed because no host is available or could be reached by the driver.",
+    message = function(errors)
+      if type(errors) ~= "table" then
+        error("NoHostAvailableError must be given a list of errors")
+      end
+
+      local message = "All hosts tried for query failed."
+      for address, err in pairs(errors) do
+        message = string_format("%s %s: %s.", message, address, err)
+      end
+      return message
+    end
+  }
+}
+
+--- ERROR_MT
+-- @section error_mt
+
+local _error_mt = {}
+_error_mt.__index = _error_mt
+
+function _error_mt:__tostring()
+  return tostring(string_format("%s: %s", self.type, self.message))
+end
+
+function _error_mt.__concat(a, b)
+  if getmetatable(a) == _error_mt then
+    return tostring(a)..b
+  else
+    return a..tostring(b)
+  end
+end
+
+--- _ERRORS
+-- @section _errors
+
+local _ERRORS = {}
+
+for k, v in pairs(ERROR_TYPES) do
+  _ERRORS[k] = function(message)
+    local err = {
+      type = k,
+      info = v.info,
+      message = type(v.message) == "function" and v.message(message) or message
+    }
+
+    return setmetatable(err, error_mt)
+  end
+end
+
+return _ERRORS

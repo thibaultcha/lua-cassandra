@@ -1,3 +1,5 @@
+local CONSTS = require "cassandra.consts"
+
 local _M = {}
 
 function _M.big_endian_representation(num, bytes)
@@ -13,6 +15,20 @@ function _M.big_endian_representation(num, bytes)
   end
   local padding = string.rep(string.char(0), bytes - #t)
   return padding .. table.concat(t)
+end
+
+function _M.string_to_number(str, signed)
+  local number = 0
+  local exponent = 1
+  for i = #str, 1, -1 do
+    number = number + string.byte(str, i) * exponent
+    exponent = exponent * 256
+  end
+  if signed and number > exponent / 2 then
+    -- 2's complement
+    number = number - exponent
+  end
+  return number
 end
 
 math.randomseed(os.time())
@@ -72,5 +88,25 @@ function _M.deep_copy(orig)
   end
   return copy
 end
+
+local rawget = rawget
+
+local _const_mt = {
+  get = function(t, key, version)
+    if not version then version = CONSTS.MAX_PROTOCOL_VERSION end
+
+    local const, version_consts
+    while version >= CONSTS.MIN_PROTOCOL_VERSION and const == nil do
+      version_consts = t[version] ~= nil and t[version] or t
+      const = rawget(version_consts, key)
+      version = version - 1
+    end
+    return const
+  end
+}
+
+_const_mt.__index = _const_mt
+
+_M.const_mt = _const_mt
 
 return _M

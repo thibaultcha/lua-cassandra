@@ -1,5 +1,6 @@
 --- Represent one socket to connect to a Cassandra node
 local Object = require "cassandra.classic"
+local CONSTS = require "cassandra.consts"
 
 --- Constants
 -- @section constants

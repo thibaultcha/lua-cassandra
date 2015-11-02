@@ -3,18 +3,18 @@ local Object = require "cassandra.classic"
 local HostConnection = require "cassandra.host_connection"
 local string_find = string.find
 
---- _HOST
+--- Host
 -- @section host
 
-local _HOST = Object:extend()
+local Host = Object:extend()
 
-function _HOST:new(host, port)
-  self.address = host..":"..port
+function Host:new(address, port)
+  self.address = address..":"..port
   self.casandra_version = nil
   self.datacenter = nil
   self.rack = nil
   self.unhealthy_at = 0
-  self.connection = HostConnection(host, port)
+  self.connection = HostConnection(address, port)
 end
 
-return _HOST
+return Host

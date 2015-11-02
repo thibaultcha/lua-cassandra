@@ -16,16 +16,15 @@ local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
 --- CONTROL_CONNECTION
 -- @section control_connection
 
-local _CONTROL_CONNECTION = Object:extend()
+local ControlConnection = Object:extend()
 
-function _CONTROL_CONNECTION:new(options)
+function ControlConnection:new(options)
   -- @TODO check attributes are valid (contact points, etc...)
   self.hosts = {}
   self.contact_points = options.contact_points
-  self.protocol_version = nil
 end
 
-function _CONTROL_CONNECTION:init()
+function ControlConnection:init()
   for _, contact_point in ipairs(self.contact_points) do
     -- Extract port if string is of the form "host:port"
     local addr, port = utils.split_by_colon(contact_point)
@@ -45,8 +44,8 @@ function _CONTROL_CONNECTION:init()
   return self.hosts
 end
 
-function _CONTROL_CONNECTION:get_peers()
+function ControlConnection:get_peers()
 
 end
 
-return _CONTROL_CONNECTION
+return ControlConnection

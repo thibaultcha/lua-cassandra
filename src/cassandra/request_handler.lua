@@ -1,12 +1,13 @@
 local Object = require "cassandra.classic"
 local Errors = require "cassandra.errors"
+local ipairs = ipairs
 
---- _REQUEST_HANDLER
+--- RequestHandler
 -- @section request_handler
 
-local _REQUEST_HANDLER = Object:extend()
+local RequestHandler = Object:extend()
 
-function _REQUEST_HANDLER:mew(options)
+function RequestHandler:mew(options)
   self.loadBalancingPolicy = nil -- @TODO
   self.retryPolicy = nil -- @TODO
   self.request = options.request
@@ -14,7 +15,7 @@ function _REQUEST_HANDLER:mew(options)
 end
 
 -- Get the first connection from the available one with no regards for the load balancing policy
-function _REQUEST_HANDLER.get_first_host(hosts)
+function RequestHandler.get_first_host(hosts)
   local errors = {}
   for _, host in ipairs(hosts) do
     local connected, err = host.connection:open()
@@ -28,4 +29,4 @@ function _REQUEST_HANDLER.get_first_host(hosts)
   return nil, Errors.NoHostAvailableError(errors)
 end
 
-return _REQUEST_HANDLER
+return RequestHandler

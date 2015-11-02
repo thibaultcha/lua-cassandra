@@ -1,4 +1,5 @@
 local utils = require "cassandra.utils"
+local bit = require "bit"
 local Buffer = require "cassandra.buffer"
 
 --- CONST
@@ -22,7 +23,9 @@ local FLAGS = {
   TRACING = 0x02
 }
 
-setmetatable(FLAGS, utils.const_mt)
+-- when we'll support protocol v4, other
+-- flags will be added.
+-- setmetatable(FLAGS, utils.const_mt)
 
 local OP_CODES = {
   ERROR = 0x00,
@@ -43,8 +46,6 @@ local OP_CODES = {
   AUTH_SUCCESS = 0x10
 }
 
-setmetatable(OP_CODES, utils.const_mt)
-
 --- FrameHeader
 -- @section FrameHeader
 
@@ -53,19 +54,37 @@ local FrameHeader = Buffer:extend()
 function FrameHeader:new(version, flags, op_code, body_length)
   self.flags = flags and flags or 0
   self.op_code = op_code
+  self.stream_id = 0 -- @TODO support streaming
   self.body_length = body_length
 
   self.super.new(self, nil, version)
 end
 
 function FrameHeader:write()
-  self.super.write_byte(self, VERSION_CODES[self.version].REQUEST)
-  self.super.write_byte(self, self.flags) -- @TODO make sure to expose flags to the client or find a more secure way
-  self.super.write_byte(self, 0) -- @TODO support streaming
-  self.super.write_byte(self, self.op_code) -- @TODO make sure to expose op_codes to the client or find a more secure way
+  self.super.write_byte(self, VERSION_CODES:get("REQUEST", self.version))
+  self.super.write_byte(self, self.flags) -- @TODO find a more secure way
+  self.super.write_byte(self, self.stream_id)
+  self.super.write_byte(self, self.op_code) -- @TODO find a more secure way
   self.super.write_integer(self, self.body_length)
 
   return self.super.write(self)
+end
+
+function FrameHeader.from_raw_bytes(raw_bytes)
+  local buffer = Buffer(raw_bytes)
+  local version = bit.band(buffer:read_byte(), 0x7F)
+  buffer.version = version
+  local flags = buffer:read_byte()
+  local stream_id
+  if version < 3 then
+    stream_id = buffer:read_byte()
+  else
+    stream_id = buffer:read_short()
+  end
+  local op_code = buffer:read_byte()
+  local body_length = buffer:read_integer()
+
+  return FrameHeader(version, flags, op_code, body_length)
 end
 
 return {

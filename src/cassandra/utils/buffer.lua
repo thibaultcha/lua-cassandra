@@ -16,16 +16,17 @@ function Buffer:write()
   return self.str
 end
 
-function Buffer:write_bytes(value)
-  self.str = self.str..value
-  self.len = self.len + #value
+function Buffer:write_bytes(bytes)
+  self.str = self.str..bytes
+  self.len = self.len + #bytes
   self.pos = self.len
 end
 
 function Buffer:read_bytes(n_bytes_to_read)
   local last_index = n_bytes_to_read ~= nil and self.pos + n_bytes_to_read - 1 or -1
   local bytes = string_sub(self.str, self.pos, last_index)
-  self.pos = self.pos + #bytes  return bytes
+  self.pos = self.pos + #bytes
+  return bytes
 end
 
 function Buffer.from_buffer(buffer)

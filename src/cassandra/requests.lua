@@ -13,13 +13,13 @@ local Request = Buffer:extend()
 function Request:new(options)
   if options == nil then options = {} end
 
-  self.version = options.version and options.version or CONSTS.DEFAULT_PROTOCOL_VERSION
+  self.version = nil -- to be set by host_connection.lua before being sent
   self.op_code = options.op_code
 
   Request.super.new(self, nil, self.version)
 end
 
-function Request:write(flags)
+function Request:get_full_frame(flags)
   if not self.op_code then error("Request#write() has no op_code") end
 
   local frameHeader = FrameHeader(self.version, flags, self.op_code, self.len)
@@ -31,10 +31,8 @@ end
 
 local StartupRequest = Request:extend()
 
-function StartupRequest:new(...)
-  StartupRequest.super.new(self, ...)
-
-  self.op_code = op_codes.STARTUP
+function StartupRequest:new()
+  StartupRequest.super.new(self, {op_code = op_codes.STARTUP})
   StartupRequest.super.write_string_map(self, {
     CQL_VERSION = CONSTS.CQL_VERSION
   })

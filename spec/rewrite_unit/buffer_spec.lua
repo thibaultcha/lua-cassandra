@@ -1,6 +1,6 @@
 local Buffer = require "cassandra.buffer"
 
-describe("Types", function()
+describe("Buffer", function()
   local FIXTURES = {
     short = {0, 1, -1, 12, 13},
     byte = {1, 2, 3},
@@ -31,4 +31,16 @@ describe("Types", function()
       end
     end)
   end
+
+  it("should accumulate values", function()
+    local writer = Buffer()
+    writer:write_byte(2)
+    writer:write_integer(128)
+    writer:write_string("hello world")
+
+    local reader = Buffer.from_buffer(writer)
+    assert.equal(2, reader:read_byte())
+    assert.equal(128, reader:read_integer())
+    assert.equal("hello world", reader:read_string())
+  end)
 end)

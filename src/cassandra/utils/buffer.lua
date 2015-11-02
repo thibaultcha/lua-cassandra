@@ -28,4 +28,8 @@ function Buffer:read_bytes(n_bytes_to_read)
   self.pos = self.pos + #bytes  return bytes
 end
 
+function Buffer.from_buffer(buffer)
+  return Buffer(buffer:write(), buffer.version)
+end
+
 return Buffer

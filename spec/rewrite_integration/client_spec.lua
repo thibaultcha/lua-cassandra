@@ -1,5 +1,7 @@
 local Client = require "cassandra.client"
 
+local ONE_NODE_CLUSTER = {"127.0.0.1"}
+
 describe("Client", function()
   it("should be instanciable", function()
     assert.has_no_errors(function()
@@ -13,6 +15,10 @@ describe("Client", function()
       local err = client:execute()
       assert.truthy(err)
       assert.equal("NoHostAvailableError", err.type)
+    end)
+    it("TODO", function()
+      local client = Client({contact_points = ONE_NODE_CLUSTER})
+      local err = client:execute()
     end)
   end)
 end)

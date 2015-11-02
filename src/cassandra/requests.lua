@@ -13,7 +13,7 @@ local Request = Buffer:extend()
 function Request:new(options)
   if options == nil then options = {} end
 
-  self.version = nil -- to be set by host_connection.lua before being sent
+  self.version = options.version -- to be set by host_connection.lua before being sent
   self.op_code = options.op_code
 
   Request.super.new(self, nil, self.version)
@@ -31,8 +31,10 @@ end
 
 local StartupRequest = Request:extend()
 
-function StartupRequest:new()
-  StartupRequest.super.new(self, {op_code = op_codes.STARTUP})
+function StartupRequest:new(options)
+  if options == nil then options = {} end
+  options.op_code = op_codes.STARTUP
+  StartupRequest.super.new(self, options)
   StartupRequest.super.write_string_map(self, {
     CQL_VERSION = CONSTS.CQL_VERSION
   })

@@ -63,7 +63,13 @@ end
 function FrameHeader:write()
   self.super.write_byte(self, VERSION_CODES:get("REQUEST", self.version))
   self.super.write_byte(self, self.flags) -- @TODO find a more secure way
-  self.super.write_byte(self, self.stream_id)
+
+  if self.version < 3 then
+    self.super.write_byte(self, self.stream_id)
+  else
+    self.super.write_short(self, self.stream_id)
+  end
+
   self.super.write_byte(self, self.op_code) -- @TODO find a more secure way
   self.super.write_integer(self, self.body_length)
 
@@ -75,12 +81,14 @@ function FrameHeader.from_raw_bytes(raw_bytes)
   local version = bit.band(buffer:read_byte(), 0x7F)
   buffer.version = version
   local flags = buffer:read_byte()
+
   local stream_id
   if version < 3 then
     stream_id = buffer:read_byte()
   else
     stream_id = buffer:read_short()
   end
+
   local op_code = buffer:read_byte()
   local body_length = buffer:read_integer()
 

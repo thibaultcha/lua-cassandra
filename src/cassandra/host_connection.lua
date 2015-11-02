@@ -83,9 +83,11 @@ local function send_and_receive(self, request)
   local frameHeader = FrameHeader.from_raw_bytes(header_bytes)
 
   -- Receive frame body
-  local body_bytes, err = self.socket:receive(frameHeader.body_length)
-  if body_bytes == nil then
-    return nil, err
+  if frameHeader.body_length > 0 then
+    local body_bytes, err = self.socket:receive(frameHeader.body_length)
+    if body_bytes == nil then
+      return nil, err
+    end
   end
   local frameReader = FrameReader(frameHeader, body_bytes)
 

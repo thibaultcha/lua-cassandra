@@ -22,8 +22,11 @@ local ERROR_TYPES = {
   },
   ResponseError = {
     info = "Represents an error message from the server.",
-    message = function(code_translation, message)
+    message = function(code, code_translation, message)
       return "["..code_translation.."] "..message
+    end,
+    meta = function(code)
+      return {code = code}
     end
   }
 }
@@ -53,11 +56,21 @@ local _ERRORS = {}
 
 for k, v in pairs(ERROR_TYPES) do
   _ERRORS[k] = function(...)
+    local arg = {...}
     local err = {
       type = k,
       info = v.info,
       message = type(v.message) == "function" and v.message(...) or arg[1]
     }
+
+    if type(v.meta) == "function" then
+      local meta = v.meta(...)
+      for meta_k, meta_v in pairs(meta) do
+        if err[meta_k] == nil then
+          err[meta_k] = meta_v
+        end
+      end
+    end
 
     return setmetatable(err, _error_mt)
   end

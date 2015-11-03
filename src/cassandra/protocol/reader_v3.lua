@@ -5,17 +5,17 @@ local _M = Reader_v2:extend()
 function _M:receive_frame(session)
   local unmarshaller = self.unmarshaller
 
-  local header, err = session.socket:receive(9)
+  local header, err = session.socket:receive(8)
   if not header then
     return nil, string.format("Failed to read frame header from %s: %s", session.host, err)
   end
   local header_buffer = unmarshaller:create_buffer(header)
   local version = unmarshaller:read_raw_byte(header_buffer)
   if version ~= self.constants.version_codes.RESPONSE then
-    return nil, string.format("Invalid response version received from %s", session.host)
+    --return nil, string.format("Invalid response version received from %s", session.host)
   end
   local flags = unmarshaller:read_raw_byte(header_buffer)
-  local stream = unmarshaller:read_short(header_buffer)
+  local stream = unmarshaller:read_raw_byte(header_buffer)
   local op_code = unmarshaller:read_raw_byte(header_buffer)
   local length = unmarshaller:read_int(header_buffer)
 

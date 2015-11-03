@@ -36,6 +36,7 @@ function ControlConnection:init()
   if err then
     return nil, err
   end
+
   -- @TODO get peers info
   -- @TODO get local info
   -- local peers, err

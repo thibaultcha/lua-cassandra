@@ -76,9 +76,22 @@ function FrameHeader:write()
   return self.super.write(self)
 end
 
-function FrameHeader.from_raw_bytes(raw_bytes)
+function FrameHeader.version_from_byte(byte)
+  local buf = Buffer(byte)
+  return bit.band(buf:read_byte(), 0x7F)
+end
+
+function FrameHeader.size_from_byte(version_byte)
+  if FrameHeader.version_from_byte(version_byte) < 3 then
+    return 8
+  else
+    return 9
+  end
+end
+
+function FrameHeader.from_raw_bytes(version_byte, raw_bytes)
   local buffer = Buffer(raw_bytes)
-  local version = bit.band(buffer:read_byte(), 0x7F)
+  local version = FrameHeader.version_from_byte(version_byte)
   buffer.version = version
   local flags = buffer:read_byte()
 

@@ -1,6 +1,12 @@
 local cassandra_v2 = require "cassandra.v2"
 local cassandra_v3 = require "cassandra"
 
+local sess = cassandra_v3:new()
+local ok, err = sess:connect({"127.0.0.1:9041"})
+local inspect = require "inspect"
+print(inspect(err))
+
+
 describe("Session", function()
 for _, cass in ipairs({{v = "v2", c = cassandra_v2}, { v = "v3", c = cassandra_v3}}) do
 local cassandra = cass.c

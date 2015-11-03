@@ -62,7 +62,7 @@ local function parse_error(self)
   local code = FrameReader.super.read_integer(self)
   local message = FrameReader.super.read_string(self)
   local code_translation = ERRORS_TRANSLATION[code]
-  return errors.ResponseError(code_translation, message)
+  return errors.ResponseError(code, code_translation, message)
 end
 
 local function parse_ready(self)
@@ -85,4 +85,7 @@ function FrameReader:read()
   end
 end
 
-return FrameReader
+return {
+  FrameReader = FrameReader,
+  errors = ERRORS
+}

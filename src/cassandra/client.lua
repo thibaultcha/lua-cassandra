@@ -21,8 +21,6 @@ local function _connect(self)
 
   local err
   self.hosts, err = self.controlConnection:init()
-  local inspect = require "inspect"
-  print("Hosts: ", inspect(self.hosts))
   if err then
     return err
   end

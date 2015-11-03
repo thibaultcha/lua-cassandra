@@ -2,6 +2,7 @@ local Client = require "cassandra.client"
 
 local FAKE_CLUSTER = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
 local ONE_NODE_CLUSTER = {"127.0.0.1"}
+local ONE_NODE_CLUSTER_2_0 = {"127.0.0.1:9041"}
 
 describe("Client", function()
   it("should be instanciable", function()
@@ -17,9 +18,23 @@ describe("Client", function()
       assert.truthy(err)
       assert.equal("NoHostAvailableError", err.type)
     end)
-    it("TODO", function()
+    it("should connect to a cluster", function()
       local client = Client({contact_points = ONE_NODE_CLUSTER})
       local err = client:execute()
+      assert.falsy(err)
+    end)
+    it("should retrieve cluter information when connecting", function()
+      local client = Client({contact_points = ONE_NODE_CLUSTER})
+      local err = client:execute()
+      assert.falsy(err)
+    end)
+  end)
+  describe("binary protocol downgrade", function()
+    it("should downgrade the protocol version if the node does not support the most recent one", function()
+      pending()
+      local client = Client({contact_points = ONE_NODE_CLUSTER_2_0})
+      local err = client:execute()
+      assert.falsy(err)
     end)
   end)
 end)

@@ -6,9 +6,9 @@ local ControlConnection = require "cassandra.control_connection"
 --- CLIENT
 -- @section client
 
-local _CLIENT = Object:extend()
+local Client = Object:extend()
 
-function _CLIENT:new(options)
+function Client:new(options)
   options = client_options.parse(options)
   self.keyspace = options.keyspace
   self.hosts = {}
@@ -28,11 +28,11 @@ local function _connect(self)
   self.connected = true
 end
 
-function _CLIENT:execute()
+function Client:execute()
   local err = _connect(self)
   if err then
     return err
   end
 end
 
-return _CLIENT
+return Client

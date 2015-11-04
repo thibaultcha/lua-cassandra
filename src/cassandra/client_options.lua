@@ -1,4 +1,4 @@
-local utils = require "cassandra.utils"
+local utils = require "cassandra.utils.table"
 local errors = require "cassandra.errors"
 
 --- CONST

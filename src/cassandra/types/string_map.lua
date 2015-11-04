@@ -1,21 +1,25 @@
+local table_concat = table.concat
+
 return {
-  write = function(self, map)
-    local n = #map
+  repr = function(self, map)
+    local t = {}
+    local n = 0
     for k, v in pairs(map) do
       n = n + 1
     end
-    self:write_short(n)
+    t[1] = self:repr_short(n)
     for k, v in pairs(map) do
-      self:write_string(k)
-      self:write_string(v)
+      t[#t + 1] = self:repr_string(k)
+      t[#t + 1] = self:repr_string(v)
     end
+    return table_concat(t)
   end,
-  read = function(self)
+  read = function(buffer)
     local map = {}
-    local n_strings = self:read_short()
+    local n_strings = buffer:read_short()
     for _ = 1, n_strings do
-      local key = self:read_string()
-      local value = self:read_string()
+      local key = buffer:read_string()
+      local value = buffer:read_string()
       map[key] = value
     end
     return map

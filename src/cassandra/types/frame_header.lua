@@ -1,5 +1,5 @@
 local utils = require "cassandra.utils"
-local bit = require "bit"
+local bit = require "cassandra.utils.bit"
 local Buffer = require "cassandra.buffer"
 
 --- CONST
@@ -57,27 +57,27 @@ function FrameHeader:new(version, flags, op_code, body_length)
   self.stream_id = 0 -- @TODO support streaming
   self.body_length = body_length
 
-  self.super.new(self, nil, version)
+  self.super.new(self, version)
 end
 
-function FrameHeader:write()
-  self.super.write_byte(self, VERSION_CODES:get("REQUEST", self.version))
-  self.super.write_byte(self, self.flags) -- @TODO find a more secure way
+function FrameHeader:dump()
+  FrameHeader.super.write_byte(self, VERSION_CODES:get("REQUEST", self.version))
+  FrameHeader.super.write_byte(self, self.flags) -- @TODO find a more secure way
 
   if self.version < 3 then
-    self.super.write_byte(self, self.stream_id)
+    FrameHeader.super.write_byte(self, self.stream_id)
   else
-    self.super.write_short(self, self.stream_id)
+    FrameHeader.super.write_short(self, self.stream_id)
   end
 
-  self.super.write_byte(self, self.op_code) -- @TODO find a more secure way
-  self.super.write_integer(self, self.body_length)
+  FrameHeader.super.write_byte(self, self.op_code) -- @TODO find a more secure way
+  FrameHeader.super.write_int(self, self.body_length)
 
-  return self.super.write(self)
+  return FrameHeader.super.dump(self)
 end
 
 function FrameHeader.version_from_byte(byte)
-  local buf = Buffer(byte)
+  local buf = Buffer(nil, byte)
   return bit.band(buf:read_byte(), 0x7F)
 end
 
@@ -90,10 +90,11 @@ function FrameHeader.size_from_byte(version_byte)
 end
 
 function FrameHeader.from_raw_bytes(version_byte, raw_bytes)
-  local buffer = Buffer(raw_bytes)
   local version = FrameHeader.version_from_byte(version_byte)
-  buffer.version = version
+  local buffer = Buffer(version, raw_bytes)
   local flags = buffer:read_byte()
+  print("VERSION: "..version)
+  print("FLAGS: "..flags)
 
   local stream_id
   if version < 3 then
@@ -103,7 +104,7 @@ function FrameHeader.from_raw_bytes(version_byte, raw_bytes)
   end
 
   local op_code = buffer:read_byte()
-  local body_length = buffer:read_integer()
+  local body_length = buffer:read_int()
 
   return FrameHeader(version, flags, op_code, body_length)
 end

@@ -54,19 +54,24 @@ function HostConnection:new(address, port)
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
 end
 
+function HostConnection:decrease_version()
+  self.protocol_version = self.protocol_version - 1
+  if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
+    error("minimum protocol version supported: ", CONSTS.MIN_PROTOCOL_VERSION)
+  end
+end
+
 --- Socket operations
 -- @section socket
 
 local function send_and_receive(self, request)
-  request.version = self.protocol_version
-
   -- Send frame
   local bytes_sent, err = self.socket:send(request:get_full_frame())
   if bytes_sent == nil then
     return nil, err
   end
 
-  -- Receive frame version
+  -- Receive frame version byte
   local frame_version_byte, err = self.socket:receive(1)
   if frame_version_byte == nil then
     return nil, err
@@ -81,6 +86,8 @@ local function send_and_receive(self, request)
   end
 
   local frameHeader = FrameHeader.from_raw_bytes(frame_version_byte, header_bytes)
+  print("BODY BYTES: "..frameHeader.body_length)
+  print("OP_CODE: "..frameHeader.op_code)
 
   -- Receive frame body
   local body_bytes
@@ -93,22 +100,13 @@ local function send_and_receive(self, request)
 
   local frameReader = FrameReader(frameHeader, body_bytes)
 
-  return frameReader:read()
+  return frameReader:parse()
 end
 
---- Determine the protocol version to use and send the STARTUP request
-local function startup(self)
-  log.debug("Startup request. Trying to use protocol v"..self.protocol_version)
 
-  local startup_req = requests.StartupRequest()
-  return send_and_receive(self, startup_req)
-end
-
-function HostConnection:decrease_version()
-  self.protocol_version = self.protocol_version - 1
-  if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
-    error("minimum protocol version supported: ", CONSTS.MIN_PROTOCOL_VERSION)
-  end
+function HostConnection:send(request)
+  request:set_version(self.protocol_version)
+  return send_and_receive(self, request)
 end
 
 function HostConnection:close()
@@ -117,6 +115,14 @@ function HostConnection:close()
     log.err("Could not close socket for connection to "..self.address..":"..self.port..". ", err)
   end
   return res == 1
+end
+
+--- Determine the protocol version to use and send the STARTUP request
+local function startup(self)
+  log.debug("Startup request. Trying to use protocol v"..self.protocol_version)
+
+  local startup_req = requests.StartupRequest()
+  return self.send(self, startup_req)
 end
 
 function HostConnection:open()

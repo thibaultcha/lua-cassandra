@@ -1,4 +1,4 @@
-local utils = require "cassandra.utils"
+local utils = require "cassandra.utils.number"
 
 return {
   repr = function(self, val)

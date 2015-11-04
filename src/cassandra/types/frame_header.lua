@@ -1,4 +1,4 @@
-local utils = require "cassandra.utils"
+local utils = require "cassandra.utils.table"
 local bit = require "cassandra.utils.bit"
 local Buffer = require "cassandra.buffer"
 

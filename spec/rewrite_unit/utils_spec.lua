@@ -1,6 +1,6 @@
-local utils = require "cassandra.utils"
+local table_utils = require "cassandra.utils.table"
 
-describe("utils", function()
+describe("table_utils", function()
   describe("const_mt", function()
 
     local VERSION_CODES = {
@@ -15,7 +15,7 @@ describe("utils", function()
         SOME_V3_ONLY = 3333
       }
     }
-    setmetatable(VERSION_CODES, utils.const_mt)
+    setmetatable(VERSION_CODES, table_utils.const_mt)
 
     local FLAGS = {
       COMPRESSION = 1,
@@ -24,7 +24,7 @@ describe("utils", function()
         CUSTOM_PAYLOAD = 4
       }
     }
-    setmetatable(FLAGS, utils.const_mt)
+    setmetatable(FLAGS, table_utils.const_mt)
 
     describe("#get()", function()
       it("should get most recent version of a constant", function()

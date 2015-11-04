@@ -1,0 +1,47 @@
+2.0_cass_1:
+  image: cassandra:2.0
+  container_name: 2.0_cass_1
+  ports:
+    - "9001:9042"
+2.0_cass_2:
+  image: cassandra:2.0
+  container_name: 2.0_cass_2
+  links:
+    - 2.0_cass_1
+  environment:
+    - CASSANDRA_SEEDS=2.0_cass_1
+  ports:
+    - "9002:9042"
+2.0_cass_3:
+  image: cassandra:2.0
+  container_name: 2.0_cass_3
+  links:
+    - 2.0_cass_1
+  environment:
+    - CASSANDRA_SEEDS=2.0_cass_1
+  ports:
+    - "9003:9042"
+
+2.1_cass_1:
+  image: cassandra:2.1
+  container_name: 2.1_cass_1
+  ports:
+    - "9101:9042"
+2.1_cass_2:
+  image: cassandra:2.1
+  container_name: 2.1_cass_2
+  links:
+    - 2.1_cass_1
+  environment:
+    - CASSANDRA_SEEDS=2.1_cass_1
+  ports:
+    - "9102:9042"
+2.1_cass_3:
+  image: cassandra:2.1
+  container_name: 2.1_cass_3
+  links:
+    - 2.1_cass_1
+  environment:
+    - CASSANDRA_SEEDS=2.1_cass_1
+  ports:
+    - "9103:9042"

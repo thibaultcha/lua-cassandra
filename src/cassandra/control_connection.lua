@@ -4,16 +4,14 @@ local Object = require "cassandra.classic"
 local Host = require "cassandra.host"
 local HostConnection = require "cassandra.host_connection"
 local RequestHandler = require "cassandra.request_handler"
-local utils = require "cassandra.utils"
-local log = require "cassandra.log"
 local requests = require "cassandra.requests"
 local table_insert = table.insert
 
 --- Constants
 -- @section constants
 
-local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,tokens,rpc_address,release_version FROM system.peers"
-local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
+local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
+local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version FROM system.local WHERE key='local'"
 
 --- CONTROL_CONNECTION
 -- @section control_connection
@@ -21,48 +19,98 @@ local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
 local ControlConnection = Object:extend()
 
 function ControlConnection:new(options)
-  -- @TODO check attributes are valid (contact points, etc...)
   self.hosts = {}
-  self.contact_points = options.contact_points
+  self.log = options.logger
+  self.options = options
 end
 
 function ControlConnection:init()
-  for _, contact_point in ipairs(self.contact_points) do
+  local contact_points = {}
+  for _, address in ipairs(self.options.contact_points) do
     -- Extract port if string is of the form "host:port"
-    local addr, port = utils.split_by_colon(contact_point)
-    if not port then port = CONSTS.DEFAULT_CQL_PORT end
-    table_insert(self.hosts, Host(addr, port))
+    contact_points[address] = Host(address, self.options)
   end
 
-  local any_host, err = RequestHandler.get_first_host(self.hosts)
+  local err
+
+  local host, err = RequestHandler.get_first_host(contact_points)
   if err then
     return nil, err
   end
 
-  local err = self:refresh_hosts(any_host)
-
-  -- @TODO get peers info
-  -- @TODO get local info
-  -- local peers, err
-  -- local local_infos, err
+  err = self:refresh_hosts(host)
+  if err then
+    return nil, err
+  end
 
   return self.hosts
 end
 
 function ControlConnection:refresh_hosts(host)
-  log.debug("Refreshing local and peers info")
-  return self:get_peers(host)
-end
+  self.log:info("Refreshing local and peers info")
+  local err
 
-function ControlConnection:get_peers(host)
-  local peers_query = requests.QueryRequest(SELECT_PEERS_QUERY)
-  local result, err = host.connection:send(peers_query)
+  err = self:get_local(host)
   if err then
     return err
   end
 
-  local inspect = require "inspect"
-  print("Peers result: "..inspect(result))
+  err = self:get_peers(host)
+  if err then
+    return err
+  end
+end
+
+function ControlConnection:get_local(host)
+  local local_query = requests.QueryRequest(SELECT_LOCAL_QUERY)
+  local rows, err = host.connection:send(local_query)
+  if err then
+    return err
+  end
+
+  local row = rows[1]
+  local local_host = self.hosts[host.address]
+  if not local_host then
+    local_host = Host(host.address, self.options)
+  end
+
+  local_host.datacenter = row["data_center"]
+  local_host.rack = row["rack"]
+  local_host.cassandra_version = row["release_version"]
+  local_host.connection.protocol_version = host.connection.protocol_version
+
+  self.hosts[host.address] = local_host
+  self.log:info("Local info retrieved")
+end
+
+function ControlConnection:get_peers(host)
+  local peers_query = requests.QueryRequest(SELECT_PEERS_QUERY)
+  local rows, err = host.connection:send(peers_query)
+  if err then
+    return err
+  end
+
+  for _, row in ipairs(rows) do
+    local address = self.options.policies.address_resolution(row["rpc_address"])
+    local new_host = self.hosts[address]
+    if new_host == nil then
+      new_host = Host(address, self.options)
+      self.log:info("Adding host "..new_host.address)
+    end
+
+    new_host.datacenter = row["data_center"]
+    new_host.rack = row["rack"]
+    new_host.cassandra_version = row["release_version"]
+    new_host.connection.protocol_version = host.connection.protocol_version
+
+    self.hosts[address] = new_host
+  end
+
+  self.log:info("Peers info retrieved")
+end
+
+function ControlConnection:add_hosts(rows, host_connection)
+
 end
 
 return ControlConnection

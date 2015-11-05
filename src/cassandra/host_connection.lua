@@ -1,7 +1,6 @@
 --- Represent one socket to connect to a Cassandra node
 local Object = require "cassandra.classic"
 local CONSTS = require "cassandra.consts"
-local log = require "cassandra.log"
 local requests = require "cassandra.requests"
 local frame_header = require "cassandra.types.frame_header"
 local frame_reader = require "cassandra.frame_reader"
@@ -48,16 +47,17 @@ end
 
 local HostConnection = Object:extend()
 
-function HostConnection:new(address, port)
+function HostConnection:new(address, port, options)
   self.address = address
   self.port = port
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
+  self.log = options.logger
 end
 
 function HostConnection:decrease_version()
   self.protocol_version = self.protocol_version - 1
   if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
-    error("minimum protocol version supported: ", CONSTS.MIN_PROTOCOL_VERSION)
+    error("minimum protocol version supported: "..CONSTS.MIN_PROTOCOL_VERSION)
   end
 end
 
@@ -86,8 +86,6 @@ local function send_and_receive(self, request)
   end
 
   local frameHeader = FrameHeader.from_raw_bytes(frame_version_byte, header_bytes)
-  print("BODY BYTES: "..frameHeader.body_length)
-  print("OP_CODE: "..frameHeader.op_code)
 
   -- Receive frame body
   local body_bytes
@@ -112,14 +110,14 @@ end
 function HostConnection:close()
   local res, err = self.socket:close()
   if err then
-    log.err("Could not close socket for connection to "..self.address..":"..self.port..". ", err)
+    self.log:err("Could not close socket for connection to "..self.address..":"..self.port..". ", err)
   end
   return res == 1
 end
 
 --- Determine the protocol version to use and send the STARTUP request
 local function startup(self)
-  log.debug("Startup request. Trying to use protocol v"..self.protocol_version)
+  self.log:info("Startup request. Trying to use protocol v"..self.protocol_version)
 
   local startup_req = requests.StartupRequest()
   return self.send(self, startup_req)
@@ -129,30 +127,30 @@ function HostConnection:open()
   local address = self.address..":"..self.port
   new_socket(self)
 
-  log.debug("Connecting to ", address)
+  self.log:info("Connecting to ".. address)
   local ok, err = self.socket:connect(self.address, self.port)
   if ok ~= 1 then
-    log.debug("Could not connect to "..address, err)
+    self.log:info("Could not connect to "..address..". "..err)
     return false, err
   end
-  log.debug("Socket connected to ", address)
+  self.log:info("Socket connected to ".. address)
 
   local res, err = startup(self)
   if err then
-    log.debug("Startup request failed. ", err)
+    self.log:info("Startup request failed. ", err)
     -- Check for incorrect protocol version
     if err and err.code == frame_reader.errors.PROTOCOL then
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
         self:close()
         self:decrease_version()
-        log.debug("Decreasing protocol version to v"..self.protocol_version)
+        self.log:info("Decreasing protocol version to v"..self.protocol_version)
         return self:open()
       end
     end
 
     return false, err
   elseif res.ready then
-    log.debug("Host at "..address.." is ready with protocol v"..self.protocol_version)
+    self.log:info("Host at "..address.." is ready with protocol v"..self.protocol_version)
     return true
   end
 end

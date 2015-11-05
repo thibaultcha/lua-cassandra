@@ -69,6 +69,7 @@ local function parse_metadata(buffer)
 
   local has_more_pages = bit.btest(flags, ROWS_RESULT_FLAGS.HAS_MORE_PAGES)
   local has_global_table_spec = bit.btest(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC)
+  local has_no_metadata = bit.btest(flags, ROWS_RESULT_FLAGS.NO_METADATA)
 
   if has_global_table_spec then
     k_name = buffer:read_string()
@@ -110,10 +111,10 @@ local RESULT_PARSERS = {
     for _ = 1, rows_count do
       local row = {}
       for i = 1, columns_count do
-        print("reading column "..columns[i].name)
+        --print("reading column "..columns[i].name)
         local value = buffer:read_cql_value(columns[i].type)
         local inspect = require "inspect"
-        print("column "..columns[i].name.." = "..inspect(value))
+        --print("column "..columns[i].name.." = "..inspect(value))
         row[columns[i].name] = value
       end
       rows[#rows + 1] = row
@@ -156,8 +157,6 @@ function FrameReader:parse()
   if op_code == nil then
     error("frame header has no op_code")
   end
-
-  print("response op_code: "..op_code)
 
   -- Parse frame depending on op_code
   if op_code == op_codes.ERROR then

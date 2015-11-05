@@ -93,8 +93,6 @@ function FrameHeader.from_raw_bytes(version_byte, raw_bytes)
   local version = FrameHeader.version_from_byte(version_byte)
   local buffer = Buffer(version, raw_bytes)
   local flags = buffer:read_byte()
-  print("VERSION: "..version)
-  print("FLAGS: "..flags)
 
   local stream_id
   if version < 3 then

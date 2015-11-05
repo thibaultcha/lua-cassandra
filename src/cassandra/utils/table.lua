@@ -7,6 +7,9 @@ function _M.extend_table(defaults, values)
     if values[k] == nil then
       values[k] = defaults[k]
     end
+    if type(defaults[k]) == "table" then
+      _M.extend_table(defaults[k], values[k])
+    end
   end
 end
 

@@ -17,7 +17,7 @@ end
 -- Get the first connection from the available one with no regards for the load balancing policy
 function RequestHandler.get_first_host(hosts)
   local errors = {}
-  for _, host in ipairs(hosts) do
+  for _, host in pairs(hosts) do
     local connected, err = host.connection:open()
     if not connected then
       errors[host.address] = err

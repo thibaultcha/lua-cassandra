@@ -5,9 +5,9 @@ describe("Buffer", function()
     byte = {1, 2, 3},
     int = {0, 4200, -42},
     short = {0, 1, -1, 12, 13},
-    --boolean = {true, false},
     string = {"hello world"},
     long_string = {string.rep("blob", 1000), ""},
+    uuid = {"1144bada-852c-11e3-89fb-e0b9a54a6d11"},
     inet = {
       "127.0.0.1", "0.0.0.1", "8.8.8.8",
       "2001:0db8:85a3:0042:1000:8a2e:0370:7334",
@@ -39,19 +39,20 @@ describe("Buffer", function()
   end
 
   it("should accumulate values", function()
-    local writer = Buffer(3) -- protocol v3
-    writer:write_byte(2)
-    writer:write_int(128)
-    writer:write_string("hello world")
+    local buf = Buffer(3) -- protocol v3
+    buf:write_byte(2)
+    buf:write_int(128)
+    buf:write_string("hello world")
 
-    local reader = Buffer.from_buffer(writer)
-    assert.equal(2, reader:read_byte())
-    assert.equal(128, reader:read_int())
-    assert.equal("hello world", reader:read_string())
+    buf:reset()
+
+    assert.equal(2, buf:read_byte())
+    assert.equal(128, buf:read_int())
+    assert.equal("hello world", buf:read_string())
   end)
 
   describe("inet", function()
-    local fixtures = {
+    local FIXTURES = {
       ["2001:0db8:85a3:0042:1000:8a2e:0370:7334"] = "2001:0db8:85a3:0042:1000:8a2e:0370:7334",
       ["2001:0db8:0000:0000:0000:0000:0000:0001"] = "2001:db8::1",
       ["2001:0db8:85a3:0000:0000:0000:0000:0010"] = "2001:db8:85a3::10",
@@ -61,7 +62,7 @@ describe("Buffer", function()
     }
 
     it("should shorten ipv6 addresses", function()
-      for expected_ip, fixture_ip in pairs(fixtures) do
+      for expected_ip, fixture_ip in pairs(FIXTURES) do
         local buffer = Buffer(3)
         buffer:write_inet(fixture_ip)
         buffer.pos = 1

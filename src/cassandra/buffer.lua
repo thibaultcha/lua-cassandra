@@ -1,5 +1,6 @@
 local Buffer = require "cassandra.utils.buffer"
 local CQL_TYPES = require "cassandra.types.cql_types"
+local t_utils = require "cassandra.utils.table"
 local math_floor = math.floor
 
 --- Frame types
@@ -12,7 +13,7 @@ local TYPES = {
   "short",
   "string",
   "long_string",
-  -- "uuid",
+  "uuid",
   -- "string_list",
   "bytes",
   -- "short_bytes",
@@ -49,11 +50,11 @@ local CQL_TYPES_ = {
   "inet",
   "int",
   -- "list",
-  -- "map",
+  "map",
   "set",
   -- "text",
   -- "timestamp",
-  -- "uuid",
+  "uuid",
   -- "varchar",
   -- "varint",
   -- "timeuuid",
@@ -102,7 +103,7 @@ local DECODER_NAMES = {
   [CQL_TYPES.tuple] = "tuple"
 }
 
-function Buffer:write_cql_value(value, assumed_type)
+function Buffer:repr_cql_value(value, assumed_type)
   local infered_type
   local lua_type = type(value)
 
@@ -110,14 +111,26 @@ function Buffer:write_cql_value(value, assumed_type)
     infered_type = assumed_type
   elseif lua_type == "number" and math_floor(value) == value then
     infered_type = CQL_TYPES.int
+  elseif lua_type == "table" then
+    if t_utils.is_array(value) then
+      infered_type = CQL_TYPES.set
+    else
+      infered_type = CQL_TYPES.map
+    end
+  else
+    infered_type = CQL_TYPES.varchar
   end
 
-  local encoder = "write_cql_"..DECODER_NAMES[infered_type]
-  Buffer[encoder](self, value)
+  local encoder = "repr_cql_"..DECODER_NAMES[infered_type]
+  return Buffer[encoder](self, value)
+end
+
+function Buffer:write_cql_value(...)
+  self:write(self:repr_cql_value(...))
 end
 
 function Buffer:read_cql_value(assumed_type)
-  local decoder = "read_cql_"..DECODER_NAMES[assumed_type.type_id]
+  local decoder = "read_cql_"..DECODER_NAMES[assumed_type.id]
   return Buffer[decoder](self, assumed_type.value)
 end
 

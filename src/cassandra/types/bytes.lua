@@ -5,7 +5,7 @@ return {
     return int.repr(nil, #val)..val
   end,
   read = function(self)
-    local n_bytes = int.read(self)
+    local n_bytes = self:read_int()
     return self:read(n_bytes)
   end
 }

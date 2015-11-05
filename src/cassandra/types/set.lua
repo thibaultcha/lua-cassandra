@@ -1,14 +1,19 @@
+local table_concat = table.concat
+local table_insert = table.insert
+
 return {
   repr = function(self, set)
-    local n
+    local repr = {}
     if self.version < 3 then
-      n = self:repr_short(#set)
+      table_insert(repr, self:repr_short(#set))
     else
-      n = self:repr_int(#set)
+      table_insert(repr, self:repr_int(#set))
     end
     for _, val in ipairs(set) do
-      -- @TODO write_value infering the type
+      table_insert(repr, self:repr_cql_value(val))
     end
+
+    return table_concat(repr)
   end,
   read = function(buffer, value_type)
     local n

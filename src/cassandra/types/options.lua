@@ -6,9 +6,11 @@ return {
     local type_value
     if type_id == CQL_TYPES.set then
       type_value = buffer:read_options()
+    elseif type_id == CQL_TYPES.map then
+      type_value = {buffer:read_options(), buffer:read_options()}
     end
 
     -- @TODO support non-native types (custom, map, list, set, UDT, tuple)
-    return {type_id = type_id, value = type_value}
+    return {id = type_id, value = type_value}
   end
 }

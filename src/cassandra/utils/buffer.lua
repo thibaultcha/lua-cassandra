@@ -8,8 +8,9 @@ local Buffer = Object:extend()
 function Buffer:new(version, str)
   self.version = version -- protocol version for properly encoding types
   self.str = str and str or ""
-  self.pos = 1 -- lua indexes start at 1, remember?
+  self.pos = nil
   self.len = #self.str
+  self:reset()
 end
 
 function Buffer:dump()
@@ -30,14 +31,8 @@ function Buffer:read(n_bytes_to_read)
   return bytes
 end
 
-function Buffer.from_buffer(buffer)
-  return Buffer(buffer.version, buffer:dump())
-end
-
-function Buffer.copy(buffer)
-  local b = Buffer(buffer.version, buffer:dump())
-  b.pos = buffer.pos
-  return b
+function Buffer:reset()
+  self.pos = 1 -- lua indexes start at 1, remember?
 end
 
 return Buffer

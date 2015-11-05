@@ -38,70 +38,47 @@ end
 --- CQL Types
 -- @section cql_types
 
-local CQL_TYPES_ = {
-  "raw",
-  -- "ascii",
-  -- "biging",
-  -- "blob",
-  "boolean",
-  -- "decimal",
-  -- "double",
-  -- "float",
-  "inet",
-  "int",
-  -- "list",
-  "map",
-  "set",
-  -- "text",
-  -- "timestamp",
-  "uuid",
-  -- "varchar",
-  -- "varint",
-  -- "timeuuid",
-  -- "tuple"
+local CQL_DECODERS = {
+  -- custom = 0x00,
+  [CQL_TYPES.ascii] = "raw",
+  -- [CQL_TYPES.bigint] = "bigint",
+  [CQL_TYPES.blob] = "raw",
+  [CQL_TYPES.boolean] = "boolean",
+  -- [CQL_TYPES.counter] = "counter",
+  -- decimal 0x06
+  -- [CQL_TYPES.double] = "double",
+  -- [CQL_TYPES.float] = "float",
+  [CQL_TYPES.inet] = "inet",
+  [CQL_TYPES.int] = "int",
+  [CQL_TYPES.text] = "raw",
+  [CQL_TYPES.list] = "set",
+  [CQL_TYPES.map] = "map",
+  [CQL_TYPES.set] = "set",
+  [CQL_TYPES.uuid] = "uuid",
+  -- [CQL_TYPES.timestamp] = "timestamp",
+  [CQL_TYPES.varchar] = "raw",
+  -- [CQL_TYPES.varint] = "varint",
+  -- [CQL_TYPES.timeuuid] = "timeuuid",
+  -- [CQL_TYPES.udt] = "udt",
+  -- [CQL_TYPES.tuple] = "tuple"
 }
 
-for _, cql_type in ipairs(CQL_TYPES_) do
-  local mod = require("cassandra.types."..cql_type)
-  Buffer["repr_cql_"..cql_type] = function(self, ...)
+for _, cql_decoder in pairs(CQL_DECODERS) do
+  local mod = require("cassandra.types."..cql_decoder)
+  Buffer["repr_cql_"..cql_decoder] = function(self, ...)
     local repr = mod.repr(self, ...)
     return self:repr_bytes(repr)
   end
-  Buffer["write_cql_"..cql_type] = function(self, ...)
+  Buffer["write_cql_"..cql_decoder] = function(self, ...)
     local repr = mod.repr(self, ...)
     self:write_bytes(repr)
   end
-  Buffer["read_cql_"..cql_type] = function(self, ...)
+  Buffer["read_cql_"..cql_decoder] = function(self, ...)
     local bytes = self:read_bytes()
     local buf = Buffer(self.version, bytes)
     return mod.read(buf, ...)
   end
 end
-
-local DECODER_NAMES = {
-  -- custom = 0x00,
-  [CQL_TYPES.ascii] = "raw",
-  [CQL_TYPES.bigint] = "bigint",
-  [CQL_TYPES.blob] = "raw",
-  [CQL_TYPES.boolean] = "boolean",
-  [CQL_TYPES.counter] = "counter",
-  -- decimal 0x06
-  [CQL_TYPES.double] = "double",
-  [CQL_TYPES.float] = "float",
-  [CQL_TYPES.int] = "int",
-  [CQL_TYPES.text] = "raw",
-  [CQL_TYPES.timestamp] = "timestamp",
-  [CQL_TYPES.uuid] = "uuid",
-  [CQL_TYPES.varchar] = "raw",
-  [CQL_TYPES.varint] = "varint",
-  [CQL_TYPES.timeuuid] = "timeuuid",
-  [CQL_TYPES.inet] = "inet",
-  [CQL_TYPES.list] = "list",
-  [CQL_TYPES.map] = "map",
-  [CQL_TYPES.set] = "set",
-  [CQL_TYPES.udt] = "udt",
-  [CQL_TYPES.tuple] = "tuple"
-}
 
 function Buffer:repr_cql_value(value, assumed_type)
   local infered_type
@@ -121,7 +98,7 @@ function Buffer:repr_cql_value(value, assumed_type)
     infered_type = CQL_TYPES.varchar
   end
 
-  local encoder = "repr_cql_"..DECODER_NAMES[infered_type]
+  local encoder = "repr_cql_"..CQL_DECODERS[infered_type]
   return Buffer[encoder](self, value)
 end
 
@@ -130,7 +107,7 @@ function Buffer:write_cql_value(...)
 end
 
 function Buffer:read_cql_value(assumed_type)
-  local decoder = "read_cql_"..DECODER_NAMES[assumed_type.id]
+  local decoder = "read_cql_"..CQL_DECODERS[assumed_type.id]
   return Buffer[decoder](self, assumed_type.value)
 end
 

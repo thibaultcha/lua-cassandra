@@ -31,7 +31,7 @@ local function _connect(self)
   end
 
   local inspect = require "inspect"
-  --print(inspect(self.hosts))
+  print(inspect(self.hosts))
 
   self.connected = true
 end

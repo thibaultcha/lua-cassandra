@@ -26,7 +26,7 @@ describe("Requests", function()
       local startup = requests.StartupRequest()
       startup:set_version(2)
 
-      local full_buffer = Buffer(3, startup:get_full_frame())
+      local full_buffer = Buffer(2, startup:get_full_frame())
 
       assert.equal(0x02, full_buffer:read_byte())
       assert.equal(0, full_buffer:read_byte())

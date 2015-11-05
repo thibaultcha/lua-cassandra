@@ -17,6 +17,7 @@ function Client:new(options)
   self.keyspace = options.keyspace
   self.hosts = {}
   self.connected = false
+  self.log = options.logger
 
   self.controlConnection = ControlConnection(options)
 end
@@ -31,7 +32,7 @@ local function _connect(self)
   end
 
   local inspect = require "inspect"
-  print(inspect(self.hosts))
+  --print(inspect(self.hosts))
 
   self.connected = true
 end
@@ -39,8 +40,28 @@ end
 function Client:execute()
   local err = _connect(self)
   if err then
-    return err
+    return nil, err
   end
+end
+
+--- Close connection to the cluster.
+-- Close all connections to all hosts and forget about them.
+-- @return err An error from socket:close() if any, nil otherwise.
+function Client:shutdown()
+  self.log:info("Shutting down")
+  if not self.connected or self.hosts == nil then
+    return
+  end
+
+  for _, host in pairs(self.hosts) do
+    local closed, err = host:shutdown()
+    if not closed then
+      return err
+    end
+  end
+
+  self.hosts = {}
+  self.connected = false
 end
 
 return Client

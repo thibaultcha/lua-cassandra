@@ -69,17 +69,11 @@ function ControlConnection:get_local(host)
   end
 
   local row = rows[1]
-  local local_host = self.hosts[host.address]
-  if not local_host then
-    local_host = Host(host.address, self.options)
-  end
+  host.datacenter = row["data_center"]
+  host.rack = row["rack"]
+  host.cassandra_version = row["release_version"]
 
-  local_host.datacenter = row["data_center"]
-  local_host.rack = row["rack"]
-  local_host.cassandra_version = row["release_version"]
-  local_host.connection.protocol_version = host.connection.protocol_version
-
-  self.hosts[host.address] = local_host
+  self.hosts[host.address] = host
   self.log:info("Local info retrieved")
 end
 
@@ -107,10 +101,6 @@ function ControlConnection:get_peers(host)
   end
 
   self.log:info("Peers info retrieved")
-end
-
-function ControlConnection:add_hosts(rows, host_connection)
-
 end
 
 return ControlConnection

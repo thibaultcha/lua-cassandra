@@ -23,4 +23,8 @@ function Host:new(address, options)
   self.connection = HostConnection(host, port, {logger = options.logger})
 end
 
+function Host:shutdown()
+  return self.connection:close()
+end
+
 return Host

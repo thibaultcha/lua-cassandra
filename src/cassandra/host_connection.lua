@@ -108,11 +108,14 @@ function HostConnection:send(request)
 end
 
 function HostConnection:close()
+  if self.socket == nil then return true end
+
+  self.log:debug("Closing connection to "..self.address..":"..self.port..".")
   local res, err = self.socket:close()
   if err then
-    self.log:err("Could not close socket for connection to "..self.address..":"..self.port..". ", err)
+    self.log:err("Could not close socket for connection to "..self.address..":"..self.port..". "..err)
   end
-  return res == 1
+  return res == 1, err
 end
 
 --- Determine the protocol version to use and send the STARTUP request

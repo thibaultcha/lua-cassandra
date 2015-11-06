@@ -9,7 +9,8 @@ local DEFAULTS = {
   keyspace = "",
   print_log_level = "ERR",
   policies = {
-    address_resolution = require "cassandra.policies.address_resolution"
+    address_resolution = require "cassandra.policies.address_resolution",
+    load_balancing = require("cassandra.policies.load_balancing").RoundRobin()
   },
   protocol_options = {
     default_port = 9042

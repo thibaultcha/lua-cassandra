@@ -3,6 +3,8 @@ local Object = require "cassandra.classic"
 local client_options = require "cassandra.client_options"
 local ControlConnection = require "cassandra.control_connection"
 local Logger = require "cassandra.logger"
+local Requests = require "cassandra.requests"
+local RequestHandler = require "cassandra.request_handler"
 
 --- CLIENT
 -- @section client
@@ -31,17 +33,23 @@ local function _connect(self)
     return err
   end
 
-  local inspect = require "inspect"
+  --local inspect = require "inspect"
   --print(inspect(self.hosts))
 
   self.connected = true
 end
 
-function Client:execute()
+Client._connect = _connect
+
+function Client:execute(query)
   local err = _connect(self)
   if err then
     return nil, err
   end
+
+  local query_request = Requests.QueryRequest(query)
+  local handler = RequestHandler(query_request, self.hosts, self.options)
+  return handler:send()
 end
 
 --- Close connection to the cluster.

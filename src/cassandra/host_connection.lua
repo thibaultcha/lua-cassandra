@@ -47,18 +47,17 @@ end
 
 local HostConnection = Object:extend()
 
-function HostConnection:new(address, port, options)
-  self.address = address
+function HostConnection:new(host, port, options)
+  self.host = host
   self.port = port
+  self.address = host..":"..port
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
   self.log = options.logger
+  self.connected = false
 end
 
 function HostConnection:decrease_version()
   self.protocol_version = self.protocol_version - 1
-  if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
-    error("minimum protocol version supported: "..CONSTS.MIN_PROTOCOL_VERSION)
-  end
 end
 
 --- Socket operations
@@ -110,10 +109,10 @@ end
 function HostConnection:close()
   if self.socket == nil then return true end
 
-  self.log:debug("Closing connection to "..self.address..":"..self.port..".")
+  self.log:debug("Closing connection to "..self.address..".")
   local res, err = self.socket:close()
   if err then
-    self.log:err("Could not close socket for connection to "..self.address..":"..self.port..". "..err)
+    self.log:err("Could not close socket for connection to "..self.address..". "..err)
   end
   return res == 1, err
 end
@@ -127,33 +126,37 @@ local function startup(self)
 end
 
 function HostConnection:open()
-  local address = self.address..":"..self.port
   new_socket(self)
 
-  self.log:info("Connecting to ".. address)
-  local ok, err = self.socket:connect(self.address, self.port)
+  self.log:info("Connecting to "..self.address)
+  local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    self.log:info("Could not connect to "..address..". "..err)
+    self.log:info("Could not connect to "..self.address..". "..err)
     return false, err
   end
-  self.log:info("Socket connected to ".. address)
+  self.log:info("Socket connected to "..self.address)
 
   local res, err = startup(self)
   if err then
-    self.log:info("Startup request failed. ", err)
+    self.log:info("Startup request failed. "..err)
     -- Check for incorrect protocol version
     if err and err.code == frame_reader.errors.PROTOCOL then
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
         self:close()
         self:decrease_version()
-        self.log:info("Decreasing protocol version to v"..self.protocol_version)
-        return self:open()
+        if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
+          self.log:err("Connection could not find a supported protocol version.")
+        else
+          self.log:info("Decreasing protocol version to v"..self.protocol_version)
+          return self:open()
+        end
       end
     end
 
     return false, err
   elseif res.ready then
-    self.log:info("Host at "..address.." is ready with protocol v"..self.protocol_version)
+    self.connected = true
+    self.log:info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
     return true
   end
 end

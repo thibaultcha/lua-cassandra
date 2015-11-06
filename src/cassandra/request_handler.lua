@@ -1,17 +1,47 @@
 local Object = require "cassandra.classic"
 local Errors = require "cassandra.errors"
-local ipairs = ipairs
 
 --- RequestHandler
 -- @section request_handler
 
 local RequestHandler = Object:extend()
 
-function RequestHandler:mew(options)
-  self.loadBalancingPolicy = nil -- @TODO
-  self.retryPolicy = nil -- @TODO
-  self.request = options.request
-  self.host = options.host
+function RequestHandler:new(request, hosts, client_options)
+  self.request = request
+  self.hosts = hosts
+
+  self.connection = nil
+  self.load_balancing_policy = client_options.policies.load_balancing
+  self.retry_policy = nil -- @TODO
+  self.log = client_options.logger
+end
+
+function RequestHandler:get_next_connection()
+  local errors = {}
+  local iter = self.load_balancing_policy:iterator()
+
+  for _, host in iter(self.hosts) do
+    local connected, err = host.connection:open()
+    if connected then
+      return host.connection
+    else
+      -- @TODO Mark host as down
+      errors[host.address] = err
+    end
+  end
+
+  return nil, Errors.NoHostAvailableError(errors)
+end
+
+function RequestHandler:send()
+  local connection, err = self:get_next_connection()
+  if not connection then
+    return nil, err
+  end
+
+  self.log:info("Acquired connection through load balancing policy: "..connection.address)
+
+  return connection:send(self.request)
 end
 
 -- Get the first connection from the available one with no regards for the load balancing policy

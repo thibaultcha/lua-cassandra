@@ -4,8 +4,9 @@ local type = type
 
 local LEVELS = {
   ["ERR"] = 1,
-  ["INFO"] = 2,
-  ["DEBUG"] = 3
+  ["WARN"] = 2,
+  ["INFO"] = 3,
+  ["DEBUG"] = 4
 }
 
 local function default_print_handler(self, level, level_name, ...)

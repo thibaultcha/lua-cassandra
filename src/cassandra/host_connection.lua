@@ -100,7 +100,6 @@ local function send_and_receive(self, request)
   return frameReader:parse()
 end
 
-
 function HostConnection:send(request)
   request:set_version(self.protocol_version)
   return send_and_receive(self, request)
@@ -109,12 +108,15 @@ end
 function HostConnection:close()
   if self.socket == nil then return true end
 
-  self.log:debug("Closing connection to "..self.address..".")
+  self.log:info("Closing connection to "..self.address..".")
   local res, err = self.socket:close()
-  if err then
+  if res ~= 1 then
     self.log:err("Could not close socket for connection to "..self.address..". "..err)
+    return false, err
+  else
+    self.connected = false
+    return true
   end
-  return res == 1, err
 end
 
 --- Determine the protocol version to use and send the STARTUP request
@@ -126,6 +128,8 @@ local function startup(self)
 end
 
 function HostConnection:open()
+  if self.connected then return true end
+
   new_socket(self)
 
   self.log:info("Connecting to "..self.address)

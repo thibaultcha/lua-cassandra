@@ -21,12 +21,16 @@ function RequestHandler:get_next_connection()
   local iter = self.load_balancing_policy:iterator()
 
   for _, host in iter(self.hosts) do
-    local connected, err = host.connection:open()
-    if connected then
-      return host.connection
+    if host:can_be_considered_up() then
+      local connected, err = host:open()
+      if connected then
+        return host.connection
+      else
+        host:set_down()
+        errors[host.address] = err
+      end
     else
-      -- @TODO Mark host as down
-      errors[host.address] = err
+      errors[host.address] = "Host considered DOWN"
     end
   end
 
@@ -48,7 +52,7 @@ end
 function RequestHandler.get_first_host(hosts)
   local errors = {}
   for _, host in pairs(hosts) do
-    local connected, err = host.connection:open()
+    local connected, err = host:open()
     if not connected then
       errors[host.address] = err
     else

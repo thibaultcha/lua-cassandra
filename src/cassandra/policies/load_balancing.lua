@@ -1,6 +1,5 @@
 local storage = require "cassandra.storage"
 local math_fmod = math.fmod
-local pairs = pairs
 
 return {
   RoundRobin = function(shm, hosts)

@@ -1,4 +1,3 @@
-local CONSTS = require "cassandra.consts"
 local requests = require "cassandra.requests"
 local Buffer = require "cassandra.buffer"
 local frame_header = require "cassandra.types.frame_header"

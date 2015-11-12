@@ -19,7 +19,7 @@ local DEFAULTS = {
   }
 }
 
-local function parse_session(cassandra)
+local function parse_session(options)
   if options == nil then options = {} end
 
   utils.extend_table(DEFAULTS, options)

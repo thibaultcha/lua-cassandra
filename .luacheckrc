@@ -1,2 +1,3 @@
 unused_args = false
-globals = {"ngx", "describe", "setup", "teardown", "it", "pending"}
+redefined = false
+globals = {"ngx", "describe", "setup", "teardown", "it", "pending", "after_each", "spy"}

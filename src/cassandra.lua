@@ -162,7 +162,7 @@ function Host:get_reused_times()
   if self.socket_type == "ngx" then
     local count, err = self.socket:getreusedtimes()
     if err then
-      log.err("Could not get reused times for socket to "..self.addres..". "..err)
+      log.err("Could not get reused times for socket to "..self.address..". "..err)
     end
     return count
   end
@@ -175,7 +175,7 @@ function Host:set_keep_alive()
   if self.socket_type == "ngx" then
     local ok, err = self.socket:setkeepalive()
     if err then
-      log.err("Could not set keepalive for socket to "..self.addres..". "..err)
+      log.err("Could not set keepalive for socket to "..self.address..". "..err)
     end
     return ok
   end
@@ -234,11 +234,10 @@ function Session:get_next_connection()
   local errors = {}
 
   local iter = self.options.policies.load_balancing
-  local hosts = storage.get_hosts(options.shm)
+  local hosts = storage.get_hosts(self.options.shm)
 
   for _, addr in iter(self.options.shm, hosts) do
     if storage.can_host_be_considered_up(self.options.shm, addr) then
-      local host_infos = storage.get_host(self.options.shm, addr)
       local host = Host(addr, self.options)
       local connected, err = host:connect()
       if connected then
@@ -320,7 +319,12 @@ local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version 
 --- Retrieve cluster informations form a connected contact_point
 function Cassandra.refresh_hosts(contact_points_hosts, options)
   log.info("Refreshing local and peers info")
+
   local host, err = RequestHandler.get_first_host(contact_points_hosts)
+  if err then
+    return nil, err
+  end
+
   local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
   local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
   local hosts = {}

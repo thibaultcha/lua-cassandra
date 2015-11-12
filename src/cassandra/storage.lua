@@ -1,8 +1,7 @@
 local json = require "cjson"
 local log = require "cassandra.log"
+local string_utils = require "cassandra.utils.string"
 local time_utils = require "cassandra.utils.time"
-local string_format = string.format
-local string_gsub = string.gsub
 local table_concat = table.concat
 local in_ngx = ngx ~= nil
 local shared
@@ -64,13 +63,6 @@ else
   shared = {}
 end
 
-local function split(str, sep)
-  local sep, fields = sep or ":", {}
-  local pattern = string_format("([^%s]+)", sep)
-  string_gsub(str, pattern, function(c) fields[#fields+1] = c end)
-  return fields
-end
-
 local function get_dict(shm)
   if not in_ngx then
     if shared[shm] == nil then
@@ -101,7 +93,7 @@ local function get_hosts(shm)
   if err then
     log.err("Cannot retrieve hosts: "..err)
   end
-  return split(value, _SEP)
+  return string_utils.split(value, _SEP)
 end
 
 --- Host

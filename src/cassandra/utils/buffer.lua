@@ -1,7 +1,5 @@
 local Object = require "cassandra.classic"
 local string_sub = string.sub
-local table_insert = table.insert
-local table_concat = table.concat
 
 local Buffer = Object:extend()
 

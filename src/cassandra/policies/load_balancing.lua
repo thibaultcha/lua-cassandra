@@ -1,39 +1,27 @@
+local storage = require "cassandra.storage"
 local math_fmod = math.fmod
-
-local RoundRobin = {
-  new = function(self)
-    self.index = 0
-  end,
-  iterator = function(self)
-    -- return an iterator to be used
-    return function(hosts)
-      local keys = {}
-      for k in pairs(hosts) do
-        keys[#keys + 1] = k
-      end
-
-      local n = #keys
-      local counter = 0
-      local plan_index = math_fmod(self.index, n)
-      self.index = self.index + 1
-
-      return function(t, i)
-        local mod = math_fmod(plan_index, n) + 1
-
-        plan_index = plan_index + 1
-        counter = counter + 1
-
-        if counter <= n then
-          return mod, hosts[keys[mod]]
-        end
-      end
-    end
-  end
-}
+local pairs = pairs
 
 return {
-  RoundRobin = function()
-    RoundRobin:new()
-    return RoundRobin
+  RoundRobin = function(shm, hosts)
+    local n = #hosts
+    local counter = 0
+
+    local dict = storage.get_dict(shm)
+    local plan_index = dict:get("plan_index")
+    if not plan_index then
+      dict:set("plan_index", 0)
+    end
+
+    return function(t, i)
+      local plan_index = dict:get("plan_index")
+      local mod = math_fmod(plan_index, n) + 1
+      dict:incr("plan_index", 1)
+      counter = counter + 1
+
+      if counter <= n then
+        return mod, hosts[mod]
+      end
+    end
   end
 }

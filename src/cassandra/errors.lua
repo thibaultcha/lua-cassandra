@@ -28,6 +28,18 @@ local ERROR_TYPES = {
     meta = function(code)
       return {code = code}
     end
+  },
+  SocketError = {
+    info = "Represents a client-side error that is raised when a socket returns an error from one of its operations.",
+    message = function(address, message)
+      return message.." for socket with peer "..address
+    end
+  },
+  TimeoutError = {
+    info = "Represents a client-side error that is raised when the client didn't hear back from the server within {client_options.socket_options.read_timeout}.",
+    message = function(address)
+      return "timeout for peer "..address
+    end
   }
 }
 

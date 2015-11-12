@@ -113,7 +113,7 @@ local RESULT_PARSERS = {
       for i = 1, columns_count do
         --print("reading column "..columns[i].name)
         local value = buffer:read_cql_value(columns[i].type)
-        local inspect = require "inspect"
+        --local inspect = require "inspect"
         --print("column "..columns[i].name.." = "..inspect(value))
         row[columns[i].name] = value
       end

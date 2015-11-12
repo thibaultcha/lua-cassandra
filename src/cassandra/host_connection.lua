@@ -1,5 +1,6 @@
 --- Represent one socket to connect to a Cassandra node
 local Object = require "cassandra.classic"
+local Errors = require "cassandra.errors"
 local CONSTS = require "cassandra.consts"
 local requests = require "cassandra.requests"
 local frame_header = require "cassandra.types.frame_header"
@@ -52,8 +53,12 @@ function HostConnection:new(host, port, options)
   self.port = port
   self.address = host..":"..port
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
+  --self.connected = false
+
   self.log = options.logger
-  self.connected = false
+  self.socket_options = options.socket_options
+
+  new_socket(self)
 end
 
 function HostConnection:decrease_version()
@@ -62,6 +67,36 @@ end
 
 --- Socket operations
 -- @section socket
+
+function HostConnection:get_reused_times()
+  if self.socket_type == SOCKET_TYPES.NGX then
+    return self.socket:getreusedtimes()
+  end
+
+  -- luasocket
+  return 0
+end
+
+function HostConnection:close()
+  self.log:info("Closing connection to "..self.address..".")
+  local res, err = self.socket:close()
+  if res ~= 1 then
+    self.log:err("Could not close socket for connection to "..self.address..". "..err)
+    return false, err
+  else
+    --self.connected = false
+    return true
+  end
+end
+
+function HostConnection:set_timeout(timeout)
+  if self.socket_type == SOCKET_TYPES.LUASOCKET then
+    -- value is in seconds
+    timeout = timeout / 1000
+  end
+
+  self.socket:settimeout(timeout)
+end
 
 local function send_and_receive(self, request)
   -- Send frame
@@ -95,28 +130,27 @@ local function send_and_receive(self, request)
     end
   end
 
-  local frameReader = FrameReader(frameHeader, body_bytes)
-
-  return frameReader:parse()
+  return FrameReader(frameHeader, body_bytes)
 end
 
 function HostConnection:send(request)
   request:set_version(self.protocol_version)
-  return send_and_receive(self, request)
-end
 
-function HostConnection:close()
-  if self.socket == nil then return true end
+  self:set_timeout(self.socket_options.read_timeout)
 
-  self.log:info("Closing connection to "..self.address..".")
-  local res, err = self.socket:close()
-  if res ~= 1 then
-    self.log:err("Could not close socket for connection to "..self.address..". "..err)
-    return false, err
-  else
-    self.connected = false
-    return true
+  local frameReader, err = send_and_receive(self, request)
+  if err then
+    if err == "timeout" then
+      return nil, Errors.TimeoutError(self.address)
+    else
+      return nil, Errors.SocketError(self.address, err)
+    end
   end
+
+  --self:close()
+
+  -- result, cql_error
+  return frameReader:parse()
 end
 
 --- Determine the protocol version to use and send the STARTUP request
@@ -128,9 +162,9 @@ local function startup(self)
 end
 
 function HostConnection:open()
-  if self.connected then return true end
+  --if self.connected then return true end
 
-  new_socket(self)
+  self:set_timeout(self.socket_options.connect_timeout)
 
   self.log:info("Connecting to "..self.address)
   local ok, err = self.socket:connect(self.host, self.port)
@@ -139,6 +173,11 @@ function HostConnection:open()
     return false, err
   end
   self.log:info("Socket connected to "..self.address)
+
+  -- Startup request if this socket has never been connected to it
+  if self:get_reused_times() > 0 then
+    return true
+  end
 
   local res, err = startup(self)
   if err then
@@ -159,7 +198,7 @@ function HostConnection:open()
 
     return false, err
   elseif res.ready then
-    self.connected = true
+    --self.connected = true
     self.log:info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
     return true
   end

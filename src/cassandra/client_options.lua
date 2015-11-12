@@ -1,24 +1,43 @@
 local utils = require "cassandra.utils.table"
-local errors = require "cassandra.errors"
 
---- CONST
--- @section constants
+--- Defaults
+-- @section defaults
 
 local DEFAULTS = {
+  shm = "cassandra",
   contact_points = {},
-  keyspace = "",
-  print_log_level = "ERR",
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
-    load_balancing = require("cassandra.policies.load_balancing").RoundRobin()
+    load_balancing = require("cassandra.policies.load_balancing").RoundRobin
   },
   protocol_options = {
     default_port = 9042
+  },
+  socket_options = {
+    connect_timeout = 5000,
+    read_timeout = 12000
   }
 }
 
-local function parse(options)
+local function parse_session(cassandra)
   if options == nil then options = {} end
+
+  utils.extend_table(DEFAULTS, options)
+
+  --if type(options.keyspace) ~= "string" then
+    --error("keyspace must be a string")
+  --end
+
+  assert(type(options.protocol_options.default_port) == "number", "protocol default_port must be a number")
+  assert(type(options.policies.address_resolution) == "function", "address_resolution policy must be a function")
+
+  return options
+end
+
+local function parse_cluster(options)
+  if options == nil then options = {} end
+
+  parse_session(options)
 
   utils.extend_table(DEFAULTS, options)
 
@@ -34,16 +53,10 @@ local function parse(options)
     error("contact_points must contain at least one contact point")
   end
 
-  if type(options.keyspace) ~= "string" then
-    error("keyspace must be a string")
-  end
-
-  assert(type(options.protocol_options.default_port) == "number", "protocol default_port must be a number")
-  assert(type(options.policies.address_resolution) == "function", "address_resolution policy must be a function")
-
   return options
 end
 
 return {
-  parse = parse
+  parse_cluster = parse_cluster,
+  parse_session = parse_session
 }

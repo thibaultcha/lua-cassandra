@@ -1,4 +1,5 @@
-local storage = require "cassandra.storage"
+local cache = require "cassandra.cache"
+local log = require "cassandra.log"
 local math_fmod = math.fmod
 
 return {
@@ -6,10 +7,10 @@ return {
     local n = #hosts
     local counter = 0
 
-    local dict = storage.get_dict(shm)
-    local plan_index = dict:get("plan_index")
-    if not plan_index then
-      dict:set("plan_index", 0)
+    local dict = cache.get_dict(shm)
+    local ok, err = dict:add("plan_index", 0)
+    if not ok then
+      log.err("Cannot prepare round robin load balancing policy: "..err)
     end
 
     return function(t, i)

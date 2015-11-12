@@ -1,4 +1,4 @@
-local CONSTS = require "cassandra.consts"
+local CONSTS = require "cassandra.constants"
 local Object = require "cassandra.classic"
 local Buffer = require "cassandra.buffer"
 local frame_header = require "cassandra.types.frame_header"
@@ -27,7 +27,7 @@ function Request:set_version(version)
 end
 
 function Request:build()
-  error("mest be implemented")
+  error("Request:build() must be implemented")
 end
 
 function Request:get_full_frame()

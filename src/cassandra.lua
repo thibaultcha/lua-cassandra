@@ -1,11 +1,11 @@
 local Object = require "cassandra.classic"
-local CONSTS = require "cassandra.consts"
+local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
-local storage = require "cassandra.storage"
+local cache = require "cassandra.cache"
 local frame_header = require "cassandra.types.frame_header"
 local frame_reader = require "cassandra.frame_reader"
-local client_options = require "cassandra.client_options"
+local opts = require "cassandra.options"
 local string_utils = require "cassandra.utils.string"
 local log = require "cassandra.log"
 
@@ -214,14 +214,14 @@ function RequestHandler.get_first_host(hosts)
 end
 
 --- Session
--- An expandable session, cluster-aware through the storage cache.
+-- An expandable session, cluster-aware through the cache.
 -- Uses a load balancing policy to select nodes on which to perform requests.
 -- @section session
 
 local Session = {}
 
 function Session:new(options)
-  options = client_options.parse_session(options)
+  options = opts.parse_session(options)
 
   local s = {
     options = options
@@ -234,10 +234,17 @@ function Session:get_next_connection()
   local errors = {}
 
   local iter = self.options.policies.load_balancing
-  local hosts = storage.get_hosts(self.options.shm)
+  local hosts, err = cache.get_hosts(self.options.shm)
+  if err then
+    return nil, err
+  end
 
   for _, addr in iter(self.options.shm, hosts) do
-    if storage.can_host_be_considered_up(self.options.shm, addr) then
+    local can_host_be_considered_up, err = cache.can_host_be_considered_up(self.options.shm, addr)
+    if err then
+      return nil, err
+    end
+    if can_host_be_considered_up then
       local host = Host(addr, self.options)
       local connected, err = host:connect()
       if connected then
@@ -268,7 +275,10 @@ function Session:execute(query)
   end
 
   -- Success! Make sure to re-up node in case it was marked as DOWN
-  storage.set_host_up(self.options.shm, host.host)
+  local ok, err = cache.set_host_up(self.options.shm, host.host)
+  if err then
+    return nil, err
+  end
 
   if host.socket_type == "ngx" then
     host:set_keep_alive()
@@ -322,7 +332,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
 
   local host, err = RequestHandler.get_first_host(contact_points_hosts)
   if err then
-    return nil, err
+    return false, err
   end
 
   local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
@@ -369,28 +379,25 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   local addresses = {}
   for addr, host in pairs(hosts) do
     table_insert(addresses, addr)
-    storage.set_host(options.shm, addr, host)
+    local ok, err = cache.set_host(options.shm, addr, host)
+    if err then
+      return false, err
+    end
   end
-  storage.set_hosts(options.shm, addresses)
 
-  return true
+  return cache.set_hosts(options.shm, addresses)
 end
 
 --- Retrieve cluster informations and store them in ngx.shared.DICT
 function Cassandra.spawn_cluster(options)
-  options = client_options.parse_cluster(options)
+  options = opts.parse_cluster(options)
 
   local contact_points_hosts = {}
   for _, contact_point in ipairs(options.contact_points) do
     table_insert(contact_points_hosts, Host(contact_point, options))
   end
 
-  local ok, err = Cassandra.refresh_hosts(contact_points_hosts, options)
-  if not ok then
-    return false, err
-  end
-
-  return true
+  return Cassandra.refresh_hosts(contact_points_hosts, options)
 end
 
 return Cassandra

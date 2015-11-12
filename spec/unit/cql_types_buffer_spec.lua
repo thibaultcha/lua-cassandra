@@ -2,7 +2,7 @@ local Buffer = require "cassandra.buffer"
 local CONSTS = require "cassandra.consts"
 local CQL_TYPES = require "cassandra.types.cql_types"
 
-for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSION) do
+for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do
 
 describe("CQL Types protocol v"..protocol_version, function()
   local FIXTURES = {

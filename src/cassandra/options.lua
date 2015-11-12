@@ -39,8 +39,6 @@ local function parse_cluster(options)
 
   parse_session(options)
 
-  utils.extend_table(DEFAULTS, options)
-
   if type(options.contact_points) ~= "table" then
     error("contact_points must be a table", 3)
   end

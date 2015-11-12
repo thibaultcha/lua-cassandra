@@ -1,4 +1,4 @@
-local CONSTS = require "cassandra.consts"
+local CONSTS = require "cassandra.constants"
 
 local _M = {}
 

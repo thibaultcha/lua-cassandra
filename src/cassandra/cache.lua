@@ -83,16 +83,20 @@ local function set_hosts(shm, hosts)
   local dict = get_dict(shm)
   local ok, err = dict:set(_HOSTS_KEY, table_concat(hosts, _SEP))
   if not ok then
-    log.err("Cannot store hosts: "..err)
+    err = "Cannot store hosts for cluster under shm "..shm..": "..err
   end
+  return ok, err
 end
 
 local function get_hosts(shm)
   local dict = get_dict(shm)
   local value, err = dict:get(_HOSTS_KEY)
   if err then
-    log.err("Cannot retrieve hosts: "..err)
+    return nil, "Cannot retrieve hosts for cluster under shm "..shm..": "..err
+  elseif value == nil then
+    return nil, "Not hosts set for cluster under "..shm
   end
+
   return string_utils.split(value, _SEP)
 end
 
@@ -103,42 +107,66 @@ local function set_host(shm, host_addr, host)
   local dict = get_dict(shm)
   local ok, err = dict:set(host_addr, json.encode(host))
   if not ok then
-    log.err("Cannot store hosts: "..err)
+    err = "Cannot store host details for cluster "..shm..": "..err
   end
+  return ok, err
 end
 
 local function get_host(shm, host_addr)
   local dict = get_dict(shm)
   local value, err = dict:get(host_addr)
   if err then
-    log.err("Cannot retrieve host: "..err)
-  elseif value then
-    return json.decode(value)
+    return nil, "Cannot retrieve host details for cluster under shm "..shm..": "..err
+  elseif value == nil then
+    return nil, "No details for host "..host_addr.." under shm "..shm
   end
+  return json.decode(value)
 end
 
 local function set_host_down(shm, host_addr)
   log.warn("Setting host "..host_addr.." as DOWN")
-  local host = get_host(shm, host_addr)
+  local host, err = get_host(shm, host_addr)
+  if err then
+    return false, err
+  end
+
   host.unhealthy_at = time_utils.get_time()
-  set_host(shm, host_addr, host)
+
+  return set_host(shm, host_addr, host)
 end
 
 local function set_host_up(shm, host_addr)
   log.info("Setting host "..host_addr.." as UP")
-  local host = get_host(shm, host_addr)
+  local host, err = get_host(shm, host_addr)
+  if err then
+    return false, err
+  end
+
   host.unhealthy_at = 0
-  set_host(shm, host_addr, host)
+
+  return set_host(shm, host_addr, host)
 end
 
 local function is_host_up(shm, host_addr)
-  local host = get_host(shm, host_addr)
+  local host, err = get_host(shm, host_addr)
+  if err then
+    return nil, err
+  end
+
   return host.unhealthy_at == 0
 end
 
 local function can_host_be_considered_up(shm, host_addr)
-  local host = get_host(shm, host_addr)
-  return is_host_up(shm, host_addr) or (time_utils.get_time() - host.unhealthy_at > host.reconnection_delay)
+  local host, err = get_host(shm, host_addr)
+  if err then
+    return nil, err
+  end
+  local is_up, err = is_host_up(shm, host_addr)
+  if err then
+    return nil, err
+  end
+
+  return is_up or (time_utils.get_time() - host.unhealthy_at > host.reconnection_delay)
 end
 
 return {

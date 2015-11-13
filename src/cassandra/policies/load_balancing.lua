@@ -9,7 +9,7 @@ return {
 
     local dict = cache.get_dict(shm)
     local ok, err = dict:add("plan_index", 0)
-    if not ok then
+    if not ok and err ~= "exists" then
       log.err("Cannot prepare round robin load balancing policy: "..err)
     end
 

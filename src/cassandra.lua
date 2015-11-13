@@ -50,12 +50,16 @@ function Host:new(address, options)
 
   self.host = host
   self.port = port
-  self.address = host..":"..port
+  self.address = address
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
 
   self.options = options
 
   new_socket(self)
+end
+
+function Host:decrease_version()
+  self.protocol_version = self.protocol_version - 1
 end
 
 local function send_and_receive(self, request)
@@ -96,7 +100,7 @@ end
 function Host:send(request)
   request:set_version(self.protocol_version)
 
-  --self:set_timeout(self.socket_options.read_timeout)
+  self:set_timeout(self.options.socket_options.read_timeout)
 
   local frameReader, err = send_and_receive(self, request)
   if err then
@@ -121,6 +125,8 @@ end
 function Host:connect()
   log.info("Connecting to "..self.address)
 
+  self:set_timeout(self.options.socket_options.connect_timeout)
+
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
     log.info("Could not connect to "..self.address..". Reason: "..err)
@@ -130,6 +136,7 @@ function Host:connect()
   log.info("Session connected to "..self.address)
 
   if self:get_reused_times() > 0 then
+    -- No need for startup request
     return true
   end
 
@@ -156,6 +163,15 @@ function Host:connect()
     log.info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
     return true
   end
+end
+
+function Host:set_timeout(t)
+  if self.socket_type == "luasocket" then
+    -- value is in seconds
+    t = t / 1000
+  end
+
+  return self.socket:settimeout(t)
 end
 
 function Host:get_reused_times()
@@ -194,12 +210,25 @@ function Host:close()
   end
 end
 
---- Request handler
--- @section request_handler
+--- Session
+-- A short-lived session, cluster-aware through the cache.
+-- Uses a load balancing policy to select a coordinator on which to perform requests.
+-- @section session
 
-local RequestHandler = Object:extend()
+local Session = {}
 
-function RequestHandler.get_first_host(hosts)
+function Session:new(options)
+  options = opts.parse_session(options)
+
+  local s = {
+    options = options,
+    coordinator = nil -- to be determined by load balancing policy
+  }
+
+  return setmetatable(s, {__index = self})
+end
+
+function Session.get_first_coordinator(hosts)
   local errors = {}
   for _, host in ipairs(hosts) do
     local connected, err = host:connect()
@@ -213,24 +242,7 @@ function RequestHandler.get_first_host(hosts)
   return nil, Errors.NoHostAvailableError(errors)
 end
 
---- Session
--- An expandable session, cluster-aware through the cache.
--- Uses a load balancing policy to select nodes on which to perform requests.
--- @section session
-
-local Session = {}
-
-function Session:new(options)
-  options = opts.parse_session(options)
-
-  local s = {
-    options = options
-  }
-
-  return setmetatable(s, {__index = self})
-end
-
-function Session:get_next_connection()
+function Session:get_next_coordinator()
   local errors = {}
 
   local iter = self.options.policies.load_balancing
@@ -243,11 +255,11 @@ function Session:get_next_connection()
     local can_host_be_considered_up, err = cache.can_host_be_considered_up(self.options.shm, addr)
     if err then
       return nil, err
-    end
-    if can_host_be_considered_up then
+    elseif can_host_be_considered_up then
       local host = Host(addr, self.options)
       local connected, err = host:connect()
       if connected then
+        self.coordinator = host
         return host
       else
         errors[addr] = err
@@ -261,29 +273,29 @@ function Session:get_next_connection()
 end
 
 function Session:execute(query)
-  local host, err = self:get_next_connection()
+  local coordinator, err = self:get_next_coordinator()
   if err then
     return nil, err
   end
 
-  log.info("Acquired connection through load balancing policy: "..host.address)
+  log.info("Acquired connection through load balancing policy: "..coordinator.address)
 
   local query_request = Requests.QueryRequest(query)
-  local result, err = host:send(query_request)
+  local result, err = coordinator:send(query_request)
   if err then
     return nil, err
   end
 
   -- Success! Make sure to re-up node in case it was marked as DOWN
-  local ok, err = cache.set_host_up(self.options.shm, host.host)
+  local ok, err = cache.set_host_up(self.options.shm, coordinator.host)
   if err then
     return nil, err
   end
 
-  if host.socket_type == "ngx" then
-    host:set_keep_alive()
+  if coordinator.socket_type == "ngx" then
+    coordinator:set_keep_alive()
   else
-    host:close()
+    coordinator:close()
   end
 
   return result
@@ -330,7 +342,7 @@ local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version 
 function Cassandra.refresh_hosts(contact_points_hosts, options)
   log.info("Refreshing local and peers info")
 
-  local host, err = RequestHandler.get_first_host(contact_points_hosts)
+  local coordinator, err = Session.get_first_coordinator(contact_points_hosts)
   if err then
     return false, err
   end
@@ -339,7 +351,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
   local hosts = {}
 
-  local rows, err = host:send(local_query)
+  local rows, err = coordinator:send(local_query)
   if err then
     return false, err
   end
@@ -356,7 +368,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   hosts[address] = local_host
   log.info("Local info retrieved")
 
-  rows, err = host:send(peers_query)
+  rows, err = coordinator:send(peers_query)
   if err then
     return false, err
   end
@@ -374,6 +386,8 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     }
   end
   log.info("Peers info retrieved")
+
+  coordinator:close()
 
   -- Store cluster mapping for future sessions
   local addresses = {}

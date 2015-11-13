@@ -1,5 +1,5 @@
 local Buffer = require "cassandra.buffer"
-local CONSTS = require "cassandra.consts"
+local CONSTS = require "cassandra.constants"
 local CQL_TYPES = require "cassandra.types.cql_types"
 
 for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do

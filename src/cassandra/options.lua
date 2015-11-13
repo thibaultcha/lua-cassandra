@@ -14,8 +14,8 @@ local DEFAULTS = {
     default_port = 9042
   },
   socket_options = {
-    connect_timeout = 5000,
-    read_timeout = 12000
+    connect_timeout = 1000,
+    read_timeout = 2000
   }
 }
 

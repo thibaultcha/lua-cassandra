@@ -4,7 +4,7 @@ local utils = require "cassandra.utils.table"
 -- @section defaults
 
 local DEFAULTS = {
-  shm = "cassandra",
+  shm = nil, -- required
   contact_points = {},
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
@@ -27,6 +27,10 @@ local function parse_session(options)
   --if type(options.keyspace) ~= "string" then
     --error("keyspace must be a string")
   --end
+
+  assert(options.shm ~= nil, "shm is required for spawning a cluster/session")
+  assert(type(options.shm) == "string", "shm must be a string")
+  assert(options.shm ~= "", "shm must be a valid string")
 
   assert(type(options.protocol_options.default_port) == "number", "protocol default_port must be a number")
   assert(type(options.policies.address_resolution) == "function", "address_resolution policy must be a function")

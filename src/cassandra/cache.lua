@@ -16,7 +16,7 @@ function SharedDict:new()
 end
 
 function SharedDict:get(key)
-  return self.data[key], 0
+  return self.data[key], nil
 end
 
 function SharedDict:set(key, value)

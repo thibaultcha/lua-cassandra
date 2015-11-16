@@ -1,13 +1,13 @@
+local log = require "cassandra.log"
+local opts = require "cassandra.options"
+local cache = require "cassandra.cache"
 local Object = require "cassandra.classic"
 local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
-local cache = require "cassandra.cache"
+local string_utils = require "cassandra.utils.string"
 local frame_header = require "cassandra.types.frame_header"
 local frame_reader = require "cassandra.frame_reader"
-local opts = require "cassandra.options"
-local string_utils = require "cassandra.utils.string"
-local log = require "cassandra.log"
 
 local table_insert = table.insert
 local string_find = string.find
@@ -210,6 +210,145 @@ function Host:close()
   end
 end
 
+--- Request Handler
+-- @section request_handler
+
+local RequestHandler = {}
+
+function RequestHandler:new(request, options)
+  local o = {
+    request = request,
+    options = options,
+    n_retries = 0
+  }
+
+  return setmetatable(o, {__index = self})
+end
+
+function RequestHandler.get_first_coordinator(hosts)
+  local errors = {}
+  for _, host in ipairs(hosts) do
+    local connected, err = host:connect()
+    if not connected then
+      errors[host.address] = err
+    else
+      return host
+    end
+  end
+
+  return nil, Errors.NoHostAvailableError(errors)
+end
+
+function RequestHandler:get_next_coordinator()
+  local errors = {}
+
+  local iter = self.options.policies.load_balancing
+  local hosts, cache_err = cache.get_hosts(self.options.shm)
+  if err then
+    return nil, cache_err
+  end
+
+  for _, addr in iter(self.options.shm, hosts) do
+    local can_host_be_considered_up, cache_err = cache.can_host_be_considered_up(self.options.shm, addr)
+    if cache_err then
+      return nil, cache_err
+    elseif can_host_be_considered_up then
+      local host = Host(addr, self.options)
+      local connected, err = host:connect()
+      if connected then
+        self.coordinator = host
+        return host
+      else
+        -- bad host, setting DOWN
+        local ok, cache_err = cache.set_host_down(self.options.shm, addr)
+        if not ok then
+          return nil, cache_err
+        end
+        errors[addr] = err
+      end
+    else
+      errors[addr] = "Host considered DOWN"
+    end
+  end
+
+  return nil, Errors.NoHostAvailableError(errors)
+end
+
+function RequestHandler:send()
+  local coordinator, err = self:get_next_coordinator()
+  if err then
+    return nil, err
+  end
+
+  log.info("Acquired connection through load balancing policy: "..coordinator.address)
+
+  local result, err = coordinator:send(self.request)
+
+  if coordinator.socket_type == "ngx" then
+    coordinator:set_keep_alive()
+  else
+    coordinator:close()
+  end
+
+  if err then
+    return self:handle_error(err)
+  end
+
+  -- Success! Make sure to re-up node in case it was marked as DOWN
+  local ok, cache_err = cache.set_host_up(self.options.shm, coordinator.host)
+  if err then
+    return nil, cache_err
+  end
+
+  return result
+end
+
+function RequestHandler:handle_error(err)
+  local retry_policy = self.options.policies.retry
+  local decision = retry_policy.decisions.throw
+
+  if err.type == "SocketError" or err.type == "TimeoutError" then
+    -- host seems unhealthy
+    local ok, cache_err = cache.set_host_down(self.options.shm, self.coordinator.address)
+    if not ok then
+      return nil, cache_err
+    end
+    -- always retry, another node will be picked
+    return self:retry()
+  elseif err.type == "ResponseError" then
+    local request_infos = {
+      handler = self,
+      request = self.request,
+      n_retries = self.n_retries
+    }
+    if err.code == CQL_Errors.OVERLOADED or err.code == CQL_Errors.IS_BOOTSTRAPPING or err.code == CQL_Errors.TRUNCATE_ERROR then
+      -- always retry, we will hit another node
+      return self:retry()
+    elseif err.code == CQL_Errors.UNAVAILABLE_EXCEPTION then
+      decision = retry_policy.on_unavailable(request_infos)
+    elseif err.code == CQL_Errors.READ_TIMEOUT then
+      decision = retry_policy.on_read_timeout(request_infos)
+    elseif err.code == CQL_Errors.WRITE_TIMEOUT then
+      decision = retry_policy.on_write_timeout(request_infos)
+    elseif err.code == CQL_Errors.UNPREPARED then
+      -- re prepare and retry
+    end
+  end
+
+  if decision == retry_policy.decisions.retry then
+    return self:retry()
+  end
+
+  -- this error needs to be reported to the session
+  return nil, err
+end
+
+function RequestHandler:retry()
+  self.n_retries = self.n_retries + 1
+  log.info("Retrying request")
+  return self:send()
+end
+
 --- Session
 -- A short-lived session, cluster-aware through the cache.
 -- Uses a load balancing policy to select a coordinator on which to perform requests.
@@ -228,100 +367,17 @@ function Session:new(options)
   return setmetatable(s, {__index = self})
 end
 
-function Session.get_first_coordinator(hosts)
-  local errors = {}
-  for _, host in ipairs(hosts) do
-    local connected, err = host:connect()
-    if not connected then
-      errors[host.address] = err
-    else
-      return host
-    end
-  end
-
-  return nil, Errors.NoHostAvailableError(errors)
-end
-
-function Session:get_next_coordinator()
-  local errors = {}
-
-  local iter = self.options.policies.load_balancing
-  local hosts, err = cache.get_hosts(self.options.shm)
-  if err then
-    return nil, err
-  end
-
-  for _, addr in iter(self.options.shm, hosts) do
-    local can_host_be_considered_up, err = cache.can_host_be_considered_up(self.options.shm, addr)
-    if err then
-      return nil, err
-    elseif can_host_be_considered_up then
-      local host = Host(addr, self.options)
-      local connected, err = host:connect()
-      if connected then
-        self.coordinator = host
-        return host
-      else
-        errors[addr] = err
-      end
-    else
-      errors[addr] = "Host considered DOWN"
-    end
-  end
-
-  return nil, Errors.NoHostAvailableError(errors)
-end
 
 function Session:execute(query)
-  local coordinator, err = self:get_next_coordinator()
-  if err then
-    return nil, err
-  end
-
-  log.info("Acquired connection through load balancing policy: "..coordinator.address)
-
   local query_request = Requests.QueryRequest(query)
-  local result, err = coordinator:send(query_request)
-  if err then
-    return nil, err
-  end
-
-  -- Success! Make sure to re-up node in case it was marked as DOWN
-  local ok, err = cache.set_host_up(self.options.shm, coordinator.host)
-  if err then
-    return nil, err
-  end
-
-  if coordinator.socket_type == "ngx" then
-    coordinator:set_keep_alive()
-  else
-    coordinator:close()
-  end
-
-  return result
+  local request_handler = RequestHandler:new(query_request, self.options)
+  return request_handler:send()
 end
 
-function Session:handle_error(err)
-  if err.type == "SocketError" then
-    -- host seems unhealthy
-    self.host:set_down()
-    -- always retry
-  elseif err.type == "TimeoutError" then
-    -- on timeout
-  elseif err.type == "ResponseError" then
-    if err.code == CQL_Errors.OVERLOADED or err.code == CQL_Errors.IS_BOOTSTRAPPING or err.code == CQL_Errors.TRUNCATE_ERROR then
-      -- always retry
-    elseif err.code == CQL_Errors.UNAVAILABLE_EXCEPTION then
-      -- make retry decision based on retry_policy on_unavailable
-    elseif err.code == CQL_Errors.READ_TIMEOUT then
-      -- make retry decision based on retry_policy read_timeout
-    elseif err.code == CQL_Errors.WRITE_TIMEOUT then
-      -- make retry decision based on retry_policy write_timeout
-    end
+function Session:close()
+  if self.coordinator ~= nil then
+    return self.coordinator:close()
   end
-
-  -- this error needs to be reported to the client
-  return nil, err
 end
 
 --- Cassandra
@@ -342,7 +398,7 @@ local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version 
 function Cassandra.refresh_hosts(contact_points_hosts, options)
   log.info("Refreshing local and peers info")
 
-  local coordinator, err = Session.get_first_coordinator(contact_points_hosts)
+  local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
   if err then
     return false, err
   end
@@ -363,7 +419,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     cassandra_version = row["release_version"],
     protocol_versiom = row["native_protocol_version"],
     unhealthy_at = 0,
-    reconnection_delay = 5
+    reconnection_delay = 5000
   }
   hosts[address] = local_host
   log.info("Local info retrieved")
@@ -382,7 +438,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
       cassandra_version = row["release_version"],
       protocol_version = local_host.native_protocol_version,
       unhealthy_at = 0,
-      reconnection_delay = 5
+      reconnection_delay = 5000
     }
   end
   log.info("Peers info retrieved")
@@ -393,9 +449,9 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   local addresses = {}
   for addr, host in pairs(hosts) do
     table_insert(addresses, addr)
-    local ok, err = cache.set_host(options.shm, addr, host)
+    local ok, cache_err = cache.set_host(options.shm, addr, host)
     if err then
-      return false, err
+      return false, cache_err
     end
   end
 

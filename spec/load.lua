@@ -1,14 +1,29 @@
-package.path = package.path..";src/?.lua"
-local Client = require "cassandra.client"
+package.path = "src/?.lua;"..package.path
+local inspect = require "inspect"
+local cassandra = require "cassandra"
+local log = require "cassandra.log"
 
-local client = Client({contact_points = {"127.0.0.1", "127.0.0.2"}, print_log_level = "INFO"})
+log.set_lvl("ERR")
 
-for i = 1, 10000 do
-  local res, err = client:execute("SELECT peer FROM system.peers")
+local ok, err = cassandra.spawn_cluster {
+  shm = "cassandra",
+  contact_points = {"127.0.0.1", "127.0.0.2"}
+}
+assert(err == nil, inspect(err))
+
+local session, err = cassandra.spawn_session {
+  shm = "cassandra"
+}
+assert(err == nil, inspect(err))
+
+local i = 0
+while true do
+  i = i + 1
+  local res, err = session:execute("SELECT peer FROM system.peers")
   if err then
-    error(err)
+    print(inspect(err))
+    error()
   end
   print("Request "..i.." successful.")
 end
 
-client:shutdown()

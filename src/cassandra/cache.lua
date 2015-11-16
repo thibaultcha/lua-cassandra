@@ -166,7 +166,7 @@ local function can_host_be_considered_up(shm, host_addr)
     return nil, err
   end
 
-  return is_up or (time_utils.get_time() - host.unhealthy_at > host.reconnection_delay)
+  return is_up or (time_utils.get_time() - host.unhealthy_at >= host.reconnection_delay)
 end
 
 return {

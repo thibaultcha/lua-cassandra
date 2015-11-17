@@ -1,7 +1,6 @@
 local json = require "cjson"
 local log = require "cassandra.log"
 local string_utils = require "cassandra.utils.string"
-local time_utils = require "cassandra.utils.time"
 local table_concat = table.concat
 local in_ngx = ngx ~= nil
 local shared
@@ -123,60 +122,10 @@ local function get_host(shm, host_addr)
   return json.decode(value)
 end
 
-local function set_host_down(shm, host_addr)
-  log.warn("Setting host "..host_addr.." as DOWN")
-  local host, err = get_host(shm, host_addr)
-  if err then
-    return false, err
-  end
-
-  host.unhealthy_at = time_utils.get_time()
-
-  return set_host(shm, host_addr, host)
-end
-
-local function set_host_up(shm, host_addr)
-  log.info("Setting host "..host_addr.." as UP")
-  local host, err = get_host(shm, host_addr)
-  if err then
-    return false, err
-  end
-
-  host.unhealthy_at = 0
-
-  return set_host(shm, host_addr, host)
-end
-
-local function is_host_up(shm, host_addr)
-  local host, err = get_host(shm, host_addr)
-  if err then
-    return nil, err
-  end
-
-  return host.unhealthy_at == 0
-end
-
-local function can_host_be_considered_up(shm, host_addr)
-  local host, err = get_host(shm, host_addr)
-  if err then
-    return nil, err
-  end
-  local is_up, err = is_host_up(shm, host_addr)
-  if err then
-    return nil, err
-  end
-
-  return is_up or (time_utils.get_time() - host.unhealthy_at >= host.reconnection_delay)
-end
-
 return {
   get_dict = get_dict,
   get_host = get_host,
   set_host = set_host,
   set_hosts = set_hosts,
   get_hosts = get_hosts,
-  set_host_up = set_host_up,
-  set_host_down = set_host_down,
-  is_host_up = is_host_up,
-  can_host_be_considered_up = can_host_be_considered_up
 }

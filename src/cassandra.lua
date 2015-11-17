@@ -5,6 +5,7 @@ local Object = require "cassandra.classic"
 local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
+local time_utils = require "cassandra.utils.time"
 local string_utils = require "cassandra.utils.string"
 local frame_header = require "cassandra.types.frame_header"
 local frame_reader = require "cassandra.frame_reader"
@@ -54,6 +55,7 @@ function Host:new(address, options)
   self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
 
   self.options = options
+  self.reconnection_policy = self.options.policies.reconnection
 
   new_socket(self)
 end
@@ -210,6 +212,59 @@ function Host:close()
   end
 end
 
+function Host:set_down()
+  log.info("Setting host "..self.address.." as DOWN")
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
+  if err then
+    return false, err
+  end
+
+  host_infos.unhealthy_at = time_utils.get_time()
+  host_infos.reconnection_delay = self.reconnection_policy.next(self)
+
+  return cache.set_host(self.options.shm, self.address, host_infos)
+end
+
+function Host:set_up()
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
+  if err then
+    return false, err
+  end
+
+  -- host was previously marked a DOWN
+  if host_infos.unhealthy_at ~= 0 then
+    log.info("Setting host "..self.address.." as UP")
+    host_infos.unhealthy_at = 0
+    -- reset schedule for reconnection delay
+    self.reconnection_policy.new_schedule(self)
+    return cache.set_host(self.options.shm, self.address, host_infos)
+  end
+
+  return true
+end
+
+function Host:is_up()
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
+  if err then
+    return nil, err
+  end
+
+  return host_infos.unhealthy_at == 0
+end
+
+function Host:can_be_considered_up()
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
+  if err then
+    return nil, err
+  end
+  local is_up, err = self:is_up()
+  if err then
+    return nil, err
+  end
+
+  return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
+end
+
 --- Request Handler
 -- @section request_handler
 
@@ -249,18 +304,18 @@ function RequestHandler:get_next_coordinator()
   end
 
   for _, addr in iter(self.options.shm, hosts) do
-    local can_host_be_considered_up, cache_err = cache.can_host_be_considered_up(self.options.shm, addr)
+    local host = Host(addr, self.options)
+    local can_host_be_considered_up, cache_err = host:can_be_considered_up()
     if cache_err then
       return nil, cache_err
     elseif can_host_be_considered_up then
-      local host = Host(addr, self.options)
       local connected, err = host:connect()
       if connected then
         self.coordinator = host
         return host
       else
         -- bad host, setting DOWN
-        local ok, cache_err = cache.set_host_down(self.options.shm, addr)
+        local ok, cache_err = host:set_down()
         if not ok then
           return nil, cache_err
         end
@@ -295,7 +350,7 @@ function RequestHandler:send()
   end
 
   -- Success! Make sure to re-up node in case it was marked as DOWN
-  local ok, cache_err = cache.set_host_up(self.options.shm, coordinator.host)
+  local ok, cache_err = coordinator:set_up()
   if err then
     return nil, cache_err
   end
@@ -309,7 +364,7 @@ function RequestHandler:handle_error(err)
 
   if err.type == "SocketError" or err.type == "TimeoutError" then
     -- host seems unhealthy
-    local ok, cache_err = cache.set_host_down(self.options.shm, self.coordinator.address)
+    local ok, cache_err = self.coordinator:set_down()
     if not ok then
       return nil, cache_err
     end
@@ -331,7 +386,7 @@ function RequestHandler:handle_error(err)
     elseif err.code == CQL_Errors.WRITE_TIMEOUT then
       decision = retry_policy.on_write_timeout(request_infos)
     elseif err.code == CQL_Errors.UNPREPARED then
-      -- re prepare and retry
+      -- re-prepare and retry
     end
   end
 
@@ -418,8 +473,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     rack = row["rack"],
     cassandra_version = row["release_version"],
     protocol_versiom = row["native_protocol_version"],
-    unhealthy_at = 0,
-    reconnection_delay = 5000
+    unhealthy_at = 0
   }
   hosts[address] = local_host
   log.info("Local info retrieved")
@@ -437,8 +491,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
       rack = row["rack"],
       cassandra_version = row["release_version"],
       protocol_version = local_host.native_protocol_version,
-      unhealthy_at = 0,
-      reconnection_delay = 5000
+      unhealthy_at = 0
     }
   end
   log.info("Peers info retrieved")

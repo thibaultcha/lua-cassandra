@@ -8,8 +8,9 @@ local DEFAULTS = {
   contact_points = {},
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
-    load_balancing = require("cassandra.policies.load_balancing").RoundRobin,
-    retry = require("cassandra.policies.retry")
+    load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
+    retry = require("cassandra.policies.retry"),
+    reconnection = require("cassandra.policies.reconnection").SharedExponential(1000, 10 * 60 * 1000)
   },
   protocol_options = {
     default_port = 9042

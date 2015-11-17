@@ -96,3 +96,36 @@ type: ROWS
 local
 --- no_error_log
 [error]
+
+
+
+=== TEST 4: session:execute() with request arguments
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra"}
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            else
+                ngx.say("type: "..rows.type)
+                ngx.say("#rows: "..#rows)
+                for _, row in ipairs(rows) do
+                    ngx.say(row["key"])
+                end
+            end
+        ';
+    }
+--- request
+GET /t
+--- response_body
+type: ROWS
+#rows: 1
+local
+--- no_error_log
+[error]

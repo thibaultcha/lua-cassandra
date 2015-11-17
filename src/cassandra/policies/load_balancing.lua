@@ -22,6 +22,11 @@ return {
       if counter <= n then
         return mod, hosts[mod]
       end
+
+      local ok, err = dict:set("rr_plan_index", 0)
+      if not ok then
+        log.err("Cannot reset shared round robin load balancing policy: "..err)
+      end
     end
   end
 }

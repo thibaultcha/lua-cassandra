@@ -99,6 +99,9 @@ local function parse_metadata(buffer)
 end
 
 local RESULT_PARSERS = {
+  [RESULT_KINDS.VOID] = function()
+    return {type = "VOID"}
+  end,
   [RESULT_KINDS.ROWS] = function(buffer)
     local metadata = parse_metadata(buffer)
     local columns = metadata.columns
@@ -121,6 +124,20 @@ local RESULT_PARSERS = {
     end
 
     return rows
+  end,
+  [RESULT_KINDS.SET_KEYSPACE] = function(buffer)
+    return {
+      type = "SET_KEYSPACE",
+      keyspace = buffer:read_string()
+    }
+  end,
+  [RESULT_KINDS.SCHEMA_CHANGE] = function(buffer)
+    return {
+      type = "SCHEMA_CHANGE",
+      change = buffer:read_string(),
+      keyspace = buffer:read_string(),
+      table = buffer:read_string()
+    }
   end
 }
 

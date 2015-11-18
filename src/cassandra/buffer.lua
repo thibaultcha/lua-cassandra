@@ -1,7 +1,10 @@
 local Buffer = require "cassandra.utils.buffer"
-local CQL_TYPES = require "cassandra.types.cql_types"
 local t_utils = require "cassandra.utils.table"
+local types = require "cassandra.types"
+local cql_types = types.cql_types
+
 local math_floor = math.floor
+local type = type
 
 --- Frame types
 -- @section frame_types
@@ -40,27 +43,27 @@ end
 
 local CQL_DECODERS = {
   -- custom = 0x00,
-  [CQL_TYPES.ascii] = "raw",
-  -- [CQL_TYPES.bigint] = "bigint",
-  [CQL_TYPES.blob] = "raw",
-  [CQL_TYPES.boolean] = "boolean",
-  -- [CQL_TYPES.counter] = "counter",
+  [cql_types.ascii] = "raw",
+  -- [cql_types.bigint] = "bigint",
+  [cql_types.blob] = "raw",
+  [cql_types.boolean] = "boolean",
+  -- [cql_types.counter] = "counter",
   -- decimal 0x06
-  -- [CQL_TYPES.double] = "double",
-  -- [CQL_TYPES.float] = "float",
-  [CQL_TYPES.inet] = "inet",
-  [CQL_TYPES.int] = "int",
-  [CQL_TYPES.text] = "raw",
-  [CQL_TYPES.list] = "set",
-  [CQL_TYPES.map] = "map",
-  [CQL_TYPES.set] = "set",
-  [CQL_TYPES.uuid] = "uuid",
-  -- [CQL_TYPES.timestamp] = "timestamp",
-  [CQL_TYPES.varchar] = "raw",
-  -- [CQL_TYPES.varint] = "varint",
-  -- [CQL_TYPES.timeuuid] = "timeuuid",
-  -- [CQL_TYPES.udt] = "udt",
-  -- [CQL_TYPES.tuple] = "tuple"
+  -- [cql_types.double] = "double",
+  -- [cql_types.float] = "float",
+  [cql_types.inet] = "inet",
+  [cql_types.int] = "int",
+  [cql_types.text] = "raw",
+  [cql_types.list] = "set",
+  [cql_types.map] = "map",
+  [cql_types.set] = "set",
+  [cql_types.uuid] = "uuid",
+  -- [cql_types.timestamp] = "timestamp",
+  [cql_types.varchar] = "raw",
+  -- [cql_types.varint] = "varint",
+  -- [cql_types.timeuuid] = "timeuuid",
+  -- [cql_types.udt] = "udt",
+  -- [cql_types.tuple] = "tuple"
 }
 
 for _, cql_decoder in pairs(CQL_DECODERS) do
@@ -80,22 +83,27 @@ for _, cql_decoder in pairs(CQL_DECODERS) do
   end
 end
 
-function Buffer:repr_cql_value(value, assumed_type)
+function Buffer:repr_cql_value(value)
   local infered_type
   local lua_type = type(value)
 
-  if assumed_type then
-    infered_type = assumed_type
-  elseif lua_type == "number" and math_floor(value) == value then
-    infered_type = CQL_TYPES.int
+  if lua_type == "number" then
+    if math_floor(value) == value then
+      infered_type = cql_types.int
+    else
+      --infered_type = cql_types.float
+    end
   elseif lua_type == "table" then
     if t_utils.is_array(value) then
-      infered_type = CQL_TYPES.set
+      infered_type = cql_types.set
+    elseif value.value ~= nil and value.type_id ~= nil then
+      infered_type = value.type_id
+      value = value.value
     else
-      infered_type = CQL_TYPES.map
+      infered_type = cql_types.map
     end
   else
-    infered_type = CQL_TYPES.varchar
+    infered_type = cql_types.varchar
   end
 
   local encoder = "repr_cql_"..CQL_DECODERS[infered_type]
@@ -107,8 +115,15 @@ function Buffer:write_cql_value(...)
 end
 
 function Buffer:read_cql_value(assumed_type)
-  local decoder = "read_cql_"..CQL_DECODERS[assumed_type.id]
-  return Buffer[decoder](self, assumed_type.value)
+  local decoder = "read_cql_"..CQL_DECODERS[assumed_type.type_id]
+  return Buffer[decoder](self, assumed_type.value_type_id)
+end
+
+function Buffer:write_cql_values(values)
+  self:write_short(#values)
+  for _, value in ipairs(values) do
+    self:write_cql_value(value)
+  end
 end
 
 return Buffer

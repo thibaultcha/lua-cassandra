@@ -3,6 +3,7 @@ local CONSTS = require "cassandra.constants"
 local _M = {}
 
 function _M.extend_table(defaults, values)
+  if values == nil then values = {} end
   for k in pairs(defaults) do
     if values[k] == nil then
       values[k] = defaults[k]
@@ -11,6 +12,22 @@ function _M.extend_table(defaults, values)
       _M.extend_table(defaults[k], values[k])
     end
   end
+
+  return values
+end
+
+function _M.deep_copy(orig)
+  local copy
+  if type(orig) == "table" then
+    copy = {}
+    for orig_key, orig_value in next, orig, nil do
+      copy[_M.deep_copy(orig_key)] = _M.deep_copy(orig_value)
+    end
+    setmetatable(copy, _M.deep_copy(getmetatable(orig)))
+  else
+    copy = orig
+  end
+  return copy
 end
 
 function _M.is_array(t)

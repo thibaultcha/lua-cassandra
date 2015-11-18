@@ -1,3 +1,4 @@
+local log = require "cassandra.log"
 local cache = require "cassandra.cache"
 local math_pow = math.pow
 local math_min = math.min
@@ -31,7 +32,7 @@ local function shared_exponential_reconnection_policy(base_delay, max_delay)
         log.err("Cannot prepare shared exponential reconnection policy: "..err)
       end
 
-      local delay = 0
+      local delay
       dict:incr(index_key, 1)
       local index = dict:get(index_key)
       if index > 64 then

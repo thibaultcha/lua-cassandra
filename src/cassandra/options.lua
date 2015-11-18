@@ -1,3 +1,4 @@
+local types = require "cassandra.types"
 local utils = require "cassandra.utils.table"
 
 --- Defaults
@@ -6,11 +7,20 @@ local utils = require "cassandra.utils.table"
 local DEFAULTS = {
   shm = nil, -- required
   contact_points = {},
+  keyspace = nil, -- stub
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
     load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
     retry = require("cassandra.policies.retry"),
     reconnection = require("cassandra.policies.reconnection").SharedExponential(1000, 10 * 60 * 1000)
+  },
+  query_options = {
+    consistency = types.consistencies.one,
+    serial_consistency = types.consistencies.serial,
+    page_size = 5000,
+    paging_state = nil, -- stub
+    prepare = false,
+    retry_on_timeout = true
   },
   protocol_options = {
     default_port = 9042
@@ -22,8 +32,6 @@ local DEFAULTS = {
 }
 
 local function parse_session(options)
-  if options == nil then options = {} end
-
   utils.extend_table(DEFAULTS, options)
 
   --if type(options.keyspace) ~= "string" then
@@ -41,8 +49,6 @@ local function parse_session(options)
 end
 
 local function parse_cluster(options)
-  if options == nil then options = {} end
-
   parse_session(options)
 
   if type(options.contact_points) ~= "table" then

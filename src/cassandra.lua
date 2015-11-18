@@ -1,11 +1,13 @@
 local log = require "cassandra.log"
 local opts = require "cassandra.options"
+local types = require "cassandra.types"
 local cache = require "cassandra.cache"
 local Object = require "cassandra.classic"
 local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
+local table_utils = require "cassandra.utils.table"
 local string_utils = require "cassandra.utils.string"
 local frame_header = require "cassandra.types.frame_header"
 local frame_reader = require "cassandra.frame_reader"
@@ -13,6 +15,7 @@ local frame_reader = require "cassandra.frame_reader"
 local table_insert = table.insert
 local string_find = string.find
 
+local CQL_Errors = frame_reader.errors
 local FrameReader = frame_reader.FrameReader
 local FrameHeader = frame_header.FrameHeader
 
@@ -124,6 +127,13 @@ local function startup(self)
   return self:send(startup_req)
 end
 
+local function change_keyspace(self)
+  log.info("Keyspace request. Using keyspace: "..self.options.keyspace)
+
+  local keyspace_req = Requests.KeyspaceRequest(self.options.keyspace)
+  return self:send(keyspace_req)
+end
+
 function Host:connect()
   log.info("Connecting to "..self.address)
 
@@ -163,6 +173,14 @@ function Host:connect()
     return false, err
   elseif res.ready then
     log.info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
+
+    if self.options.keyspace ~= nil then
+      local _, err = change_keyspace(self)
+      if err then
+        return false, err
+      end
+    end
+
     return true
   end
 end
@@ -299,7 +317,7 @@ function RequestHandler:get_next_coordinator()
 
   local iter = self.options.policies.load_balancing
   local hosts, cache_err = cache.get_hosts(self.options.shm)
-  if err then
+  if cache_err then
     return nil, cache_err
   end
 
@@ -351,7 +369,7 @@ function RequestHandler:send()
 
   -- Success! Make sure to re-up node in case it was marked as DOWN
   local ok, cache_err = coordinator:set_up()
-  if err then
+  if not ok then
     return nil, cache_err
   end
 
@@ -362,7 +380,7 @@ function RequestHandler:handle_error(err)
   local retry_policy = self.options.policies.retry
   local decision = retry_policy.decisions.throw
 
-  if err.type == "SocketError" or err.type == "TimeoutError" then
+  if err.type == "SocketError" then
     -- host seems unhealthy
     local ok, cache_err = self.coordinator:set_down()
     if not ok then
@@ -370,6 +388,10 @@ function RequestHandler:handle_error(err)
     end
     -- always retry, another node will be picked
     return self:retry()
+  elseif err.type == "TimeoutError" then
+    if self.options.query_options.retry_on_timeout then
+      return self:retry()
+    end
   elseif err.type == "ResponseError" then
     local request_infos = {
       handler = self,
@@ -422,11 +444,17 @@ function Session:new(options)
   return setmetatable(s, {__index = self})
 end
 
+function Session:execute(query, args, options)
+  local q_options = table_utils.deep_copy(self.options)
+  q_options.query_options = table_utils.extend_table(q_options.query_options, options)
 
-function Session:execute(query)
-  local query_request = Requests.QueryRequest(query)
-  local request_handler = RequestHandler:new(query_request, self.options)
+  local query_request = Requests.QueryRequest(query, args, options)
+  local request_handler = RequestHandler:new(query_request, q_options)
   return request_handler:send()
+end
+
+function Session:set_keyspace(keyspace)
+  self.options.keyspace = keyspace
 end
 
 function Session:close()
@@ -503,7 +531,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   for addr, host in pairs(hosts) do
     table_insert(addresses, addr)
     local ok, cache_err = cache.set_host(options.shm, addr, host)
-    if err then
+    if not ok then
       return false, cache_err
     end
   end
@@ -522,5 +550,7 @@ function Cassandra.spawn_cluster(options)
 
   return Cassandra.refresh_hosts(contact_points_hosts, options)
 end
+
+Cassandra.types = types
 
 return Cassandra

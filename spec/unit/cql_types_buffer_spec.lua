@@ -1,6 +1,7 @@
 local Buffer = require "cassandra.buffer"
 local CONSTS = require "cassandra.constants"
-local CQL_TYPES = require "cassandra.types.cql_types"
+local types = require "cassandra.types"
+local CQL_TYPES = types.cql_types
 
 for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do
 
@@ -31,6 +32,24 @@ describe("CQL Types protocol v"..protocol_version, function()
         end
       end
     end)
+
+    describe("manual type infering", function()
+      it("should be possible to infer the type of a value through helper methods", function()
+        for _, fixture in ipairs(fixture_values) do
+          local infered_value = types[fixture_type](fixture)
+          local buf = Buffer(protocol_version)
+          buf:write_cql_value(infered_value)
+          buf:reset()
+
+          local decoded = buf:read_cql_value({type_id = CQL_TYPES[fixture_type]})
+          if type(fixture) == "table" then
+            assert.same(fixture, decoded)
+          else
+            assert.equal(fixture, decoded)
+          end
+        end
+      end)
+    end)
   end
 
   it("[map<type, type>] should be bufferable", function()
@@ -44,7 +63,7 @@ describe("CQL Types protocol v"..protocol_version, function()
       local buf = Buffer(protocol_version)
       buf:write_cql_map(fixture.value)
       buf:reset()
-      local decoded = buf:read_cql_map({{id = fixture.key_type}, {id = fixture.value_type}})
+      local decoded = buf:read_cql_map({{type_id = fixture.key_type}, {type_id = fixture.value_type}})
       assert.same(fixture.value, decoded)
     end
   end)
@@ -59,10 +78,31 @@ describe("CQL Types protocol v"..protocol_version, function()
       local buf = Buffer(protocol_version)
       buf:write_cql_set(fixture.value)
       buf:reset()
-      local decoded = buf:read_cql_set({id = fixture.value_type})
+      local decoded = buf:read_cql_set({type_id = fixture.value_type})
       assert.same(fixture.value, decoded)
     end
+  end)
+
+  describe("write_cql_values", function()
+    it("should loop over given values and infer their types", function()
+      local values = {
+        42,
+        {"hello", "world"},
+        {hello = "world"},
+        "hello world"
+      }
+
+      local buf = Buffer(protocol_version)
+      buf:write_cql_values(values)
+      buf:reset()
+      assert.equal(#values, buf:read_short())
+      assert.equal(values[1], buf:read_cql_int())
+      assert.same(values[2], buf:read_cql_set({type_id = CQL_TYPES.text}))
+      assert.same(values[3], buf:read_cql_map({{type_id = CQL_TYPES.text}, {type_id = CQL_TYPES.text}}))
+      assert.same(values[4], buf:read_cql_raw())
+    end)
   end)
 end)
 
 end
+

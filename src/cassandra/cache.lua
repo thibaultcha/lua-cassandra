@@ -1,5 +1,4 @@
 local json = require "cjson"
-local log = require "cassandra.log"
 local string_utils = require "cassandra.utils.string"
 local table_concat = table.concat
 local in_ngx = ngx ~= nil

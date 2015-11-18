@@ -141,7 +141,7 @@ function Host:connect()
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
     log.info("Could not connect to "..self.address..". Reason: "..err)
-    return false, err
+    return false, err, true
   end
 
   log.info("Session connected to "..self.address)
@@ -176,6 +176,7 @@ function Host:connect()
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
       if err then
+        log.err("Could not set keyspace. "..err)
         return false, err
       end
     end
@@ -329,7 +330,6 @@ end
 
 function RequestHandler:get_next_coordinator()
   local errors = {}
-
   local iter = self.options.policies.load_balancing
 
   for _, host in iter(self.options.shm, self.hosts) do
@@ -337,20 +337,23 @@ function RequestHandler:get_next_coordinator()
     if cache_err then
       return nil, cache_err
     elseif can_host_be_considered_up then
-      local connected, err = host:connect()
+      local connected, err, maybe_down = host:connect()
       if connected then
         self.coordinator = host
         return host
       else
-        -- bad host, setting DOWN
-        local ok, cache_err = host:set_down()
-        if not ok then
-          return nil, cache_err
+        if maybe_down then
+          -- only on socket connect error
+          -- might be a bad host, setting DOWN
+          local ok, cache_err = host:set_down()
+          if not ok then
+            return nil, cache_err
+          end
         end
-        errors[addr] = err
+        errors[host.address] = err
       end
     else
-      errors[addr] = "Host considered DOWN"
+      errors[host.address] = "Host considered DOWN"
     end
   end
 
@@ -474,10 +477,20 @@ function Session:execute(query, args, options)
 end
 
 function Session:set_keyspace(keyspace)
+  local errors = {}
   self.options.keyspace = keyspace
   for _, host in ipairs(self.hosts) do
-    host:change_keyspace(keyspace)
+    local _, err = host:change_keyspace(keyspace)
+    if err then
+      table_insert(errors, err)
+    end
   end
+
+  if #errors > 0 then
+    return false, errors
+  end
+
+  return true
 end
 
 function Session:shutdown()

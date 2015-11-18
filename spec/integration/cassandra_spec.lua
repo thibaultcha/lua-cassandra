@@ -6,6 +6,11 @@
 local cassandra = require "cassandra"
 local log = require "cassandra.log"
 
+local function sleep(t)
+  if not t then t = 1 end
+  os.execute("sleep "..t)
+end
+
 -- Define log level for tests
 log.set_lvl("ERR")
 
@@ -99,6 +104,7 @@ describe("spawn session", function()
   end)
   describe(":execute()", function()
     teardown(function()
+      -- drop keyspace in case tests failed
       session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
     end)
     it("should parse ROWS results", function()
@@ -122,7 +128,7 @@ describe("spawn session", function()
       assert.equal("KEYSPACE", res.keyspace)
       assert.equal("resty_cassandra_spec_parsing", res.table)
 
-      os.execute("sleep 1")
+      sleep()
 
       res, err = session:execute [[USE "resty_cassandra_spec_parsing"]]
       assert.falsy(err)
@@ -134,11 +140,27 @@ describe("spawn session", function()
     it("should spawn a session in a given keyspace", function()
       local session_in_keyspace, err = cassandra.spawn_session({
         shm = _shm,
-        keyspace = "resty_cassandra_specs_parsing"
+        keyspace = "resty_cassandra_spec_parsing"
       })
       assert.falsy(err)
-      assert.equal("resty_cassandra_specs_parsing", session_in_keyspace.options.keyspace)
-      assert.equal("resty_cassandra_specs_parsing", session_in_keyspace.hosts[1].options.keyspace)
+      assert.equal("resty_cassandra_spec_parsing", session_in_keyspace.options.keyspace)
+      assert.equal("resty_cassandra_spec_parsing", session_in_keyspace.hosts[1].options.keyspace)
+
+      local _, err = session:execute [[
+        CREATE TABLE IF NOT EXISTS resty_cassandra_spec_parsing.users(
+          id uuid PRIMARY KEY,
+          name varchar,
+          age int
+        )
+      ]]
+      assert.falsy(err)
+
+      sleep()
+
+      local rows, err = session_in_keyspace:execute("SELECT * FROM users")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(0, #rows)
     end)
     it("should parse SCHEMA_CHANGE bis", function()
       local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
@@ -155,9 +177,7 @@ describe("session", function()
 
   setup(function()
     local err
-    session, err = cassandra.spawn_session {
-      shm = _shm
-    }
+    session, err = cassandra.spawn_session {shm = _shm}
     assert.falsy(err)
 
     local _, err = session:execute [[
@@ -166,7 +186,7 @@ describe("session", function()
     ]]
     assert.falsy(err)
 
-    os.execute("sleep 1")
+    sleep()
 
     local _, err = session:execute [[
       CREATE TABLE IF NOT EXISTS resty_cassandra_specs.users(
@@ -176,9 +196,16 @@ describe("session", function()
       )
     ]]
     assert.falsy(err)
+
+    sleep()
   end)
 
   teardown(function()
+    -- drop keyspace in case tests failed
+    local err
+    session, err = cassandra.spawn_session {shm = _shm}
+    assert.falsy(err)
+
     local _, err = session:execute("DROP KEYSPACE resty_cassandra_specs")
     assert.falsy(err)
 
@@ -187,7 +214,9 @@ describe("session", function()
 
   describe(":set_keyspace()", function()
     it("should set a session's 'keyspace' option", function()
-      session:set_keyspace("resty_cassandra_specs")
+      local ok, err = session:set_keyspace("resty_cassandra_specs")
+      assert.falsy(err)
+      assert.True(ok)
       assert.equal("resty_cassandra_specs", session.options.keyspace)
 
       local rows, err = session:execute("SELECT * FROM users")
@@ -204,5 +233,11 @@ describe("session", function()
       assert.truthy(res)
       assert.equal("VOID", res.type)
     end)
+  end)
+
+  describe(":shutdown()", function()
+    session:shutdown()
+    assert.True(session.terminated)
+    assert.same({}, session.hosts)
   end)
 end)

@@ -1,3 +1,27 @@
+local QUERY_FLAGS = {
+  COMPRESSION = 0x01, -- not implemented
+  TRACING = 0x02
+}
+
+local OP_CODES = {
+  ERROR = 0x00,
+  STARTUP = 0x01,
+  READY = 0x02,
+  AUTHENTICATE = 0x03,
+  OPTIONS = 0x05,
+  SUPPORTED = 0x06,
+  QUERY = 0x07,
+  RESULT = 0x08,
+  PREPARE = 0x09,
+  EXECUTE = 0x0A,
+  REGISTER = 0x0B,
+  EVENT = 0x0C,
+  BATCH = 0x0D,
+  AUTH_CHALLENGE = 0x0E,
+  AUTH_RESPONSE = 0x0F,
+  AUTH_SUCCESS = 0x10
+}
+
 local cql_types = {
   custom    = 0x00,
   ascii     = 0x01,
@@ -24,32 +48,62 @@ local cql_types = {
 }
 
 local consistencies = {
-  any = 0X0000,
-  one = 0X0001,
-  two = 0X0002,
-  three = 0X0003,
-  quorum = 0X0004,
-  all = 0X0005,
-  local_quorum = 0X0006,
-  each_quorum = 0X0007,
-  serial = 0X0008,
-  local_serial = 0X0009,
-  local_one = 0X000a
+  any = 0x0000,
+  one = 0x0001,
+  two = 0x0002,
+  three = 0x0003,
+  quorum = 0x0004,
+  all = 0x0005,
+  local_quorum = 0x0006,
+  each_quorum = 0x0007,
+  serial = 0x0008,
+  local_serial = 0x0009,
+  local_one = 0x000a
 }
 
-local types_mt = {}
+local ERRORS = {
+  SERVER = 0x0000,
+  PROTOCOL = 0x000A,
+  BAD_CREDENTIALS = 0x0100,
+  UNAVAILABLE_EXCEPTION = 0x1000,
+  OVERLOADED = 0x1001,
+  IS_BOOTSTRAPPING = 0x1002,
+  TRUNCATE_ERROR = 0x1003,
+  WRITE_TIMEOUT = 0x1100,
+  READ_TIMEOUT = 0x1200,
+  SYNTAX_ERROR = 0x2000,
+  UNAUTHORIZED = 0x2100,
+  INVALID = 0x2200,
+  CONFIG_ERROR = 0x2300,
+  ALREADY_EXISTS = 0x2400,
+  UNPREPARED = 0x2500
+}
 
-function types_mt:__index(key)
-  if cql_types[key] ~= nil then
-    return function(value)
-      return {value = value, type_id = cql_types[key]}
-    end
-  end
+local ERRORS_TRANSLATION = {
+  [ERRORS.SERVER] = "Server error",
+  [ERRORS.PROTOCOL] = "Protocol error",
+  [ERRORS.BAD_CREDENTIALS] = "Bad credentials",
+  [ERRORS.UNAVAILABLE_EXCEPTION] = "Unavailable exception",
+  [ERRORS.OVERLOADED] = "Overloaded",
+  [ERRORS.IS_BOOTSTRAPPING] = "Is bootstrapping",
+  [ERRORS.TRUNCATE_ERROR] = "Truncate error",
+  [ERRORS.WRITE_TIMEOUT] = "Write timeout",
+  [ERRORS.READ_TIMEOUT] = "Read timeout",
+  [ERRORS.SYNTAX_ERROR] = "Syntaxe rror",
+  [ERRORS.UNAUTHORIZED] = "Unauthorized",
+  [ERRORS.INVALID] = "Invalid",
+  [ERRORS.CONFIG_ERROR] = "Config error",
+  [ERRORS.ALREADY_EXISTS] = "Already exists",
+  [ERRORS.UNPREPARED] = "Unprepared"
+}
 
-  return rawget(self, key)
-end
-
-return setmetatable({
+return {
+  -- public
+  consistencies = consistencies,
+  -- private
   cql_types = cql_types,
-  consistencies = consistencies
-}, types_mt)
+  QUERY_FLAGS = QUERY_FLAGS,
+  OP_CODES = OP_CODES,
+  ERRORS = ERRORS,
+  ERRORS_TRANSLATION = ERRORS_TRANSLATION
+}

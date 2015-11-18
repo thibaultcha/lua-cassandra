@@ -9,15 +9,12 @@ local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
 local table_utils = require "cassandra.utils.table"
 local string_utils = require "cassandra.utils.string"
-local frame_header = require "cassandra.types.frame_header"
-local frame_reader = require "cassandra.frame_reader"
+local FrameHeader = require "cassandra.types.frame_header"
+local FrameReader = require "cassandra.frame_reader"
 
 local table_insert = table.insert
 local string_find = string.find
-
-local CQL_Errors = frame_reader.errors
-local FrameReader = frame_reader.FrameReader
-local FrameHeader = frame_header.FrameHeader
+local CQL_Errors = types.ERRORS
 
 --- Host
 -- A connection to a single host.
@@ -501,7 +498,8 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     rack = row["rack"],
     cassandra_version = row["release_version"],
     protocol_versiom = row["native_protocol_version"],
-    unhealthy_at = 0
+    unhealthy_at = 0,
+    reconnection_delay = 0
   }
   hosts[address] = local_host
   log.info("Local info retrieved")
@@ -519,7 +517,8 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
       rack = row["rack"],
       cassandra_version = row["release_version"],
       protocol_version = local_host.native_protocol_version,
-      unhealthy_at = 0
+      unhealthy_at = 0,
+      reconnection_delay = 0
     }
   end
   log.info("Peers info retrieved")
@@ -551,6 +550,25 @@ function Cassandra.spawn_cluster(options)
   return Cassandra.refresh_hosts(contact_points_hosts, options)
 end
 
-Cassandra.types = types
+--- CQL types inferers
+-- @section
+
+local CQL_TYPES = types.cql_types
+
+local types_mt = {}
+
+function types_mt:__index(key)
+  if CQL_TYPES[key] ~= nil then
+    return function(value)
+      return {value = value, type_id = CQL_TYPES[key]}
+    end
+  end
+
+  return rawget(self, key)
+end
+
+Cassandra.types = setmetatable({}, types_mt)
+
+Cassandra.consistencies = types.consistencies
 
 return Cassandra

@@ -1,48 +1,12 @@
+local bit = require "cassandra.utils.bit"
+local types = require "cassandra.types"
 local Object = require "cassandra.classic"
 local Buffer = require "cassandra.buffer"
 local errors = require "cassandra.errors"
-local frame_header = require "cassandra.types.frame_header"
-local bit = require "cassandra.utils.bit"
-local op_codes = frame_header.op_codes
+local OP_CODES = types.OP_CODES
 
 --- CONST
 -- @section constants
-
-local ERRORS = {
-  SERVER = 0x0000,
-  PROTOCOL = 0x000A,
-  BAD_CREDENTIALS = 0x0100,
-  UNAVAILABLE_EXCEPTION = 0x1000,
-  OVERLOADED = 0x1001,
-  IS_BOOTSTRAPPING = 0x1002,
-  TRUNCATE_ERROR = 0x1003,
-  WRITE_TIMEOUT = 0x1100,
-  READ_TIMEOUT = 0x1200,
-  SYNTAX_ERROR = 0x2000,
-  UNAUTHORIZED = 0x2100,
-  INVALID = 0x2200,
-  CONFIG_ERROR = 0x2300,
-  ALREADY_EXISTS = 0x2400,
-  UNPREPARED = 0x2500
-}
-
-local ERRORS_TRANSLATION = {
-  [ERRORS.SERVER] = "Server error",
-  [ERRORS.PROTOCOL] = "Protocol error",
-  [ERRORS.BAD_CREDENTIALS] = "Bad credentials",
-  [ERRORS.UNAVAILABLE_EXCEPTION] = "Unavailable exception",
-  [ERRORS.OVERLOADED] = "Overloaded",
-  [ERRORS.IS_BOOTSTRAPPING] = "Is bootstrapping",
-  [ERRORS.TRUNCATE_ERROR] = "Truncate error",
-  [ERRORS.WRITE_TIMEOUT] = "Write timeout",
-  [ERRORS.READ_TIMEOUT] = "Read timeout",
-  [ERRORS.SYNTAX_ERROR] = "Syntaxe rror",
-  [ERRORS.UNAUTHORIZED] = "Unauthorized",
-  [ERRORS.INVALID] = "Invalid",
-  [ERRORS.CONFIG_ERROR] = "Config error",
-  [ERRORS.ALREADY_EXISTS] = "Already exists",
-  [ERRORS.UNPREPARED] = "Unprepared"
-}
 
 local RESULT_KINDS = {
   VOID = 0x01,
@@ -154,7 +118,7 @@ end
 local function parse_error(frameBody)
   local code = frameBody:read_int()
   local message = frameBody:read_string()
-  local code_translation = ERRORS_TRANSLATION[code]
+  local code_translation = types.ERRORS_TRANSLATIONS[code]
   return errors.ResponseError(code, code_translation, message)
 end
 
@@ -176,16 +140,13 @@ function FrameReader:parse()
   end
 
   -- Parse frame depending on op_code
-  if op_code == op_codes.ERROR then
+  if op_code == OP_CODES.ERROR then
     return nil, parse_error(self.frameBody)
-  elseif op_code == op_codes.READY then
+  elseif op_code == OP_CODES.READY then
     return parse_ready(self.frameBody)
-  elseif op_code == op_codes.RESULT then
+  elseif op_code == OP_CODES.RESULT then
     return parse_result(self.frameBody)
   end
 end
 
-return {
-  FrameReader = FrameReader,
-  errors = ERRORS
-}
+return FrameReader

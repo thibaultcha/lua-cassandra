@@ -3,11 +3,9 @@ local types = require "cassandra.types"
 local CONSTS = require "cassandra.constants"
 local Object = require "cassandra.classic"
 local Buffer = require "cassandra.buffer"
-local frame_header = require "cassandra.types.frame_header"
+local FrameHeader = require "cassandra.types.frame_header"
 
-local op_codes = frame_header.op_codes
-local FrameHeader = frame_header.FrameHeader
-
+local OP_CODES = types.OP_CODES
 local string_format = string.format
 
 --- Query Flags
@@ -30,10 +28,10 @@ local query_flags = {
 local Request = Object:extend()
 
 function Request:new(op_code)
-  self.version = nil
+  self.version = nil -- no version yet at this point
   self.flags = 0
   self.op_code = op_code
-  self.frameBody = Buffer() -- no version yet at this point
+  self.frame_body = Buffer() -- no version yet at this point
   self.built = false
 
   Request.super.new(self)
@@ -41,7 +39,7 @@ end
 
 function Request:set_version(version)
   self.version = version
-  self.frameBody.version = version
+  self.frame_body.version = version
 end
 
 function Request:build()
@@ -49,17 +47,17 @@ function Request:build()
 end
 
 function Request:get_full_frame()
-  if not self.op_code then error("Request#write() has no op_code attribute") end
-  if not self.version then error("Request#write() has no version attribute") end
+  if not self.op_code then error("Request#get_full_frame() has no op_code attribute") end
+  if not self.version then error("Request#get_full_frame() has no version attribute") end
 
   if not self.built then
     self:build()
     self.built = true
   end
 
-  local frameHeader = FrameHeader(self.version, self.flags, self.op_code, self.frameBody.len)
-  local header = frameHeader:dump()
-  local body = self.frameBody:dump()
+  local frame_header = FrameHeader(self.version, self.flags, self.op_code, self.frame_body.len)
+  local header = frame_header:dump()
+  local body = self.frame_body:dump()
 
   return header..body
 end
@@ -70,11 +68,11 @@ end
 local StartupRequest = Request:extend()
 
 function StartupRequest:new()
-  StartupRequest.super.new(self, op_codes.STARTUP)
+  StartupRequest.super.new(self, OP_CODES.STARTUP)
 end
 
 function StartupRequest:build()
-  self.frameBody:write_string_map({
+  self.frame_body:write_string_map({
     CQL_VERSION = CONSTS.CQL_VERSION
   })
 end
@@ -88,7 +86,7 @@ function QueryRequest:new(query, params, options)
   self.query = query
   self.params = params
   self.options = options or {}
-  QueryRequest.super.new(self, op_codes.QUERY)
+  QueryRequest.super.new(self, OP_CODES.QUERY)
 end
 
 function QueryRequest:build()
@@ -119,10 +117,10 @@ function QueryRequest:build()
     flags_buffer:write_short(self.options.serial_consistency)
   end
 
-  self.frameBody:write_long_string(self.query)
-  self.frameBody:write_short(self.options.consistency)
-  self.frameBody:write_byte(flags)
-  self.frameBody:write(flags_buffer:dump())
+  self.frame_body:write_long_string(self.query)
+  self.frame_body:write_short(self.options.consistency)
+  self.frame_body:write_byte(flags)
+  self.frame_body:write(flags_buffer:dump())
 end
 
 --- KeyspaceRequest

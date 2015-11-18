@@ -8,7 +8,7 @@ plan tests => repeat_each() * blocks() * 3;
 my $pwd = cwd();
 
 our $HttpConfig = <<_EOC_;
-    lua_package_path "$pwd/src/?.lua;;";
+    lua_package_path "$pwd/src/?.lua;$pwd/src/?/init.lua;;";
     lua_shared_dict cassandra 1m;
 _EOC_
 

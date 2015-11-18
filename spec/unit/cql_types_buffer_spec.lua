@@ -37,7 +37,7 @@ describe("CQL Types protocol v"..protocol_version, function()
     describe("manual type infering", function()
       it("should be possible to infer the type of a value through helper methods", function()
         for _, fixture in ipairs(fixture_values) do
-          local infered_value = cassandra.types[fixture_type](fixture)
+          local infered_value = cassandra[fixture_type](fixture)
           local buf = Buffer(protocol_version)
           buf:write_cql_value(infered_value)
           buf:reset()

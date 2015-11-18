@@ -94,27 +94,22 @@ describe("spawn session", function()
     })
     assert.falsy(err)
     assert.truthy(session)
+    assert.truthy(session.hosts)
+    assert.equal(3, #session.hosts)
   end)
   describe(":execute()", function()
-    describe("ROWS parsing", function()
-      it("should execute a SELECT query, parsing ROWS", function()
-        local rows, err = session:execute("SELECT key FROM system.local")
-        assert.falsy(err)
-        assert.truthy(rows)
-        assert.equal("ROWS", rows.type)
-        assert.equal(1, #rows)
-        assert.equal("local", rows[1].key)
-      end)
-      it("should accept query arguments", function()
-        local rows, err = session:execute("SELECT key FROM system.local WHERE key = ?", {"local"})
-        assert.falsy(err)
-        assert.truthy(rows)
-        assert.equal("ROWS", rows.type)
-        assert.equal(1, #rows)
-        assert.equal("local", rows[1].key)
-      end)
+    teardown(function()
+      session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
     end)
-    describe("SCHEMA_CHANGE/SET_KEYSPACE parsing", function()
+    it("should parse ROWS results", function()
+      local rows, err = session:execute("SELECT key FROM system.local")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal("ROWS", rows.type)
+      assert.equal(1, #rows)
+      assert.equal("local", rows[1].key)
+    end)
+    it("should parse SCHEMA_CHANGE/SET_KEYSPACE results", function()
       local res, err = session:execute [[
         CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec_parsing
         WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
@@ -127,14 +122,26 @@ describe("spawn session", function()
       assert.equal("KEYSPACE", res.keyspace)
       assert.equal("resty_cassandra_spec_parsing", res.table)
 
+      os.execute("sleep 1")
+
       res, err = session:execute [[USE "resty_cassandra_spec_parsing"]]
       assert.falsy(err)
       assert.truthy(res)
       assert.equal(0, #res)
       assert.equal("SET_KEYSPACE", res.type)
       assert.equal("resty_cassandra_spec_parsing", res.keyspace)
-
-      res, err = session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
+    end)
+    it("should spawn a session in a given keyspace", function()
+      local session_in_keyspace, err = cassandra.spawn_session({
+        shm = _shm,
+        keyspace = "resty_cassandra_specs_parsing"
+      })
+      assert.falsy(err)
+      assert.equal("resty_cassandra_specs_parsing", session_in_keyspace.options.keyspace)
+      assert.equal("resty_cassandra_specs_parsing", session_in_keyspace.hosts[1].options.keyspace)
+    end)
+    it("should parse SCHEMA_CHANGE bis", function()
+      local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
       assert.falsy(err)
       assert.truthy(res)
       assert.equal(0, #res)
@@ -143,7 +150,7 @@ describe("spawn session", function()
   end)
 end)
 
-describe("use case", function()
+describe("session", function()
   local session
 
   setup(function()
@@ -163,9 +170,9 @@ describe("use case", function()
 
     local _, err = session:execute [[
       CREATE TABLE IF NOT EXISTS resty_cassandra_specs.users(
-         id uuid PRIMARY KEY,
-         name varchar,
-         age int
+        id uuid PRIMARY KEY,
+        name varchar,
+        age int
       )
     ]]
     assert.falsy(err)
@@ -175,7 +182,7 @@ describe("use case", function()
     local _, err = session:execute("DROP KEYSPACE resty_cassandra_specs")
     assert.falsy(err)
 
-    session:close()
+    session:shutdown()
   end)
 
   describe(":set_keyspace()", function()
@@ -192,7 +199,7 @@ describe("use case", function()
   describe(":execute()", function()
     it("should accept values to bind", function()
       local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)",
-        {cassandra.types.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 42})
+        {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 42})
       assert.falsy(err)
       assert.truthy(res)
       assert.equal("VOID", res.type)

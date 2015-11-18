@@ -124,14 +124,16 @@ local function startup(self)
   return self:send(startup_req)
 end
 
-local function change_keyspace(self)
-  log.info("Keyspace request. Using keyspace: "..self.options.keyspace)
+local function change_keyspace(self, keyspace)
+  log.info("Keyspace request. Using keyspace: "..keyspace)
 
-  local keyspace_req = Requests.KeyspaceRequest(self.options.keyspace)
+  local keyspace_req = Requests.KeyspaceRequest(keyspace)
   return self:send(keyspace_req)
 end
 
 function Host:connect()
+  if self.connected then return true end
+
   log.info("Connecting to "..self.address)
 
   self:set_timeout(self.options.socket_options.connect_timeout)
@@ -154,7 +156,7 @@ function Host:connect()
   if err then
     log.info("Startup request failed. "..err)
     -- Check for incorrect protocol version
-    if err and err.code == frame_reader.errors.PROTOCOL then
+    if err and err.code == CQL_Errors.PROTOCOL then
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
         self:close()
         self:decrease_version()
@@ -172,13 +174,26 @@ function Host:connect()
     log.info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
 
     if self.options.keyspace ~= nil then
-      local _, err = change_keyspace(self)
+      local _, err = change_keyspace(self, self.options.keyspace)
       if err then
         return false, err
       end
     end
 
+    self.connected = true
     return true
+  end
+end
+
+function Host:change_keyspace(keyspace)
+  if self.connected then
+    self.options.keyspace = keyspace
+
+    local res, err = change_keyspace(self, keyspace)
+    if err then
+      log.err("Could not change keyspace for host "..self.address)
+    end
+    return res, err
   end
 end
 
@@ -209,10 +224,11 @@ function Host:set_keep_alive()
     local ok, err = self.socket:setkeepalive()
     if err then
       log.err("Could not set keepalive for socket to "..self.address..". "..err)
+      return ok, err
     end
-    return ok
   end
 
+  self.connected = false
   return true
 end
 
@@ -223,6 +239,7 @@ function Host:close()
     log.err("Could not close socket for connection to "..self.address..". "..err)
     return false, err
   else
+    self.connected = false
     return true
   end
 end
@@ -285,8 +302,9 @@ end
 
 local RequestHandler = {}
 
-function RequestHandler:new(request, options)
+function RequestHandler:new(request, hosts, options)
   local o = {
+    hosts = hosts,
     request = request,
     options = options,
     n_retries = 0
@@ -313,13 +331,8 @@ function RequestHandler:get_next_coordinator()
   local errors = {}
 
   local iter = self.options.policies.load_balancing
-  local hosts, cache_err = cache.get_hosts(self.options.shm)
-  if cache_err then
-    return nil, cache_err
-  end
 
-  for _, addr in iter(self.options.shm, hosts) do
-    local host = Host(addr, self.options)
+  for _, host in iter(self.options.shm, self.hosts) do
     local can_host_be_considered_up, cache_err = host:can_be_considered_up()
     if cache_err then
       return nil, cache_err
@@ -356,8 +369,6 @@ function RequestHandler:send()
 
   if coordinator.socket_type == "ngx" then
     coordinator:set_keep_alive()
-  else
-    coordinator:close()
   end
 
   if err then
@@ -425,7 +436,6 @@ end
 
 --- Session
 -- A short-lived session, cluster-aware through the cache.
--- Uses a load balancing policy to select a coordinator on which to perform requests.
 -- @section session
 
 local Session = {}
@@ -435,29 +445,47 @@ function Session:new(options)
 
   local s = {
     options = options,
-    coordinator = nil -- to be determined by load balancing policy
+    hosts = {}
   }
+
+  local host_addresses, cache_err = cache.get_hosts(options.shm)
+  if cache_err then
+    return nil, cache_err
+  end
+
+  for _, addr in ipairs(host_addresses) do
+    table_insert(s.hosts, Host(addr, options))
+  end
 
   return setmetatable(s, {__index = self})
 end
 
 function Session:execute(query, args, options)
+  if self.terminated then
+    return nil, Errors.NoHostAvailableError(nil, "Cannot reuse a session that has been shut down.")
+  end
+
   local q_options = table_utils.deep_copy(self.options)
   q_options.query_options = table_utils.extend_table(q_options.query_options, options)
 
-  local query_request = Requests.QueryRequest(query, args, options)
-  local request_handler = RequestHandler:new(query_request, q_options)
+  local query_request = Requests.QueryRequest(query, args, q_options.query_options)
+  local request_handler = RequestHandler:new(query_request, self.hosts, q_options)
   return request_handler:send()
 end
 
 function Session:set_keyspace(keyspace)
   self.options.keyspace = keyspace
+  for _, host in ipairs(self.hosts) do
+    host:change_keyspace(keyspace)
+  end
 end
 
-function Session:close()
-  if self.coordinator ~= nil then
-    return self.coordinator:close()
+function Session:shutdown()
+  for _, host in ipairs(self.hosts) do
+    host:close()
   end
+  self.hosts = {}
+  self.terminated = true
 end
 
 --- Cassandra
@@ -567,7 +595,7 @@ function types_mt:__index(key)
   return rawget(self, key)
 end
 
-Cassandra.types = setmetatable({}, types_mt)
+setmetatable(Cassandra, types_mt)
 
 Cassandra.consistencies = types.consistencies
 

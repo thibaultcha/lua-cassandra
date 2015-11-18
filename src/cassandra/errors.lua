@@ -8,9 +8,9 @@ local string_format = string.format
 local ERROR_TYPES = {
   NoHostAvailableError = {
     info = "Represents an error when a query cannot be performed because no host is available or could be reached by the driver.",
-    message = function(errors)
+    message = function(errors, msg)
       if type(errors) ~= "table" then
-        error("NoHostAvailableError must be given a list of errors")
+        return msg
       end
 
       local message = "All hosts tried for query failed."

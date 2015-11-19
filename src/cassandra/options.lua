@@ -19,6 +19,7 @@ local DEFAULTS = {
     serial_consistency = types.consistencies.serial,
     page_size = 5000,
     paging_state = nil, -- stub
+    auto_paging = false,
     prepare = false,
     retry_on_timeout = true
   },

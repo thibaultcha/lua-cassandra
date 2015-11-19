@@ -463,9 +463,39 @@ function Session:new(options)
   return setmetatable(s, {__index = self})
 end
 
+local function page_iterator(session, query, args, options)
+  local page = 0
+  return function(query, previous_rows)
+    if previous_rows and previous_rows.meta.has_more_pages == false then
+      return nil -- End iteration after error
+    end
+
+    options.auto_paging = false
+    options.paging_state = previous_rows and previous_rows.meta.paging_state
+
+    local rows, err = session:execute(query, args, options)
+
+    -- If we have some results, increment the page
+    if rows ~= nil and #rows > 0 then
+      page = page + 1
+    else
+      if err then
+        -- Just expose the error with 1 last iteration
+        return {meta = {has_more_pages = false}}, err, page
+      elseif rows.meta.has_more_pages == false then
+        return nil -- End of the iteration
+      end
+    end
+
+    return rows, err, page
+  end, query, nil
+end
+
 function Session:execute(query, args, options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError(nil, "Cannot reuse a session that has been shut down.")
+  elseif options and options.auto_paging then
+    return page_iterator(self, query, args, options)
   end
 
   local q_options = table_utils.deep_copy(self.options)

@@ -288,6 +288,54 @@ describe("session", function()
       assert.equal(101, rows[1].n)
       assert.equal(200, rows[#rows].n)
     end)
+    describe("auto_paging", function()
+      it("should return an iterator if given an `auto_paging` option", function()
+        local page_tracker = 0
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true}) do
+          assert.falsy(err)
+          page_tracker = page_tracker + 1
+          assert.equal(page_tracker, page)
+          assert.equal(10, #rows)
+        end
+
+        assert.equal(1000, page_tracker)
+      end)
+      it("should return the latest page of a set", function()
+        -- When the latest page contains only 1 element
+        local page_tracker = 0
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 9999, auto_paging = true}) do
+          assert.falsy(err)
+          page_tracker = page_tracker + 1
+          assert.equal(page_tracker, page)
+        end
+
+        assert.equal(2, page_tracker)
+
+        -- Even if all results are fetched in the first page
+        page_tracker = 0
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10000, auto_paging = true}) do
+          assert.falsy(err)
+          page_tracker = page_tracker + 1
+          assert.equal(page_tracker, page)
+          assert.equal(10000, #rows)
+        end
+
+        assert.same(1, page_tracker)
+      end)
+      it("should return any error", function()
+        -- This test validates the behaviour of err being returned if no
+        -- results are returned (most likely because of an invalid query)
+        local page_tracker = 0
+        for rows, err, page in session:execute("SELECT * FROM users WHERE col = 500", nil, {auto_paging = true}) do
+          assert.truthy(err) -- 'col' is not a valid column
+          assert.equal(0, page)
+          page_tracker = page_tracker + 1
+        end
+
+        -- Assert the loop has been run once.
+        assert.equal(1, page_tracker)
+      end)
+    end)
   end)
 
   describe(":shutdown()", function()

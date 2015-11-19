@@ -81,6 +81,16 @@ describe("spawn cluster", function()
     assert.False(ok)
     assert.equal("NoHostAvailableError", err.type)
   end)
+  it("should accept a custom port through an option", function()
+    local ok, err = cassandra.spawn_cluster({
+      shm = "test",
+      protocol_options = {default_port = 9043},
+      contact_points = _contact_points
+    })
+    assert.truthy(err)
+    assert.False(ok)
+    assert.equal("NoHostAvailableError", err.type)
+  end)
 end)
 
 describe("spawn session", function()
@@ -232,6 +242,24 @@ describe("session", function()
       assert.falsy(err)
       assert.truthy(res)
       assert.equal("VOID", res.type)
+
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(1, #rows)
+      assert.equal("Bob", rows[1].name)
+    end)
+    it("support somewhat heavier insertions", function()
+      for i = 1, 1000 do
+        local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)", {"Alice", 33})
+        assert.falsy(err)
+        assert.truthy(res)
+      end
+
+      local rows, err = session:execute("SELECT COUNT(*) FROM users")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(1001, rows[1].count)
     end)
   end)
 

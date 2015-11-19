@@ -32,11 +32,12 @@ local DEFAULTS = {
 }
 
 local function parse_session(options)
+  if options == nil then options = {} end
   utils.extend_table(DEFAULTS, options)
 
-  --if type(options.keyspace) ~= "string" then
-    --error("keyspace must be a string")
-  --end
+  if options.keyspace ~= nil then
+    assert(type(options.keyspace) == "string", "keyspace must be a string")
+  end
 
   assert(options.shm ~= nil, "shm is required for spawning a cluster/session")
   assert(type(options.shm) == "string", "shm must be a string")
@@ -62,6 +63,8 @@ local function parse_cluster(options)
   if #options.contact_points < 1 then
     error("contact_points must contain at least one contact point")
   end
+
+  options.keyspace = nil -- it makes no sense to use keyspace in this context
 
   return options
 end

@@ -8,6 +8,7 @@ for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do
 
 describe("CQL Types protocol v"..protocol_version, function()
   local FIXTURES = {
+    bigint = {0, 42, -42, 42000000000, -42000000000},
     boolean = {true, false},
     inet = {
       "127.0.0.1", "0.0.0.1", "8.8.8.8",

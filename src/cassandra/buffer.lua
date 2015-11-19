@@ -44,7 +44,7 @@ end
 local CQL_DECODERS = {
   -- custom = 0x00,
   [cql_types.ascii] = "raw",
-  -- [cql_types.bigint] = "bigint",
+  [cql_types.bigint] = "bigint",
   [cql_types.blob] = "raw",
   [cql_types.boolean] = "boolean",
   -- [cql_types.counter] = "counter",
@@ -115,6 +115,9 @@ function Buffer:write_cql_value(...)
 end
 
 function Buffer:read_cql_value(assumed_type)
+  if CQL_DECODERS[assumed_type.type_id] == nil then
+    error("ATTEMPT TO USE NON IMPLEMENTED DECODER FOR TYPE ID: "..assumed_type.type_id)
+  end
   local decoder = "read_cql_"..CQL_DECODERS[assumed_type.type_id]
   return Buffer[decoder](self, assumed_type.value_type_id)
 end

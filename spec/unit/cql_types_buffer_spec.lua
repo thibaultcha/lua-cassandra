@@ -1,3 +1,4 @@
+local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 local Buffer = require "cassandra.buffer"
 local CONSTS = require "cassandra.constants"
@@ -7,19 +8,16 @@ local CQL_TYPES = types.cql_types
 for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do
 
 describe("CQL Types protocol v"..protocol_version, function()
-  local FIXTURES = {
-    bigint = {0, 42, -42, 42000000000, -42000000000},
-    boolean = {true, false},
-    inet = {
-      "127.0.0.1", "0.0.0.1", "8.8.8.8",
-      "2001:0db8:85a3:0042:1000:8a2e:0370:7334",
-      "2001:0db8:0000:0000:0000:0000:0000:0001"
-    },
-    int = {0, 4200, -42},
-    uuid = {"1144bada-852c-11e3-89fb-e0b9a54a6d11"}
-  }
+  it("[uuid] should be bufferable", function()
+    local fixture = "1144bada-852c-11e3-89fb-e0b9a54a6d11"
+    local buf = Buffer(protocol_version)
+    buf:write_cql_uuid(fixture)
+    buf:reset()
+    local decoded = buf:read_cql_uuid()
+    assert.equal(fixture, decoded)
+  end)
 
-  for fixture_type, fixture_values in pairs(FIXTURES) do
+  for fixture_type, fixture_values in pairs(utils.cql_fixtures) do
     it("["..fixture_type.."] should be bufferable", function()
       for _, fixture in ipairs(fixture_values) do
         local buf = Buffer(protocol_version)
@@ -27,16 +25,12 @@ describe("CQL Types protocol v"..protocol_version, function()
         buf:reset()
 
         local decoded = buf["read_cql_"..fixture_type](buf)
-        if type(fixture) == "table" then
-          assert.same(fixture, decoded)
-        else
-          assert.equal(fixture, decoded)
-        end
+        assert.validFixture(fixture_type, fixture, decoded)
       end
     end)
 
     describe("manual type infering", function()
-      it("should be possible to infer the type of a value through helper methods", function()
+      it("["..fixture_type.."] should be possible to infer the type of a value through short-hand methods", function()
         for _, fixture in ipairs(fixture_values) do
           local infered_value = cassandra[fixture_type](fixture)
           local buf = Buffer(protocol_version)
@@ -44,24 +38,24 @@ describe("CQL Types protocol v"..protocol_version, function()
           buf:reset()
 
           local decoded = buf:read_cql_value({type_id = CQL_TYPES[fixture_type]})
-          if type(fixture) == "table" then
-            assert.same(fixture, decoded)
-          else
-            assert.equal(fixture, decoded)
-          end
+          assert.validFixture(fixture_type, fixture, decoded)
         end
       end)
     end)
   end
 
-  it("[map<type, type>] should be bufferable", function()
-    local MAP_FIXTURES = {
-      {key_type = CQL_TYPES.text, value_type = CQL_TYPES.text, value = {k1 = "v1", k2 = "v2"}},
-      {key_type = CQL_TYPES.text, value_type = CQL_TYPES.int, value = {k1 = 1, k2 = 2}},
-      {key_type = CQL_TYPES.text, value_type = CQL_TYPES.int, value = {}}
-    }
+  it("[list<type>] should be bufferable", function()
+    for _, fixture in ipairs(utils.cql_list_fixtures) do
+      local buf = Buffer(protocol_version)
+      buf:write_cql_set(fixture.value)
+      buf:reset()
+      local decoded = buf:read_cql_list({type_id = fixture.value_type})
+      assert.same(fixture.value, decoded)
+    end
+  end)
 
-    for _, fixture in ipairs(MAP_FIXTURES) do
+  it("[map<type, type>] should be bufferable", function()
+    for _, fixture in ipairs(utils.cql_map_fixtures) do
       local buf = Buffer(protocol_version)
       buf:write_cql_map(fixture.value)
       buf:reset()
@@ -71,12 +65,7 @@ describe("CQL Types protocol v"..protocol_version, function()
   end)
 
   it("[set<type>] should be bufferable", function()
-    local SET_FIXTURES = {
-      {value_type = CQL_TYPES.text, value = {"abc", "def"}},
-      {value_type = CQL_TYPES.int, value = {1, 2 , 0, -42, 42}}
-    }
-
-    for _, fixture in ipairs(SET_FIXTURES) do
+    for _, fixture in ipairs(utils.cql_set_fixtures) do
       local buf = Buffer(protocol_version)
       buf:write_cql_set(fixture.value)
       buf:reset()

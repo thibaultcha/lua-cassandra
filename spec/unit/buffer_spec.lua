@@ -1,6 +1,7 @@
 local Buffer = require "cassandra.buffer"
 
 describe("Buffer", function()
+  -- protocol types (different than CQL types)
   local FIXTURES = {
     byte = {1, 2, 3},
     int = {0, 4200, -42},

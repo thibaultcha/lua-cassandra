@@ -3,33 +3,27 @@
 -- with fallback on LuaSocket when it is the case. Those integration tests must
 -- mimic the ones running in ngx_lua.
 
+local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
-local log = require "cassandra.log"
-
-local function sleep(t)
-  if not t then t = 1 end
-  os.execute("sleep "..t)
-end
 
 -- Define log level for tests
-log.set_lvl("ERR")
+utils.set_log_lvl("ERR")
 
 local _shm = "cassandra_specs"
-local _contact_points = {"127.0.0.1", "127.0.0.2"}
 
 describe("spawn cluster", function()
   it("should require a 'shm' option", function()
     assert.has_error(function()
       cassandra.spawn_cluster({
         shm = nil,
-        contact_points = _contact_points
+        contact_points = utils.contact_points
       })
     end, "shm is required for spawning a cluster/session")
   end)
   it("should spawn a cluster", function()
     local ok, err = cassandra.spawn_cluster({
       shm = _shm,
-      contact_points = _contact_points
+      contact_points = utils.contact_points
     })
     assert.falsy(err)
     assert.True(ok)
@@ -48,7 +42,7 @@ describe("spawn cluster", function()
   end)
   it("should iterate over contact_points to find an entrance into the cluster", function()
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
-    contact_points[#contact_points + 1] = _contact_points[1]
+    contact_points[#contact_points + 1] = utils.contact_points[1]
 
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
@@ -70,7 +64,7 @@ describe("spawn cluster", function()
   end)
   it("should accept a custom port for given hosts", function()
     local contact_points = {}
-    for i, addr in ipairs(_contact_points) do
+    for i, addr in ipairs(utils.contact_points) do
       contact_points[i] = addr..":9043"
     end
     local ok, err = cassandra.spawn_cluster({
@@ -85,7 +79,7 @@ describe("spawn cluster", function()
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
       protocol_options = {default_port = 9043},
-      contact_points = _contact_points
+      contact_points = utils.contact_points
     })
     assert.truthy(err)
     assert.False(ok)
@@ -138,7 +132,7 @@ describe("spawn session", function()
       assert.equal("KEYSPACE", res.keyspace)
       assert.equal("resty_cassandra_spec_parsing", res.table)
 
-      sleep()
+      utils.wait()
 
       res, err = session:execute [[USE "resty_cassandra_spec_parsing"]]
       assert.falsy(err)
@@ -165,7 +159,7 @@ describe("spawn session", function()
       ]]
       assert.falsy(err)
 
-      sleep()
+      utils.wait()
 
       local rows, err = session_in_keyspace:execute("SELECT * FROM users")
       assert.falsy(err)
@@ -184,19 +178,14 @@ end)
 
 describe("session", function()
   local session
+  local _KEYSPACE = "resty_cassandra_specs"
 
   setup(function()
     local err
     session, err = cassandra.spawn_session {shm = _shm}
     assert.falsy(err)
 
-    local _, err = session:execute [[
-      CREATE KEYSPACE IF NOT EXISTS resty_cassandra_specs
-      WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
-    ]]
-    assert.falsy(err)
-
-    sleep()
+    utils.create_keyspace(session, _KEYSPACE)
 
     local _, err = session:execute [[
       CREATE TABLE IF NOT EXISTS resty_cassandra_specs.users(
@@ -207,7 +196,7 @@ describe("session", function()
     ]]
     assert.falsy(err)
 
-    sleep()
+    utils.wait()
   end)
 
   teardown(function()
@@ -216,18 +205,16 @@ describe("session", function()
     session, err = cassandra.spawn_session {shm = _shm}
     assert.falsy(err)
 
-    local _, err = session:execute("DROP KEYSPACE resty_cassandra_specs")
-    assert.falsy(err)
-
+    utils.drop_keyspace(session, _KEYSPACE)
     session:shutdown()
   end)
 
   describe(":set_keyspace()", function()
     it("should set a session's 'keyspace' option", function()
-      local ok, err = session:set_keyspace("resty_cassandra_specs")
+      local ok, err = session:set_keyspace(_KEYSPACE)
       assert.falsy(err)
       assert.True(ok)
-      assert.equal("resty_cassandra_specs", session.options.keyspace)
+      assert.equal(_KEYSPACE, session.options.keyspace)
 
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)

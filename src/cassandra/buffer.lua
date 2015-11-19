@@ -49,8 +49,8 @@ local CQL_DECODERS = {
   [cql_types.boolean] = "boolean",
   -- [cql_types.counter] = "counter",
   -- decimal 0x06
-  -- [cql_types.double] = "double",
-  -- [cql_types.float] = "float",
+  [cql_types.double] = "double",
+  [cql_types.float] = "float",
   [cql_types.inet] = "inet",
   [cql_types.int] = "int",
   [cql_types.text] = "raw",
@@ -58,12 +58,20 @@ local CQL_DECODERS = {
   [cql_types.map] = "map",
   [cql_types.set] = "set",
   [cql_types.uuid] = "uuid",
-  -- [cql_types.timestamp] = "timestamp",
+  [cql_types.timestamp] = "bigint",
   [cql_types.varchar] = "raw",
-  -- [cql_types.varint] = "varint",
-  -- [cql_types.timeuuid] = "timeuuid",
+  [cql_types.varint] = "int",
+  [cql_types.timeuuid] = "uuid",
   -- [cql_types.udt] = "udt",
   -- [cql_types.tuple] = "tuple"
+}
+
+local ALIASES = {
+  raw = {"ascii", "blob", "text", "varchar"},
+  bigint = {"timestamp"},
+  int = {"varint"},
+  set = {"list"},
+  uuid = {"timeuuid"}
 }
 
 for _, cql_decoder in pairs(CQL_DECODERS) do
@@ -80,6 +88,14 @@ for _, cql_decoder in pairs(CQL_DECODERS) do
     local bytes = self:read_bytes()
     local buf = Buffer(self.version, bytes)
     return mod.read(buf, ...)
+  end
+
+  if ALIASES[cql_decoder] ~= nil then
+    for _, alias in ipairs(ALIASES[cql_decoder]) do
+      Buffer["repr_cql_"..alias] = Buffer["repr_cql_"..cql_decoder]
+      Buffer["write_cql_"..alias] = Buffer["write_cql_"..cql_decoder]
+      Buffer["read_cql_"..alias] = Buffer["read_cql_"..cql_decoder]
+    end
   end
 end
 

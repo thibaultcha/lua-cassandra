@@ -5,7 +5,7 @@ return {
   read = function(buffer)
     local type_id = buffer:read_short()
     local type_value
-    if type_id == types.cql_types.set then
+    if type_id == types.cql_types.set or type_id == types.cql_types.list then
       type_value = buffer:read_options()
     elseif type_id == types.cql_types.map then
       type_value = {buffer:read_options(), buffer:read_options()}

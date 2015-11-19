@@ -1,7 +1,6 @@
 local types = require "cassandra.types"
 local Buffer = require "cassandra.buffer"
 local requests = require "cassandra.requests"
-local frame_header = require "cassandra.types.frame_header"
 
 describe("Requests", function()
   describe("StartupRequest", function()

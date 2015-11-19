@@ -26,6 +26,10 @@ local TYPES = {
   -- "consistency"
   "string_map",
   -- "string_multimap"
+
+  -- type decoders
+  "udt_type",
+  "tuple_type"
 }
 
 for _, buf_type in ipairs(TYPES) do
@@ -62,8 +66,8 @@ local CQL_DECODERS = {
   [cql_types.varchar] = "raw",
   [cql_types.varint] = "int",
   [cql_types.timeuuid] = "uuid",
-  -- [cql_types.udt] = "udt",
-  -- [cql_types.tuple] = "tuple"
+  [cql_types.udt] = "udt",
+  [cql_types.tuple] = "tuple"
 }
 
 local ALIASES = {
@@ -107,7 +111,7 @@ function Buffer:repr_cql_value(value)
     if math_floor(value) == value then
       infered_type = cql_types.int
     else
-      --infered_type = cql_types.float
+      infered_type = cql_types.float
     end
   elseif lua_type == "table" then
     if t_utils.is_array(value) then

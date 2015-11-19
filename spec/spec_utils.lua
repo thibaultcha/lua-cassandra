@@ -111,12 +111,35 @@ _M.cql_list_fixtures = {
 }
 
 _M.cql_map_fixtures = {
-  {key_type = types.cql_types.text, value_type = types.cql_types.text, value = {k1 = "v1", k2 = "v2"}},
-  {key_type = types.cql_types.text, value_type = types.cql_types.int, value = {k1 = 1, k2 = 2}},
-  {key_type = types.cql_types.text, value_type = types.cql_types.int, value = {}}
+  {
+   key_type = types.cql_types.text,
+   key_type_name = "text",
+   value_type = types.cql_types.text,
+   value_type_name = "text",
+   value = {k1 = "v1", k2 = "v2"}
+  },
+  {
+   key_type = types.cql_types.text,
+   key_type_name = "text",
+   value_type = types.cql_types.int,
+   value_type_name = "int",
+   value = {k1 = 1, k2 = 2}
+  },
+  {
+   key_type = types.cql_types.text,
+   key_type_name = "text",
+   value_type = types.cql_types.int,
+   value_type_name = "int",
+   value = {}
+  }
 }
 
 _M.cql_set_fixtures = _M.cql_list_fixtures
+
+_M.cql_tuple_fixtures = {
+  {type = {"text", "text"}, value = {"hello", "world"}},
+  {type = {"text", "text"}, value = {"world", "hello"}}
+}
 
 _M.contact_points = {"127.0.0.1", "127.0.0.2"}
 

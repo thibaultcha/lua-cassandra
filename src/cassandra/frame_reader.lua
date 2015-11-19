@@ -47,7 +47,7 @@ local function parse_metadata(buffer)
       t_name = buffer:read_string()
     end
     local col_name = buffer:read_string()
-    local col_type = buffer:read_options() -- {type_id = ...[, value_type_id = ...]}
+    local col_type = buffer:read_options()
     columns[#columns + 1] = {
       name = col_name,
       type = col_type,
@@ -78,6 +78,8 @@ local RESULT_PARSERS = {
     for _ = 1, rows_count do
       local row = {}
       for i = 1, columns_count do
+        local inspect = require "inspect"
+        --print(inspect(columns[i].type))
         --print("reading column "..columns[i].name)
         local value = buffer:read_cql_value(columns[i].type)
         --local inspect = require "inspect"

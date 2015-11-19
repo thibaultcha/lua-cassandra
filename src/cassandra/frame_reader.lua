@@ -26,7 +26,7 @@ local ROWS_RESULT_FLAGS = {
 -- @section result_parser
 
 local function parse_metadata(buffer)
-  local k_name, t_name
+  local k_name, t_name, paging_state
 
   local flags = buffer:read_int()
   local columns_count = buffer:read_int()
@@ -34,6 +34,10 @@ local function parse_metadata(buffer)
   local has_more_pages = bit.btest(flags, ROWS_RESULT_FLAGS.HAS_MORE_PAGES)
   local has_global_table_spec = bit.btest(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC)
   local has_no_metadata = bit.btest(flags, ROWS_RESULT_FLAGS.NO_METADATA)
+
+  if has_more_pages then
+    paging_state = buffer:read_bytes()
+  end
 
   if has_global_table_spec then
     k_name = buffer:read_string()
@@ -58,7 +62,9 @@ local function parse_metadata(buffer)
 
   return {
     columns = columns,
-    columns_count = columns_count
+    columns_count = columns_count,
+    has_more_pages = has_more_pages,
+    paging_state = paging_state
   }
 end
 
@@ -73,18 +79,13 @@ local RESULT_PARSERS = {
     local rows_count = buffer:read_int()
 
     local rows = {
-      type = "ROWS"
+      type = "ROWS",
+      meta = metadata
     }
     for _ = 1, rows_count do
       local row = {}
       for i = 1, columns_count do
-        local inspect = require "inspect"
-        --print(inspect(columns[i].type))
-        --print("reading column "..columns[i].name)
-        local value = buffer:read_cql_value(columns[i].type)
-        --local inspect = require "inspect"
-        --print("column "..columns[i].name.." = "..inspect(value))
-        row[columns[i].name] = value
+        row[columns[i].name] =  buffer:read_cql_value(columns[i].type)
       end
       rows[#rows + 1] = row
     end

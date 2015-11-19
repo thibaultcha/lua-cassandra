@@ -51,7 +51,7 @@ local CQL_DECODERS = {
   [cql_types.bigint] = "bigint",
   [cql_types.blob] = "raw",
   [cql_types.boolean] = "boolean",
-  -- [cql_types.counter] = "counter",
+  [cql_types.counter] = "bigint",
   -- decimal 0x06
   [cql_types.double] = "double",
   [cql_types.float] = "float",
@@ -72,7 +72,7 @@ local CQL_DECODERS = {
 
 local ALIASES = {
   raw = {"ascii", "blob", "text", "varchar"},
-  bigint = {"timestamp"},
+  bigint = {"timestamp", "counter"},
   int = {"varint"},
   set = {"list"},
   uuid = {"timeuuid"}

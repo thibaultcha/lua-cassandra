@@ -189,9 +189,10 @@ describe("session", function()
 
     local _, err = session:execute [[
       CREATE TABLE IF NOT EXISTS resty_cassandra_specs.users(
-        id uuid PRIMARY KEY,
+        id uuid,
         name varchar,
-        age int
+        n int,
+        PRIMARY KEY(id, n)
       )
     ]]
     assert.falsy(err)
@@ -224,8 +225,8 @@ describe("session", function()
 
   describe(":execute()", function()
     it("should accept values to bind", function()
-      local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)",
-        {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 42})
+      local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(?, ?, ?)",
+        {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 1})
       assert.falsy(err)
       assert.truthy(res)
       assert.equal("VOID", res.type)
@@ -237,8 +238,8 @@ describe("session", function()
       assert.equal("Bob", rows[1].name)
     end)
     it("support somewhat heavier insertions", function()
-      for i = 1, 1000 do
-        local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)", {"Alice", 33})
+      for i = 2, 10000 do
+        local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {"Alice", i})
         assert.falsy(err)
         assert.truthy(res)
       end
@@ -246,7 +247,46 @@ describe("session", function()
       local rows, err = session:execute("SELECT COUNT(*) FROM users")
       assert.falsy(err)
       assert.truthy(rows)
-      assert.equal(1001, rows[1].count)
+      assert.equal(10000, rows[1].count)
+    end)
+    it("should have a default page_size (5000)", function()
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.truthy(rows.meta)
+      assert.True(rows.meta.has_more_pages)
+      assert.truthy(rows.meta.paging_state)
+      assert.equal(5000, #rows)
+      assert.equal(1, rows[1].n)
+      assert.equal(5000, rows[#rows].n)
+    end)
+    it("should be possible to specify a per-query page_size option", function()
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(100, #rows)
+
+      local rows, err = session:execute("SELECT * FROM users")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(5000, #rows)
+    end)
+    it("should support passing a paging_state to retrieve next pages", function()
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(100, #rows)
+      assert.equal(1, rows[1].n)
+      assert.equal(100, rows[#rows].n)
+
+      local paging_state = rows.meta.paging_state
+
+      rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100, paging_state = paging_state})
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(100, #rows)
+      assert.equal(101, rows[1].n)
+      assert.equal(200, rows[#rows].n)
     end)
   end)
 

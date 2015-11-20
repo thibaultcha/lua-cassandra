@@ -7,6 +7,7 @@ local FrameHeader = require "cassandra.types.frame_header"
 
 local OP_CODES = types.OP_CODES
 local string_format = string.format
+local string_byte = string.byte
 
 --- Query Flags
 -- @section query_flags
@@ -80,6 +81,38 @@ end
 --- QueryRequest
 -- @section query_request
 
+local function build_request_parameters(frame_body, version, params, options)
+  -- v2: <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+  -- v3: <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+
+  if options.consistency == nil then
+    options.consistency = types.consistencies.one
+  end
+
+  local flags = 0x00
+  local flags_buffer = Buffer(version)
+  if params ~= nil then
+    flags = bit.bor(flags, query_flags.values)
+    flags_buffer:write_cql_values(params)
+  end
+  if options.page_size ~= nil then
+    flags = bit.bor(flags, query_flags.page_size)
+    flags_buffer:write_int(options.page_size)
+  end
+  if options.paging_state ~= nil then
+    flags = bit.bor(flags, query_flags.paging_state)
+    flags_buffer:write_bytes(options.paging_state)
+  end
+  if options.serial_consistency ~= nil then
+    flags = bit.bor(flags, query_flags.serial_consistency)
+    flags_buffer:write_short(options.serial_consistency)
+  end
+
+  frame_body:write_short(options.consistency)
+  frame_body:write_byte(flags)
+  frame_body:write(flags_buffer:dump())
+end
+
 local QueryRequest = Request:extend()
 
 function QueryRequest:new(query, params, options)
@@ -94,33 +127,9 @@ function QueryRequest:build()
   --      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
   -- v3: <query>
   --      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
-  if self.options.consistency == nil then
-    self.options.consistency = types.consistencies.one
-  end
-
-  local flags = 0x00
-  local flags_buffer = Buffer(self.version)
-  if self.params ~= nil then
-    flags = bit.bor(flags, query_flags.values)
-    flags_buffer:write_cql_values(self.params)
-  end
-  if self.options.page_size ~= nil then
-    flags = bit.bor(flags, query_flags.page_size)
-    flags_buffer:write_int(self.options.page_size)
-  end
-  if self.options.paging_state ~= nil then
-    flags = bit.bor(flags, query_flags.paging_state)
-    flags_buffer:write_bytes(self.options.paging_state)
-  end
-  if self.options.serial_consistency ~= nil then
-    flags = bit.bor(flags, query_flags.serial_consistency)
-    flags_buffer:write_short(self.options.serial_consistency)
-  end
 
   self.frame_body:write_long_string(self.query)
-  self.frame_body:write_short(self.options.consistency)
-  self.frame_body:write_byte(flags)
-  self.frame_body:write(flags_buffer:dump())
+  build_request_parameters(self.frame_body, self.version, self.params, self.options)
 end
 
 --- KeyspaceRequest
@@ -133,8 +142,51 @@ function KeyspaceRequest:new(keyspace)
   KeyspaceRequest.super.new(self, query)
 end
 
+--- PrepareRequest
+-- @section prepare_request
+
+local PrepareRequest = Request:extend()
+
+function PrepareRequest:new(query)
+  self.query = query
+  QueryRequest.super.new(self, OP_CODES.PREPARE)
+end
+
+function PrepareRequest:build()
+  self.frame_body:write_long_string(self.query)
+end
+
+--- ExecutePreparedRequest
+-- @section execute_prepared_request
+
+local ExecutePreparedRequest = Request:extend()
+
+function ExecutePreparedRequest:new(query_id, query, params, options)
+  self.query_id = query_id
+  self.query = query
+  self.params = params
+  self.options = options
+  ExecutePreparedRequest.super.new(self, OP_CODES.EXECUTE)
+end
+
+function ExecutePreparedRequest:build()
+  -- v2: <queryId>
+  --      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+  -- v3: <queryId>
+  --      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+
+  self.frame_body:write_short_bytes(self.query_id)
+  build_request_parameters(self.frame_body, self.version, self.params, self.options)
+end
+
+function ExecutePreparedRequest:hex_query_id()
+  return bit.tohex(string_byte(self.query_id))
+end
+
 return {
-  StartupRequest = StartupRequest,
   QueryRequest = QueryRequest,
-  KeyspaceRequest = KeyspaceRequest
+  StartupRequest = StartupRequest,
+  PrepareRequest = PrepareRequest,
+  KeyspaceRequest = KeyspaceRequest,
+  ExecutePreparedRequest = ExecutePreparedRequest
 }

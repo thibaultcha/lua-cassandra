@@ -98,6 +98,17 @@ local RESULT_PARSERS = {
       keyspace = buffer:read_string()
     }
   end,
+  [RESULT_KINDS.PREPARED] = function(buffer)
+    local query_id = buffer:read_short_bytes()
+    local metadata = parse_metadata(buffer)
+    local result_metadata = parse_metadata(buffer)
+    return {
+      type = "PREPARED",
+      query_id = query_id,
+      meta = metadata,
+      result = result_metadata
+    }
+  end,
   [RESULT_KINDS.SCHEMA_CHANGE] = function(buffer)
     return {
       type = "SCHEMA_CHANGE",

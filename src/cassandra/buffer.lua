@@ -19,7 +19,7 @@ local TYPES = {
   "uuid",
   -- "string_list",
   "bytes",
-  -- "short_bytes",
+  "short_bytes",
   "options",
   -- "options_list"
   "inet",

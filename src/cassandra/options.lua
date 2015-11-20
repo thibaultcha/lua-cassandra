@@ -5,7 +5,7 @@ local utils = require "cassandra.utils.table"
 -- @section defaults
 
 local DEFAULTS = {
-  shm = nil, -- required
+  shm = nil, -- stub
   contact_points = {},
   keyspace = nil, -- stub
   policies = {

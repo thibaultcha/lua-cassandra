@@ -14,6 +14,7 @@ local FrameReader = require "cassandra.frame_reader"
 
 local table_insert = table.insert
 local string_find = string.find
+local string_format = string.format
 local CQL_Errors = types.ERRORS
 
 --- Host
@@ -303,10 +304,9 @@ end
 
 local RequestHandler = {}
 
-function RequestHandler:new(request, hosts, options)
+function RequestHandler:new(hosts, options)
   local o = {
     hosts = hosts,
-    request = request,
     options = options,
     n_retries = 0
   }
@@ -360,7 +360,7 @@ function RequestHandler:get_next_coordinator()
   return nil, Errors.NoHostAvailableError(errors)
 end
 
-function RequestHandler:send()
+function RequestHandler:send_on_next_coordinator(request)
   local coordinator, err = self:get_next_coordinator()
   if err then
     return nil, err
@@ -368,18 +368,26 @@ function RequestHandler:send()
 
   log.info("Acquired connection through load balancing policy: "..coordinator.address)
 
-  local result, err = coordinator:send(self.request)
+  return self:send(request)
+end
 
-  if coordinator.socket_type == "ngx" then
-    coordinator:set_keep_alive()
+function RequestHandler:send(request)
+  if self.coordinator == nil then
+    return self:send_on_next_coordinator(request)
+  end
+
+  local result, err = self.coordinator:send(request)
+
+  if self.coordinator.socket_type == "ngx" then
+    self.coordinator:set_keep_alive()
   end
 
   if err then
-    return self:handle_error(err)
+    return self:handle_error(request, err)
   end
 
   -- Success! Make sure to re-up node in case it was marked as DOWN
-  local ok, cache_err = coordinator:set_up()
+  local ok, cache_err = self.coordinator:set_up()
   if not ok then
     return nil, cache_err
   end
@@ -387,7 +395,7 @@ function RequestHandler:send()
   return result
 end
 
-function RequestHandler:handle_error(err)
+function RequestHandler:handle_error(request, err)
   local retry_policy = self.options.policies.retry
   local decision = retry_policy.decisions.throw
 
@@ -398,20 +406,20 @@ function RequestHandler:handle_error(err)
       return nil, cache_err
     end
     -- always retry, another node will be picked
-    return self:retry()
+    return self:retry(request)
   elseif err.type == "TimeoutError" then
     if self.options.query_options.retry_on_timeout then
-      return self:retry()
+      return self:retry(request)
     end
   elseif err.type == "ResponseError" then
     local request_infos = {
       handler = self,
-      request = self.request,
+      request = request,
       n_retries = self.n_retries
     }
     if err.code == CQL_Errors.OVERLOADED or err.code == CQL_Errors.IS_BOOTSTRAPPING or err.code == CQL_Errors.TRUNCATE_ERROR then
       -- always retry, we will hit another node
-      return self:retry()
+      return self:retry(request)
     elseif err.code == CQL_Errors.UNAVAILABLE_EXCEPTION then
       decision = retry_policy.on_unavailable(request_infos)
     elseif err.code == CQL_Errors.READ_TIMEOUT then
@@ -419,22 +427,46 @@ function RequestHandler:handle_error(err)
     elseif err.code == CQL_Errors.WRITE_TIMEOUT then
       decision = retry_policy.on_write_timeout(request_infos)
     elseif err.code == CQL_Errors.UNPREPARED then
-      -- re-prepare and retry
+      return self:prepare_and_retry(request)
     end
   end
 
   if decision == retry_policy.decisions.retry then
-    return self:retry()
+    return self:retry(request)
   end
 
   -- this error needs to be reported to the session
   return nil, err
 end
 
-function RequestHandler:retry()
+function RequestHandler:retry(request)
   self.n_retries = self.n_retries + 1
   log.info("Retrying request")
-  return self:send()
+  return self:send_on_next_coordinator(request)
+end
+
+function RequestHandler:prepare_and_retry(request)
+  log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
+  local query = request.query
+  local prepare_request = Requests.PrepareRequest(query)
+  local res, err = self:send(prepare_request)
+  if err then
+    return nil, err
+  end
+  log.info("Query prepared for host "..self.coordinator.address)
+
+  if request.query_id ~= res.query_id then
+    log.warn(string_format("Unexpected difference between query ids for query %s (%s ~= %s)", query, request.query_id, res.query_id))
+    request.query_id = res.query_id
+  end
+
+  local ok, cache_err = cache.set_prepared_query_id(self.options, query, res.query_id)
+  if not ok then
+    return nil, cache_err
+  end
+
+  -- Send on the same coordinator as the one it was just prepared on
+  return self:send(request)
 end
 
 --- Session
@@ -491,19 +523,49 @@ local function page_iterator(session, query, args, options)
   end, query, nil
 end
 
+local function prepare_and_execute(self, query, args, options)
+  local request_handler = RequestHandler:new(self.hosts, self.options)
+  local query_id, cache_err = cache.get_prepared_query_id(self.options, query)
+  if cache_err then
+    return nil, cache_err
+  elseif query_id == nil then
+    log.info("Query not prepared in cluster yet. Preparing.")
+    local prepare_request = Requests.PrepareRequest(query)
+    local res, err = request_handler:send(prepare_request)
+    if err then
+      return nil, err
+    end
+
+    query_id = res.query_id
+    local ok, cache_err = cache.set_prepared_query_id(self.options, query, query_id)
+    if not ok then
+      return nil, cache_err
+    end
+    log.info("Query prepared for host "..request_handler.coordinator.address)
+  end
+
+  -- Send on the same coordinator as the one it was just prepared on
+  local prepared_request = Requests.ExecutePreparedRequest(query_id, query, args, options)
+  return request_handler:send(prepared_request)
+end
+
 function Session:execute(query, args, options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError(nil, "Cannot reuse a session that has been shut down.")
-  elseif options and options.auto_paging then
-    return page_iterator(self, query, args, options)
   end
 
   local q_options = table_utils.deep_copy(self.options)
   q_options.query_options = table_utils.extend_table(q_options.query_options, options)
 
+  if q_options.query_options.auto_paging then
+    return page_iterator(self, query, args, options)
+  elseif q_options.query_options.prepare then
+    return prepare_and_execute(self, query, args, options)
+  end
+
   local query_request = Requests.QueryRequest(query, args, q_options.query_options)
-  local request_handler = RequestHandler:new(query_request, self.hosts, q_options)
-  return request_handler:send()
+  local request_handler = RequestHandler:new(self.hosts, q_options)
+  return request_handler:send_on_next_coordinator(query_request)
 end
 
 function Session:set_keyspace(keyspace)
@@ -593,6 +655,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     }
   end
   log.info("Peers info retrieved")
+  log.info(string_format("---- cluster spawned under shm %s ----", options.shm))
 
   coordinator:close()
 

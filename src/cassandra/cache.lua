@@ -121,10 +121,43 @@ local function get_host(shm, host_addr)
   return json.decode(value)
 end
 
+--- Prepared query ids
+-- @section prepared_query_ids
+
+local function key_for_prepared_query(keyspace, query)
+  return (keyspace or "").."_"..query
+end
+
+local function set_prepared_query_id(options, query, query_id)
+  local shm = options.shm
+  local dict = get_dict(shm)
+  local prepared_key = key_for_prepared_query(options.keyspace, query)
+
+  local ok, err = dict:set(prepared_key, query_id)
+  if not ok then
+    err = "Cannot store prepared query id for cluster "..shm..": "..err
+  end
+  return ok, err
+end
+
+local function get_prepared_query_id(options, query)
+  local shm = options.shm
+  local dict = get_dict(shm)
+  local prepared_key = key_for_prepared_query(options.keyspace, query)
+
+  local value, err = dict:get(prepared_key)
+  if err then
+    err = "Cannot retrieve prepared query id for cluster "..shm..": "..err
+  end
+  return value, err
+end
+
 return {
   get_dict = get_dict,
   get_host = get_host,
   set_host = set_host,
   set_hosts = set_hosts,
   get_hosts = get_hosts,
+  set_prepared_query_id = set_prepared_query_id,
+  get_prepared_query_id = get_prepared_query_id
 }

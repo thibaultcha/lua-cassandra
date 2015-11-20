@@ -141,13 +141,12 @@ local function set_prepared_query_id(options, query, query_id)
 end
 
 local function get_prepared_query_id(options, query)
-  local shm = options.shm
-  local dict = get_dict(shm)
+  local dict = get_dict(options.shm)
   local prepared_key = key_for_prepared_query(options.keyspace, query)
 
   local value, err = dict:get(prepared_key)
   if err then
-    err = "Cannot retrieve prepared query id for cluster "..shm..": "..err
+    err = "Cannot retrieve prepared query id for cluster "..options.shm..": "..err
   end
   return value, err
 end

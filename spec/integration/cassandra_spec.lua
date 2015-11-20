@@ -336,6 +336,64 @@ describe("session", function()
         assert.equal(1, page_tracker)
       end)
     end)
+    describe("prepared queries", function()
+      it("should prepare a query before running it if given a `prepare` option", function()
+        local cache = require "cassandra.cache"
+        spy.on(cache, "get_prepared_query_id")
+        spy.on(cache, "set_prepared_query_id")
+        finally(function()
+          cache.get_prepared_query_id:revert()
+          cache.set_prepared_query_id:revert()
+        end)
+
+        local rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
+        assert.falsy(err)
+        assert.truthy(rows)
+        assert.True(#rows > 0)
+
+        assert.spy(cache.get_prepared_query_id).was.called()
+        assert.spy(cache.set_prepared_query_id).was.called()
+        cache.get_prepared_query_id:clear()
+        cache.set_prepared_query_id:clear()
+
+        -- again, and this time the query_id should be in the cache already
+        rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
+        assert.falsy(err)
+        assert.truthy(rows)
+        assert.True(#rows > 0)
+
+        assert.spy(cache.get_prepared_query_id).was.called()
+        assert.spy(cache.set_prepared_query_id).was.not_called()
+      end)
+      it("should support a heavier load of prepared queries", function()
+        for i = 1, 10000 do
+          local rows, err = session:execute("SELECT * FROM users", nil, {prepare = false, page_size = 10})
+          assert.falsy(err)
+          assert.truthy(rows)
+          assert.True(#rows > 0)
+        end
+      end)
+      it("should be usable inside an `auto_paging` iterator", function()
+        local cache = require "cassandra.cache"
+        spy.on(cache, "get_prepared_query_id")
+        spy.on(cache, "set_prepared_query_id")
+        finally(function()
+          cache.get_prepared_query_id:revert()
+          cache.set_prepared_query_id:revert()
+        end)
+
+        local page_tracker = 1
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true, prepare = true}) do
+          assert.falsy(err)
+          assert.truthy(rows)
+          assert.True(#rows > 0 and #rows <= 10)
+          page_tracker = page
+        end
+
+        assert.spy(cache.get_prepared_query_id).was.called(page)
+        assert.spy(cache.set_prepared_query_id).was.called(0)
+      end)
+    end)
   end)
 
   describe(":shutdown()", function()

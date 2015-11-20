@@ -3,7 +3,7 @@ local inspect = require "inspect"
 local cassandra = require "cassandra"
 local log = require "cassandra.log"
 
-log.set_lvl("INFO")
+log.set_lvl("ERR")
 
 local _, err = cassandra.spawn_cluster {shm = "cassandra", contact_points = {"127.0.0.1", "127.0.0.2"}}
 assert(err == nil, inspect(err))
@@ -11,20 +11,27 @@ assert(err == nil, inspect(err))
 local session, err = cassandra.spawn_session {shm = "cassandra", keyspace = "page"}
 assert(err == nil, inspect(err))
 
---
---
---
+-- for i = 1, 10000 do
+--   local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(uuid(), ?, ?)", {"Alice", i})
+--   if err then
+--     error(err)
+--   end
+-- end
 
-local rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
-if err then
-  error(err)
+local start, total
+
+start = os.clock()
+for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 20, auto_paging = true}) do
+
 end
 
-print(#rows)
+total = os.clock() - start
+print("Time without prepared = "..total)
 
-local rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
-if err then
-  error(err)
+start = os.clock()
+for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 20, auto_paging = true, prepare = true}) do
+
 end
 
-print(#rows)
+total = os.clock() - start
+print("Time with prepared = "..total)

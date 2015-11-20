@@ -1,3 +1,14 @@
+-- @TODO
+-- option for max prepared queries in cache
+-- batches
+-- prepared batches?
+-- tracing
+-- wait for schema consensus on SCHEMA_CHANGE results
+--
+-- better logging
+-- more options validation
+-- more error types
+
 local log = require "cassandra.log"
 local opts = require "cassandra.options"
 local types = require "cassandra.types"
@@ -12,6 +23,7 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
+local setmetatable = setmetatable
 local table_insert = table.insert
 local string_find = string.find
 local string_format = string.format
@@ -460,11 +472,6 @@ function RequestHandler:prepare_and_retry(request)
     request.query_id = res.query_id
   end
 
-  local ok, cache_err = cache.set_prepared_query_id(self.options, query, res.query_id)
-  if not ok then
-    return nil, cache_err
-  end
-
   -- Send on the same coordinator as the one it was just prepared on
   return self:send(request)
 end
@@ -495,17 +502,50 @@ function Session:new(options)
   return setmetatable(s, {__index = self})
 end
 
-local function page_iterator(session, query, args, options)
+local function prepare_and_execute(request_handler, query, args, query_options)
+  local query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
+  if cache_err then
+    return nil, cache_err
+  elseif query_id == nil then
+    log.info("Query not prepared in cluster yet. Preparing.")
+    local prepare_request = Requests.PrepareRequest(query)
+    local res, err = request_handler:send(prepare_request)
+    if err then
+      return nil, err
+    end
+
+    query_id = res.query_id
+    local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
+    if not ok then
+      return nil, cache_err
+    end
+    log.info("Query prepared for host "..request_handler.coordinator.address)
+  end
+
+  -- Send on the same coordinator as the one it was just prepared on
+  local prepared_request = Requests.ExecutePreparedRequest(query_id, query, args, query_options)
+  return request_handler:send(prepared_request)
+end
+
+local function inner_execute(request_handler, query, args, query_options)
+  if query_options.prepare then
+    return prepare_and_execute(request_handler, query, args, query_options)
+  end
+
+  local query_request = Requests.QueryRequest(query, args, query_options)
+  return request_handler:send_on_next_coordinator(query_request)
+end
+
+local function page_iterator(request_handler, query, args, query_options)
   local page = 0
   return function(query, previous_rows)
     if previous_rows and previous_rows.meta.has_more_pages == false then
       return nil -- End iteration after error
     end
 
-    options.auto_paging = false
-    options.paging_state = previous_rows and previous_rows.meta.paging_state
+    query_options.paging_state = previous_rows and previous_rows.meta.paging_state
 
-    local rows, err = session:execute(query, args, options)
+    local rows, err = inner_execute(request_handler, query, args, query_options)
 
     -- If we have some results, increment the page
     if rows ~= nil and #rows > 0 then
@@ -523,49 +563,21 @@ local function page_iterator(session, query, args, options)
   end, query, nil
 end
 
-local function prepare_and_execute(self, query, args, options)
-  local request_handler = RequestHandler:new(self.hosts, self.options)
-  local query_id, cache_err = cache.get_prepared_query_id(self.options, query)
-  if cache_err then
-    return nil, cache_err
-  elseif query_id == nil then
-    log.info("Query not prepared in cluster yet. Preparing.")
-    local prepare_request = Requests.PrepareRequest(query)
-    local res, err = request_handler:send(prepare_request)
-    if err then
-      return nil, err
-    end
-
-    query_id = res.query_id
-    local ok, cache_err = cache.set_prepared_query_id(self.options, query, query_id)
-    if not ok then
-      return nil, cache_err
-    end
-    log.info("Query prepared for host "..request_handler.coordinator.address)
-  end
-
-  -- Send on the same coordinator as the one it was just prepared on
-  local prepared_request = Requests.ExecutePreparedRequest(query_id, query, args, options)
-  return request_handler:send(prepared_request)
-end
-
-function Session:execute(query, args, options)
+function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError(nil, "Cannot reuse a session that has been shut down.")
   end
 
-  local q_options = table_utils.deep_copy(self.options)
-  q_options.query_options = table_utils.extend_table(q_options.query_options, options)
+  local options = table_utils.deep_copy(self.options)
+  options.query_options = table_utils.extend_table(options.query_options, query_options)
 
-  if q_options.query_options.auto_paging then
-    return page_iterator(self, query, args, options)
-  elseif q_options.query_options.prepare then
-    return prepare_and_execute(self, query, args, options)
+  local request_handler = RequestHandler:new(self.hosts, options)
+
+  if options.query_options.auto_paging then
+    return page_iterator(request_handler, query, args, options.query_options)
   end
 
-  local query_request = Requests.QueryRequest(query, args, q_options.query_options)
-  local request_handler = RequestHandler:new(self.hosts, q_options)
-  return request_handler:send_on_next_coordinator(query_request)
+  return inner_execute(request_handler, query, args, options.query_options)
 end
 
 function Session:set_keyspace(keyspace)

@@ -205,9 +205,13 @@ function BatchRequest:build()
 
   for _, q in ipairs(self.queries) do
     local query, args = unpack(q)
-    -- only support non-prepared batches for now
-    self.frame_body:write_byte(0)
-    self.frame_body:write_long_string(query)
+    if q.query_id ~= nil then
+      self.frame_body:write_byte(1)
+      self.frame_body:write_short_bytes(q.query_id)
+    else
+      self.frame_body:write_byte(0)
+      self.frame_body:write_long_string(query)
+    end
     if args ~= nil then
       self.frame_body:write_cql_values(args)
     else

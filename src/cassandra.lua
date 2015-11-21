@@ -502,7 +502,7 @@ function Session:new(options)
   return setmetatable(s, {__index = self})
 end
 
-local function prepare_and_execute(request_handler, query, args, query_options)
+local function prepare_query(request_handler, query)
   local query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
   if cache_err then
     return nil, cache_err
@@ -522,14 +522,19 @@ local function prepare_and_execute(request_handler, query, args, query_options)
     log.info("Query prepared for host "..request_handler.coordinator.address)
   end
 
-  -- Send on the same coordinator as the one it was just prepared on
-  local prepared_request = Requests.ExecutePreparedRequest(query_id, query, args, query_options)
-  return request_handler:send(prepared_request)
+  return query_id
 end
 
 local function inner_execute(request_handler, query, args, query_options)
   if query_options.prepare then
-    return prepare_and_execute(request_handler, query, args, query_options)
+    local query_id, err = prepare_query(request_handler, query)
+    if err then
+      return nil, err
+    end
+
+    -- Send on the same coordinator as the one it was just prepared on
+    local prepared_request = Requests.ExecutePreparedRequest(query_id, query, args, query_options)
+    return request_handler:send(prepared_request)
   end
 
   local query_request = Requests.QueryRequest(query, args, query_options)
@@ -585,8 +590,21 @@ function Session:batch(queries, query_options)
   options.query_options = table_utils.extend_table({logged = true}, options.query_options, query_options)
 
   local request_handler = RequestHandler:new(self.hosts, options)
+
+  if options.query_options.prepare then
+    for i, q in ipairs(queries) do
+      local query_id, err = prepare_query(request_handler, q[1])
+      if err then
+        return nil, err
+      end
+      queries[i].query_id = query_id
+    end
+  end
+
   local batch_request = Requests.BatchRequest(queries, options.query_options)
-  return request_handler:send_on_next_coordinator(batch_request)
+  -- with :send(), the same coordinator will be used if we prepared some queries,
+  -- and a new one will be chosen if none were used yet.
+  return request_handler:send(batch_request)
 end
 
 function Session:set_keyspace(keyspace)

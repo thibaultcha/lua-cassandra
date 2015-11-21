@@ -478,7 +478,7 @@ describe("session", function()
     it("should return any error", function()
       local res, err = session:batch({
         {"INSERT WHATEVER"},
-        {"INSERT WHATEVER"}
+        {"INSERT THING"}
       })
       assert.truthy(err)
       assert.equal("ResponseError", err.type)
@@ -497,6 +497,50 @@ describe("session", function()
       local row = rows[1]
       assert.equal("Alicia4", row.name)
       assert.equal(1428311323417123, row["writetime(name)"])
+    end)
+    it("should support serial consistency", function()
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 5)"},
+        {"UPDATE users SET name = 'Alice' WHERE id = ".._UUID.." AND n = 5"},
+        {"UPDATE users SET name = 'Alicia5' WHERE id = ".._UUID.." AND n = 5"}
+      }, {serial_consistency = cassandra.consistencies.local_serial})
+      assert.falsy(err)
+
+      local rows, err = session:execute("SELECT name, writetime(name) FROM users WHERE id = ".._UUID.." AND n = 5")
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia5", row.name)
+    end)
+    it("should support prepared queries in batch", function()
+      local cache = require "cassandra.cache"
+      spy.on(cache, "get_prepared_query_id")
+      spy.on(cache, "set_prepared_query_id")
+      finally(function()
+        cache.get_prepared_query_id:revert()
+        cache.set_prepared_query_id:revert()
+      end)
+
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 6}},
+        {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 7}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia", cassandra.uuid(_UUID), 6}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia", cassandra.uuid(_UUID), 7}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia", cassandra.uuid(_UUID), 6}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia", cassandra.uuid(_UUID), 7}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia6", cassandra.uuid(_UUID), 6}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia7", cassandra.uuid(_UUID), 7}}
+      }, {prepare = true})
+      assert.falsy(err)
+
+      assert.spy(cache.get_prepared_query_id).was.called(8)
+      assert.spy(cache.set_prepared_query_id).was.called(2)
+
+      local rows, err = session:execute("SELECT name FROM users WHERE id = ? AND n = ?", {cassandra.uuid(_UUID), 6})
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia6", row.name)
     end)
   end)
 

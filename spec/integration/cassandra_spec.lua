@@ -396,6 +396,110 @@ describe("session", function()
     end)
   end)
 
+  describe(":batch()", function()
+    local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
+
+    setup(function()
+      local _, err = session:execute [[
+        CREATE TABLE IF NOT EXISTS counter_test_table(
+          key text PRIMARY KEY,
+          value counter
+        )
+      ]]
+      assert.falsy(err)
+
+      utils.wait()
+    end)
+
+    it("should execute logged batched queries with no params", function()
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 1)"},
+        {"UPDATE users SET name = 'Alice' WHERE id = ".._UUID.." AND n = 1"},
+        {"UPDATE users SET name = 'Alicia' WHERE id = ".._UUID.." AND n = 1"}
+      })
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 1", {cassandra.uuid(_UUID)})
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia", row.name)
+    end)
+    it("should execute logged batched queries with params", function()
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 2}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = 2", {"Alice", cassandra.uuid(_UUID)}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = 2", {"Alicia2", cassandra.uuid(_UUID)}}
+      })
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 2", {cassandra.uuid(_UUID)})
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia2", row.name)
+    end)
+    it("should execute unlogged batches", function()
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 3}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = 3", {"Alice", cassandra.uuid(_UUID)}},
+        {"UPDATE users SET name = ? WHERE id = ? AND n = 3", {"Alicia3", cassandra.uuid(_UUID)}}
+      }, {logged = false})
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 3", {cassandra.uuid(_UUID)})
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia3", row.name)
+    end)
+    it("should execute counter batches", function()
+      local res, err = session:batch({
+        {"UPDATE counter_test_table SET value = value + 1 WHERE key = 'counter'"},
+        {"UPDATE counter_test_table SET value = value + 1 WHERE key = 'counter'"},
+        {"UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"counter"}}
+      }, {counter = true})
+      assert.falsy(err)
+      assert.truthy(res)
+      assert.equal("VOID", res.type)
+
+      local rows, err = session:execute("SELECT value FROM counter_test_table WHERE key = 'counter'")
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal(3, row.value)
+    end)
+    it("should return any error", function()
+      local res, err = session:batch({
+        {"INSERT WHATEVER"},
+        {"INSERT WHATEVER"}
+      })
+      assert.truthy(err)
+      assert.equal("ResponseError", err.type)
+    end)
+    it("should support protocol level timestamp", function()
+      local res, err = session:batch({
+        {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 4)"},
+        {"UPDATE users SET name = 'Alice' WHERE id = ".._UUID.." AND n = 4"},
+        {"UPDATE users SET name = 'Alicia4' WHERE id = ".._UUID.." AND n = 4"}
+      }, {timestamp = 1428311323417123})
+      assert.falsy(err)
+
+      local rows, err = session:execute("SELECT name, writetime(name) FROM users WHERE id = ".._UUID.." AND n = 4")
+      assert.falsy(err)
+      assert.truthy(rows)
+      local row = rows[1]
+      assert.equal("Alicia4", row.name)
+      assert.equal(1428311323417123, row["writetime(name)"])
+    end)
+  end)
+
   describe(":shutdown()", function()
     session:shutdown()
     assert.True(session.terminated)

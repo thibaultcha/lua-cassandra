@@ -580,6 +580,15 @@ function Session:execute(query, args, query_options)
   return inner_execute(request_handler, query, args, options.query_options)
 end
 
+function Session:batch(queries, query_options)
+  local options = table_utils.deep_copy(self.options)
+  options.query_options = table_utils.extend_table({logged = true}, options.query_options, query_options)
+
+  local request_handler = RequestHandler:new(self.hosts, options)
+  local batch_request = Requests.BatchRequest(queries, options.query_options)
+  return request_handler:send_on_next_coordinator(batch_request)
+end
+
 function Session:set_keyspace(keyspace)
   local errors = {}
   self.options.keyspace = keyspace

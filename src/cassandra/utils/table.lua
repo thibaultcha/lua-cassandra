@@ -1,15 +1,27 @@
 local CONSTS = require "cassandra.constants"
 
+local setmetatable = setmetatable
+local getmetatable = getmetatable
+local rawget = rawget
+local tostring = tostring
+local pairs = pairs
+local unpack = unpack
+local type = type
+
 local _M = {}
 
-function _M.extend_table(defaults, values)
-  if values == nil then values = {} end
-  for k in pairs(defaults) do
-    if values[k] == nil then
-      values[k] = defaults[k]
-    end
-    if type(defaults[k]) == "table" then
-      _M.extend_table(defaults[k], values[k])
+function _M.extend_table(...)
+  local sources = {...}
+  local values = table.remove(sources)
+
+  for _, source in ipairs(sources) do
+    for k in pairs(source) do
+      if values[k] == nil then
+        values[k] = source[k]
+      end
+      if type(source[k]) == "table" then
+        _M.extend_table(source[k], values[k])
+      end
     end
   end
 

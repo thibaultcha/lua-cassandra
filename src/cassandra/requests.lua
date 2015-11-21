@@ -183,10 +183,61 @@ function ExecutePreparedRequest:hex_query_id()
   return bit.tohex(string_byte(self.query_id))
 end
 
+--- BatchRequest
+-- @section batch_request
+
+local BatchRequest = Request:extend()
+
+function BatchRequest:new(queries, options)
+  self.queries = queries
+  self.options = options
+  self.type = options.logged and 0 or 1
+  self.type = options.counter and 2 or self.type
+  BatchRequest.super.new(self, OP_CODES.BATCH)
+end
+
+function BatchRequest:build()
+  -- v2: <type><n><query_1>...<query_n><consistency>
+  -- v3: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
+
+  self.frame_body:write_byte(self.type)
+  self.frame_body:write_short(#self.queries)
+
+  for _, q in ipairs(self.queries) do
+    local query, args = unpack(q)
+    -- only support non-prepared batches for now
+    self.frame_body:write_byte(0)
+    self.frame_body:write_long_string(query)
+    if args ~= nil then
+      self.frame_body:write_cql_values(args)
+    else
+      self.frame_body:write_short(0)
+    end
+  end
+
+  self.frame_body:write_short(self.options.consistency)
+
+  if self.version > 2 then
+    local flags = 0x00
+    local flags_buffer = Buffer(self.version)
+    if self.options.serial_consistency ~= nil then
+      flags = bit.bor(flags, query_flags.serial_consistency)
+      flags_buffer:write_short(self.options.serial_consistency)
+    end
+    if self.options.timestamp ~= nil then
+      flags = bit.bor(flags, query_flags.default_timestamp)
+      flags_buffer:write_long(self.options.timestamp)
+    end
+    self.frame_body:write_byte(flags)
+    self.frame_body:write(flags_buffer:dump())
+  end
+end
+
 return {
   QueryRequest = QueryRequest,
   StartupRequest = StartupRequest,
   PrepareRequest = PrepareRequest,
   KeyspaceRequest = KeyspaceRequest,
-  ExecutePreparedRequest = ExecutePreparedRequest
+  ExecutePreparedRequest = ExecutePreparedRequest,
+  BatchRequest = BatchRequest
 }

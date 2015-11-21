@@ -12,7 +12,7 @@ local type = type
 local TYPES = {
   "byte",
   "int",
-  -- "long",
+  "long",
   "short",
   "string",
   "long_string",

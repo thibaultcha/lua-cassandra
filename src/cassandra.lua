@@ -1,7 +1,5 @@
 -- @TODO
 -- option for max prepared queries in cache
--- batches
--- prepared batches?
 -- tracing
 -- wait for schema consensus on SCHEMA_CHANGE results
 --
@@ -372,6 +370,48 @@ function RequestHandler:get_next_coordinator()
   return nil, Errors.NoHostAvailableError(errors)
 end
 
+local function check_schema_consensus(request_handler)
+  if #request_handler.hosts == 1 then
+    return true
+  end
+
+  local local_query = Requests.QueryRequest("SELECT schema_version FROM system.local")
+  local local_res, err = request_handler.coordinator:send(local_query)
+  if err then
+    return nil, err
+  end
+
+  local peers_query = Requests.QueryRequest("SELECT schema_version FROM system.peers")
+  local peers_res, err = request_handler.coordinator:send(peers_query)
+  if err then
+    return nil, err
+  end
+
+  local match = true
+  for _, peer_row in ipairs(peers_res) do
+    if peer_row.schema_version ~= local_res[1].schema_version then
+      match = false
+      break
+    end
+  end
+
+  return match
+end
+
+function RequestHandler:wait_for_schema_consensus()
+  log.info("Waiting for schema consensus")
+
+  local match, err
+  local start = time_utils.get_time()
+
+  repeat
+    time_utils.wait(0.5)
+    match, err = check_schema_consensus(self)
+  until match or err ~= nil or (time_utils.get_time() - start) < self.options.protocol_options.max_schema_consensus_wait
+
+  return err
+end
+
 function RequestHandler:send_on_next_coordinator(request)
   local coordinator, err = self:get_next_coordinator()
   if err then
@@ -391,7 +431,7 @@ function RequestHandler:send(request)
   local result, err = self.coordinator:send(request)
 
   if self.coordinator.socket_type == "ngx" then
-    self.coordinator:set_keep_alive()
+    --self.coordinator:set_keep_alive()
   end
 
   if err then
@@ -402,6 +442,13 @@ function RequestHandler:send(request)
   local ok, cache_err = self.coordinator:set_up()
   if not ok then
     return nil, cache_err
+  end
+
+  if result.type == "SCHEMA_CHANGE" then
+    local err = self:wait_for_schema_consensus()
+    if err then
+      log.warn("There was an error while waiting for the schema consensus between nodes: "..err)
+    end
   end
 
   return result

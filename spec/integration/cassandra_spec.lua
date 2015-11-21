@@ -119,7 +119,7 @@ describe("spawn session", function()
       assert.equal(1, #rows)
       assert.equal("local", rows[1].key)
     end)
-    it("should parse SCHEMA_CHANGE/SET_KEYSPACE results", function()
+    it("should parse SCHEMA_CHANGE/SET_KEYSPACE results and wait for schema consensus", function()
       local res, err = session:execute [[
         CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec_parsing
         WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
@@ -131,8 +131,6 @@ describe("spawn session", function()
       assert.equal("CREATED", res.change)
       assert.equal("KEYSPACE", res.keyspace)
       assert.equal("resty_cassandra_spec_parsing", res.table)
-
-      utils.wait()
 
       res, err = session:execute [[USE "resty_cassandra_spec_parsing"]]
       assert.falsy(err)
@@ -158,8 +156,6 @@ describe("spawn session", function()
         )
       ]]
       assert.falsy(err)
-
-      utils.wait()
 
       local rows, err = session_in_keyspace:execute("SELECT * FROM users")
       assert.falsy(err)
@@ -196,8 +192,6 @@ describe("session", function()
       )
     ]]
     assert.falsy(err)
-
-    utils.wait()
   end)
 
   teardown(function()
@@ -407,8 +401,6 @@ describe("session", function()
         )
       ]]
       assert.falsy(err)
-
-      utils.wait()
     end)
 
     it("should execute logged batched queries with no params", function()

@@ -63,8 +63,6 @@ describe("CQL types integration", function()
       )
     ]]
     assert.falsy(err)
-
-    utils.wait()
   end)
 
   teardown(function()

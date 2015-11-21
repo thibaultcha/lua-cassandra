@@ -5,11 +5,6 @@ local assert = require "luassert.assert"
 
 local _M = {}
 
-function _M.wait(t)
-  if not t then t = 1 end
-  os.execute("sleep "..t)
-end
-
 function _M.set_log_lvl(lvl)
   log.set_lvl(lvl)
 end
@@ -22,8 +17,6 @@ function _M.create_keyspace(session, keyspace)
   if err then
     error(err)
   end
-
-  _M.wait()
 
   return res
 end

@@ -129,3 +129,48 @@ type: ROWS
 local
 --- no_error_log
 [error]
+
+
+
+=== TEST 5: wait for schema consensus
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra"}
+            local res, err = session:execute [[
+                CREATE KEYSPACE IF NOT EXISTS resty_t_keyspace
+                WITH REPLICATION = {\'class\': \'SimpleStrategy\', \'replication_factor\': 1}
+            ]]
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            res, err = session:execute [[
+                CREATE TABLE IF NOT EXISTS resty_t_keyspace.users(
+                    id uuid PRIMARY KEY,
+                    name text
+                )
+            ]]
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            res, err = session:execute("DROP KEYSPACE resty_t_keyspace")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+        ';
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+[error]

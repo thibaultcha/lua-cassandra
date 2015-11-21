@@ -24,7 +24,8 @@ local DEFAULTS = {
     retry_on_timeout = true
   },
   protocol_options = {
-    default_port = 9042
+    default_port = 9042,
+    max_schema_consensus_wait = 5000
   },
   socket_options = {
     connect_timeout = 1000,

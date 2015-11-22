@@ -1,7 +1,6 @@
 -- @TODO
 -- option for max prepared queries in cache
 -- tracing
--- wait for schema consensus on SCHEMA_CHANGE results
 --
 -- better logging
 -- more options validation
@@ -232,10 +231,15 @@ function Host:get_reused_times()
 end
 
 function Host:set_keep_alive()
+  -- don't close if the connection was not opened yet
+  if not self.connected then
+    return true
+  end
+
   if self.socket_type == "ngx" then
     local ok, err = self.socket:setkeepalive()
     if err then
-      log.err("Could not set keepalive for socket to "..self.address..". "..err)
+      log.err("Could not set keepalive socket to "..self.address..". "..err)
       return ok, err
     end
   end
@@ -245,15 +249,20 @@ function Host:set_keep_alive()
 end
 
 function Host:close()
+  -- don't close if the connection was not opened yet
+  if not self.connected then
+    return true
+  end
+
   log.info("Closing connection to "..self.address..".")
   local res, err = self.socket:close()
   if res ~= 1 then
-    log.err("Could not close socket for connection to "..self.address..". "..err)
+    log.err("Could not close socket to "..self.address..". "..err)
     return false, err
-  else
-    self.connected = false
-    return true
   end
+
+  self.connected = false
+  return true
 end
 
 function Host:set_down()
@@ -429,11 +438,6 @@ function RequestHandler:send(request)
   end
 
   local result, err = self.coordinator:send(request)
-
-  if self.coordinator.socket_type == "ngx" then
-    --self.coordinator:set_keep_alive()
-  end
-
   if err then
     return self:handle_error(request, err)
   end
@@ -669,6 +673,12 @@ function Session:set_keyspace(keyspace)
   end
 
   return true
+end
+
+function Session:set_keep_alive()
+  for _, host in ipairs(self.hosts) do
+    host:set_keep_alive()
+  end
 end
 
 function Session:shutdown()

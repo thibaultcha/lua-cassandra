@@ -66,7 +66,7 @@ GET /t
 
 
 
-=== TEST 3: session:execute()
+=== TEST 2: session:execute()
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -99,7 +99,7 @@ local
 
 
 
-=== TEST 4: session:execute() with request arguments
+=== TEST 3: session:execute() with request arguments
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -132,7 +132,7 @@ local
 
 
 
-=== TEST 5: wait for schema consensus
+=== TEST 4: wait for schema consensus
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -166,6 +166,76 @@ local
                 ngx.log(ngx.ERR, tostring(err))
                 ngx.exit(500)
             end
+        ';
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+[error]
+
+
+
+=== TEST 5: session:shutdown()
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra"}
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            session:shutdown()
+
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.say(tostring(err))
+                return ngx.exit(200)
+            end
+
+            ngx.exit(500)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+NoHostAvailableError: Cannot reuse a session that has been shut down.
+--- no_error_log
+[error]
+
+
+
+=== TEST 6: session:set_keep_alive()
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra"}
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            session:set_keep_alive()
+
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            ngx.exit(200)
         ';
     }
 --- request

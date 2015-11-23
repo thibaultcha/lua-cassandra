@@ -225,7 +225,14 @@ local function page_iterator(session, operation, args, options)
       return nil -- End iteration after error
     end
 
+    local consistency_lvl
+    if not options.consistency_level then
+      consistency_lvl = self.constants.consistency.LOCAL_QUORUM
+    else
+      consistency_lvl = options.consistency_level
+    end
     rows, err = session:execute(paginated_operation, args, {
+      consistency_level = consistency_lvl,
       page_size = options.page_size,
       paging_state =  previous_rows and previous_rows.meta.paging_state
     })

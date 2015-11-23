@@ -6,8 +6,9 @@ local utils = require "cassandra.utils.table"
 
 local DEFAULTS = {
   shm = nil, -- stub
+  prepared_shm = nil, -- stub
   contact_points = {},
-  keyspace = nil, -- stub
+  keyspace = nil, -- stub,
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
     load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
@@ -44,6 +45,13 @@ local function parse_session(options)
   assert(options.shm ~= nil, "shm is required for spawning a cluster/session")
   assert(type(options.shm) == "string", "shm must be a string")
   assert(options.shm ~= "", "shm must be a valid string")
+
+  if options.prepared_shm == nil then
+    options.prepared_shm = options.shm
+  end
+
+  assert(type(options.prepared_shm) == "string", "prepared_shm must be a string")
+  assert(options.prepared_shm ~= "", "prepared_shm must be a valid string")
 
   assert(type(options.protocol_options.default_port) == "number", "protocol default_port must be a number")
   assert(type(options.policies.address_resolution) == "function", "address_resolution policy must be a function")

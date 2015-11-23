@@ -13,6 +13,7 @@ _EOC_
 
 our $SpawnCluster = <<_EOC_;
     lua_shared_dict cassandra 1m;
+    lua_shared_dict cassandra_prepared 1m;
     init_by_lua '
         local cassandra = require "cassandra"
         local ok, err = cassandra.spawn_cluster({
@@ -242,5 +243,43 @@ NoHostAvailableError: Cannot reuse a session that has been shut down.
 GET /t
 --- response_body
 
+--- no_error_log
+[error]
+
+
+
+=== TEST 7: session:execute() prepared query
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra", prepared_shm = "cassandra_prepared"}
+
+            for i = 1, 10 do
+                local rows, err = session:execute("SELECT key FROM system.local", nil, {prepare = true})
+                if err then
+                    ngx.log(ngx.ERR, tostring(err))
+                    ngx.exit(500)
+                end
+                ngx.say(rows[1].key)
+            end
+        ';
+    }
+--- request
+GET /t
+--- response_body
+local
+local
+local
+local
+local
+local
+local
+local
+local
+local
 --- no_error_log
 [error]

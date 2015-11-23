@@ -9,25 +9,34 @@ local shared
 
 local SharedDict = {}
 
+local function set(data, key, value)
+  data[key] = {
+    value = value,
+    info = {expired = false}
+  }
+end
+
 function SharedDict:new()
   return setmetatable({data = {}}, {__index = self})
 end
 
 function SharedDict:get(key)
-  return self.data[key], nil
+  return self.data[key] and self.data[key].value, nil
 end
 
 function SharedDict:set(key, value)
-  self.data[key] = value
+  set(self.data, key, value)
   return true, nil, false
 end
+
+SharedDict.safe_set = SharedDict.set
 
 function SharedDict:add(key, value)
   if self.data[key] ~= nil then
     return false, "exists", false
   end
 
-  self.data[key] = value
+  set(self.data, key, value)
   return true, nil, false
 end
 
@@ -36,7 +45,7 @@ function SharedDict:replace(key, value)
     return false, "not found", false
   end
 
-  self.data[key] = value
+  set(self.data, key, value)
   return true, nil, false
 end
 
@@ -47,12 +56,37 @@ end
 function SharedDict:incr(key, value)
   if not self.data[key] then
     return nil, "not found"
-  elseif type(self.data[key]) ~= "number" then
+  elseif type(self.data[key].value) ~= "number" then
     return nil, "not a number"
   end
 
-  self.data[key] = self.data[key] + value
-  return self.data[key], nil
+  self.data[key].value = self.data[key].value + value
+  return self.data[key].value, nil
+end
+
+function SharedDict:flush_all()
+  for _, item in pairs(self.data) do
+    item.info.expired = true
+  end
+end
+
+function SharedDict:flush_expired(n)
+  local data = self.data
+  local flushed = 0
+
+  for key, item in pairs(self.data) do
+    if item.info.expired then
+      data[key] = nil
+      flushed = flushed + 1
+      if n and flushed == n then
+        break
+      end
+    end
+  end
+
+  self.data = data
+
+  return flushed
 end
 
 if in_ngx then
@@ -79,7 +113,7 @@ local _SEP = ";"
 
 local function set_hosts(shm, hosts)
   local dict = get_dict(shm)
-  local ok, err = dict:set(_HOSTS_KEY, table_concat(hosts, _SEP))
+  local ok, err = dict:safe_set(_HOSTS_KEY, table_concat(hosts, _SEP))
   if not ok then
     err = "Cannot store hosts for cluster under shm "..shm..": "..err
   end
@@ -103,7 +137,7 @@ end
 
 local function set_host(shm, host_addr, host)
   local dict = get_dict(shm)
-  local ok, err = dict:set(host_addr, json.encode(host))
+  local ok, err = dict:safe_set(host_addr, json.encode(host))
   if not ok then
     err = "Cannot store host details for cluster "..shm..": "..err
   end
@@ -129,24 +163,28 @@ local function key_for_prepared_query(keyspace, query)
 end
 
 local function set_prepared_query_id(options, query, query_id)
-  local shm = options.shm
+  local shm = options.prepared_shm
   local dict = get_dict(shm)
   local prepared_key = key_for_prepared_query(options.keyspace, query)
 
-  local ok, err = dict:set(prepared_key, query_id)
+  local ok, err, forcible = dict:set(prepared_key, query_id)
   if not ok then
-    err = "Cannot store prepared query id for cluster "..shm..": "..err
+    err = "Cannot store prepared query id in shm "..shm..": "..err
+  elseif forcible then
+    log.warn("Prepared shm "..shm.." running out of memory. Consider increasing its size.")
+    dict:flush_expired(1)
   end
   return ok, err
 end
 
 local function get_prepared_query_id(options, query)
-  local dict = get_dict(options.shm)
+  local shm = options.prepared_shm
+  local dict = get_dict(shm)
   local prepared_key = key_for_prepared_query(options.keyspace, query)
 
   local value, err = dict:get(prepared_key)
   if err then
-    err = "Cannot retrieve prepared query id for cluster "..options.shm..": "..err
+    err = "Cannot retrieve prepared query id in shm "..shm..": "..err
   end
   return value, err
 end

@@ -1,5 +1,5 @@
 -- @TODO
--- option for max prepared queries in cache
+-- authentication
 -- tracing
 --
 -- better logging

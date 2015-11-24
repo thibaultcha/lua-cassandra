@@ -8,7 +8,7 @@ local DEFAULTS = {
   shm = nil, -- stub
   prepared_shm = nil, -- stub
   contact_points = {},
-  keyspace = nil, -- stub,
+  keyspace = nil, -- stub
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
     load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
@@ -31,7 +31,13 @@ local DEFAULTS = {
   socket_options = {
     connect_timeout = 1000,
     read_timeout = 2000
-  }
+  },
+  -- ssl_options = {
+  --   key = nil,
+  --   certificate = nil,
+  --   ca = nil, -- stub
+  --   verify = false
+  -- }
 }
 
 local function parse_session(options)

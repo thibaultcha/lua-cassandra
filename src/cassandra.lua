@@ -141,6 +141,43 @@ local function change_keyspace(self, keyspace)
   return self:send(keyspace_req)
 end
 
+local function do_ssl_handshake(self)
+  local ssl_options = self.options.ssl_options
+
+  if self.socket_type == "luasocket" then
+    local ok, res = pcall(require, "ssl")
+    if not ok and string_find(res, "module 'ssl' not found", nil, true) then
+      error("LuaSec not found. Please install LuaSec to use SSL with LuaSocket.")
+    end
+    local ssl = res
+    local params = {
+      mode = "client",
+      protocol = "tlsv1",
+      key = ssl_options.key,
+      certificate = ssl_options.certificate,
+      cafile = ssl_options.ca,
+      verify = ssl_options.verify and "peer" or "none",
+      options = "all"
+    }
+
+    local err
+    self.socket, err = ssl.wrap(self.socket, params)
+    if err then
+      return false, err
+    end
+
+    ok, err = self.socket:dohandshake()
+    if err then
+      return false, err
+    end
+  else
+    -- returns a boolean since`reused_session` is false.
+    return self.socket:sslhandshake(false, nil, self.options.ssl_options.verify)
+  end
+
+  return true
+end
+
 function Host:connect()
   if self.connected then return true end
 
@@ -152,6 +189,13 @@ function Host:connect()
   if ok ~= 1 then
     log.info("Could not connect to "..self.address..". Reason: "..err)
     return false, err, true
+  end
+
+  if self.options.ssl_options ~= nil then
+    ok, err = do_ssl_handshake(self)
+    if not ok then
+      return false, err
+    end
   end
 
   log.info("Session connected to "..self.address)
@@ -255,8 +299,8 @@ function Host:close()
   end
 
   log.info("Closing connection to "..self.address..".")
-  local res, err = self.socket:close()
-  if res ~= 1 then
+  local _, err = self.socket:close()
+  if err then
     log.err("Could not close socket to "..self.address..". "..err)
     return false, err
   end

@@ -4,7 +4,7 @@ local Buffer = require "cassandra.buffer"
 local types = require "cassandra.types"
 local CQL_TYPES = types.cql_types
 
-SUPPORTED_PROTOCOL_VERSIONS = {cassandra.DEFAULT_PROTOCOL_VERSION, cassandra.MIN_PROTOCOL_VERSION}
+local SUPPORTED_PROTOCOL_VERSIONS = {cassandra.DEFAULT_PROTOCOL_VERSION, cassandra.MIN_PROTOCOL_VERSION}
 
 for _, protocol_version in ipairs(SUPPORTED_PROTOCOL_VERSIONS) do
 

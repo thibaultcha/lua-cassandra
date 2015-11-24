@@ -352,7 +352,7 @@ function Host:close()
 end
 
 function Host:set_down()
-  log.info("Setting host "..self.address.." as DOWN")
+  log.warn("Setting host "..self.address.." as DOWN")
   local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
     return false, err
@@ -360,6 +360,8 @@ function Host:set_down()
 
   host_infos.unhealthy_at = time_utils.get_time()
   host_infos.reconnection_delay = self.reconnection_policy.next(self)
+  self:close()
+  new_socket(self)
 
   return cache.set_host(self.options.shm, self.address, host_infos)
 end
@@ -372,7 +374,7 @@ function Host:set_up()
 
   -- host was previously marked a DOWN
   if host_infos.unhealthy_at ~= 0 then
-    log.info("Setting host "..self.address.." as UP")
+    log.warn("Setting host "..self.address.." as UP")
     host_infos.unhealthy_at = 0
     -- reset schedule for reconnection delay
     self.reconnection_policy.new_schedule(self)
@@ -401,7 +403,14 @@ function Host:can_be_considered_up()
     return nil, err
   end
 
-  return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
+  local delay = time_utils.get_time() - host_infos.unhealthy_at
+
+  if is_up then
+    return true
+  elseif (delay >= host_infos.reconnection_delay) then
+    log.info("Host "..self.address.." could nbe considered up after "..delay.."ms")
+    return true
+  end
 end
 
 --- Request Handler
@@ -514,7 +523,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.info("Acquired connection through load balancing policy: "..coordinator.address)
+  log.debug("Acquired connection through load balancing policy: "..coordinator.address)
 
   return self:send(request)
 end
@@ -591,7 +600,7 @@ end
 
 function RequestHandler:retry(request)
   self.n_retries = self.n_retries + 1
-  log.info("Retrying request")
+  log.info("Retrying request on next coordinator")
   return self:send_on_next_coordinator(request)
 end
 

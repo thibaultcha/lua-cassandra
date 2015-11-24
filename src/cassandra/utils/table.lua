@@ -1,6 +1,5 @@
 local setmetatable = setmetatable
 local getmetatable = getmetatable
-local rawget = rawget
 local tostring = tostring
 local pairs = pairs
 local type = type

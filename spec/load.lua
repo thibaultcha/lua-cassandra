@@ -16,22 +16,20 @@ local session, err = cassandra.spawn_session {
 }
 assert(err == nil, inspect(err))
 
---local i = 0
---while true do
-  --i = i + 1
-for i = 1, 1000 do
+local i = 0
+while true do
+  i = i + 1
+--for i = 1, 1000 do
   local _, err = session:execute("SELECT peer FROM system.peers")
   if err then
-    print(inspect(err))
-    error()
+    error(err)
   end
-  print("Request "..i.." successful.")
+  --print("Request "..i.." successful.")
 end
 
-session:shutdown()
+-- session:shutdown()
 
-local _, err = session:execute("SELECT peer FROM system.peers")
-if err then
-  print(inspect(err))
-  error()
-end
+-- local _, err = session:execute("SELECT peer FROM system.peers")
+-- if err then
+--   error(err)
+-- end

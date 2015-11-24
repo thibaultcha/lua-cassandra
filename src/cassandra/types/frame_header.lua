@@ -23,10 +23,10 @@ setmetatable(VERSION_CODES, table_utils.const_mt)
 
 local FrameHeader = Buffer:extend()
 
-function FrameHeader:new(version, flags, op_code, body_length)
+function FrameHeader:new(version, flags, op_code, body_length, stream_id)
   self.flags = flags and flags or 0
   self.op_code = op_code
-  self.stream_id = 0
+  self.stream_id = stream_id or 0
   self.body_length = body_length
 
   self.super.new(self, version)
@@ -76,7 +76,7 @@ function FrameHeader.from_raw_bytes(version_byte, raw_bytes)
   local op_code = buffer:read_byte()
   local body_length = buffer:read_int()
 
-  return FrameHeader(version, flags, op_code, body_length)
+  return FrameHeader(version, flags, op_code, body_length, stream_id)
 end
 
 return FrameHeader

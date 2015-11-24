@@ -5,16 +5,11 @@ local log = require "cassandra.log"
 
 log.set_lvl("INFO")
 
-local ok, err = cassandra.spawn_cluster {
+local _, err = cassandra.spawn_cluster {
   shm = "cassandra",
   contact_points = {"127.0.0.1", "127.0.0.2"}
 }
 assert(err == nil, inspect(err))
-
-
-
-
-
 
 local session, err = cassandra.spawn_session {
   shm = "cassandra"
@@ -25,7 +20,7 @@ assert(err == nil, inspect(err))
 --while true do
   --i = i + 1
 for i = 1, 1000 do
-  local res, err = session:execute("SELECT peer FROM system.peers")
+  local _, err = session:execute("SELECT peer FROM system.peers")
   if err then
     print(inspect(err))
     error()
@@ -35,7 +30,7 @@ end
 
 session:shutdown()
 
-local res, err = session:execute("SELECT peer FROM system.peers")
+local _, err = session:execute("SELECT peer FROM system.peers")
 if err then
   print(inspect(err))
   error()

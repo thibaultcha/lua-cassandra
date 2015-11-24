@@ -100,18 +100,18 @@ local function send_and_receive(self, request)
     return nil, err
   end
 
-  local frameHeader = FrameHeader.from_raw_bytes(frame_version_byte, header_bytes)
+  local frame_header = FrameHeader.from_raw_bytes(frame_version_byte, header_bytes)
 
   -- Receive frame body
   local body_bytes
-  if frameHeader.body_length > 0 then
-    body_bytes, err = self.socket:receive(frameHeader.body_length)
+  if frame_header.body_length > 0 then
+    body_bytes, err = self.socket:receive(frame_header.body_length)
     if body_bytes == nil then
       return nil, err
     end
   end
 
-  return FrameReader(frameHeader, body_bytes)
+  return FrameReader(frame_header, body_bytes)
 end
 
 function Host:send(request)
@@ -119,7 +119,7 @@ function Host:send(request)
 
   self:set_timeout(self.options.socket_options.read_timeout)
 
-  local frameReader, err = send_and_receive(self, request)
+  local frame_reader, err = send_and_receive(self, request)
   if err then
     if err == "timeout" then
       return nil, Errors.TimeoutError(self.address)
@@ -129,7 +129,7 @@ function Host:send(request)
   end
 
   -- result, cql_error
-  return frameReader:parse()
+  return frame_reader:parse()
 end
 
 local function startup(self)
@@ -171,7 +171,7 @@ local function do_ssl_handshake(self)
       return false, err
     end
 
-    ok, err = self.socket:dohandshake()
+    local _, err = self.socket:dohandshake()
     if err then
       return false, err
     end

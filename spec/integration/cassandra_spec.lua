@@ -384,7 +384,8 @@ describe("session", function()
           page_tracker = page
         end
 
-        assert.spy(cache.get_prepared_query_id).was.called(page)
+        assert.equal(1000, page_tracker)
+        assert.spy(cache.get_prepared_query_id).was.called(page_tracker + 1)
         assert.spy(cache.set_prepared_query_id).was.called(0)
       end)
     end)
@@ -468,7 +469,7 @@ describe("session", function()
       assert.equal(3, row.value)
     end)
     it("should return any error", function()
-      local res, err = session:batch({
+      local _, err = session:batch({
         {"INSERT WHATEVER"},
         {"INSERT THING"}
       })
@@ -476,7 +477,7 @@ describe("session", function()
       assert.equal("ResponseError", err.type)
     end)
     it("should support protocol level timestamp", function()
-      local res, err = session:batch({
+      local _, err = session:batch({
         {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 4)"},
         {"UPDATE users SET name = 'Alice' WHERE id = ".._UUID.." AND n = 4"},
         {"UPDATE users SET name = 'Alicia4' WHERE id = ".._UUID.." AND n = 4"}
@@ -491,7 +492,7 @@ describe("session", function()
       assert.equal(1428311323417123, row["writetime(name)"])
     end)
     it("should support serial consistency", function()
-      local res, err = session:batch({
+      local _, err = session:batch({
         {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 5)"},
         {"UPDATE users SET name = 'Alice' WHERE id = ".._UUID.." AND n = 5"},
         {"UPDATE users SET name = 'Alicia5' WHERE id = ".._UUID.." AND n = 5"}
@@ -513,7 +514,7 @@ describe("session", function()
         cache.set_prepared_query_id:revert()
       end)
 
-      local res, err = session:batch({
+      local _, err = session:batch({
         {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 6}},
         {"INSERT INTO users(id, name, n) VALUES(?, ?, ?)", {cassandra.uuid(_UUID), "Alice", 7}},
         {"UPDATE users SET name = ? WHERE id = ? AND n = ?", {"Alicia", cassandra.uuid(_UUID), 6}},

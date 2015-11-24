@@ -5,7 +5,6 @@ local getmetatable = getmetatable
 local rawget = rawget
 local tostring = tostring
 local pairs = pairs
-local unpack = unpack
 local type = type
 
 local _M = {}

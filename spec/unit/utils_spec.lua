@@ -89,7 +89,7 @@ describe("table_utils", function()
       assert.equal("source", target.source)
     end)
     it("should not override nested properties in the target", function()
-      local source1 = {source1 = true, source_nested = {hello = "world"}}
+      local source = {source = true, source_nested = {hello = "world"}}
       local target = {target = true, source_nested = {hello = "universe"}}
 
       target = table_utils.extend_table(source, target)

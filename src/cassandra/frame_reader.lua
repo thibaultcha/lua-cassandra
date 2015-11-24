@@ -33,7 +33,7 @@ local function parse_metadata(buffer)
 
   local has_more_pages = bit.btest(flags, ROWS_RESULT_FLAGS.HAS_MORE_PAGES)
   local has_global_table_spec = bit.btest(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC)
-  local has_no_metadata = bit.btest(flags, ROWS_RESULT_FLAGS.NO_METADATA)
+  --local has_no_metadata = bit.btest(flags, ROWS_RESULT_FLAGS.NO_METADATA)
 
   if has_more_pages then
     paging_state = buffer:read_bytes()

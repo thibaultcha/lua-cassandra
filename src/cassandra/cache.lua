@@ -1,3 +1,4 @@
+local log = require "cassandra.log"
 local json = require "cjson"
 local string_utils = require "cassandra.utils.string"
 local table_concat = table.concat

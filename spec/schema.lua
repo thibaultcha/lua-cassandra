@@ -11,7 +11,7 @@ assert(err == nil, inspect(err))
 local session, err = cassandra.spawn_session {shm = "cassandra", keyspace = "page"}
 assert(err == nil, inspect(err))
 
-local res, err = session:execute [[
+local _, err = session:execute [[
     CREATE KEYSPACE IF NOT EXISTS stuff
     WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
 ]]

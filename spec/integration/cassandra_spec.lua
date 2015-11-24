@@ -85,6 +85,16 @@ describe("spawn cluster", function()
     assert.False(ok)
     assert.equal("NoHostAvailableError", err.type)
   end)
+  it("should return a third parameter, cluster, an instance able to spawn sessions", function()
+    local ok, err, cluster = cassandra.spawn_cluster({
+      shm = "test",
+      contact_points = utils.contact_points
+    })
+    assert.falsy(err)
+    assert.True(ok)
+    assert.truthy(cluster)
+    assert.truthy(cluster.spawn_session)
+  end)
 end)
 
 describe("spawn session", function()

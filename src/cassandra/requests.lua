@@ -1,13 +1,14 @@
 local bit = require "cassandra.utils.bit"
 local types = require "cassandra.types"
-local CONSTS = require "cassandra.constants"
 local Object = require "cassandra.utils.classic"
 local Buffer = require "cassandra.buffer"
 local FrameHeader = require "cassandra.types.frame_header"
 
 local OP_CODES = types.OP_CODES
-local string_format = string.format
 local string_byte = string.byte
+local string_format = string.format
+
+local CQL_VERSION = "3.0.0"
 
 --- Query Flags
 -- @section query_flags
@@ -74,7 +75,7 @@ end
 
 function StartupRequest:build()
   self.frame_body:write_string_map({
-    CQL_VERSION = CONSTS.CQL_VERSION
+    CQL_VERSION = CQL_VERSION
   })
 end
 

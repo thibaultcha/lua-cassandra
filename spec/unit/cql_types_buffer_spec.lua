@@ -1,11 +1,12 @@
 local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 local Buffer = require "cassandra.buffer"
-local CONSTS = require "cassandra.constants"
 local types = require "cassandra.types"
 local CQL_TYPES = types.cql_types
 
-for _, protocol_version in ipairs(CONSTS.SUPPORTED_PROTOCOL_VERSIONS) do
+SUPPORTED_PROTOCOL_VERSIONS = {cassandra.DEFAULT_PROTOCOL_VERSION, cassandra.MIN_PROTOCOL_VERSION}
+
+for _, protocol_version in ipairs(SUPPORTED_PROTOCOL_VERSIONS) do
 
 describe("CQL Types protocol v"..protocol_version, function()
   it("[uuid] should be bufferable", function()

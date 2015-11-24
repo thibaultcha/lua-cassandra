@@ -1,6 +1,5 @@
 local bit = require "cassandra.utils.bit"
 local Buffer = require "cassandra.buffer"
-local table_utils = require "cassandra.utils.table"
 
 --- CONST
 -- @section constants
@@ -15,8 +14,6 @@ local VERSION_CODES = {
     RESPONSE = 0x83
   }
 }
-
-setmetatable(VERSION_CODES, table_utils.const_mt)
 
 --- FrameHeader
 -- @section FrameHeader
@@ -33,7 +30,7 @@ function FrameHeader:new(version, flags, op_code, body_length, stream_id)
 end
 
 function FrameHeader:dump()
-  FrameHeader.super.write_byte(self, VERSION_CODES:get("REQUEST", self.version))
+  FrameHeader.super.write_byte(self, VERSION_CODES[self.version].REQUEST)
   FrameHeader.super.write_byte(self, self.flags)
 
   if self.version < 3 then

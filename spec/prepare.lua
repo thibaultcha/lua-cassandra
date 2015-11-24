@@ -5,10 +5,10 @@ local log = require "cassandra.log"
 
 log.set_lvl("ERR")
 
-local _, err = cassandra.spawn_cluster {shm = "cassandra", contact_points = {"127.0.0.1", "127.0.0.2"}}
+local _, err, cluster = cassandra.spawn_cluster {shm = "cassandra", contact_points = {"127.0.0.1", "127.0.0.2"}}
 assert(err == nil, inspect(err))
 
-local session, err = cassandra.spawn_session {shm = "cassandra", keyspace = "page"}
+local session, err = cluster:spawn_session()
 assert(err == nil, inspect(err))
 
 -- for i = 1, 10000 do

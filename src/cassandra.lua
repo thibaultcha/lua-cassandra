@@ -11,7 +11,6 @@ local opts = require "cassandra.options"
 local auth = require "cassandra.auth"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
-local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
@@ -25,6 +24,12 @@ local string_find = string.find
 local table_insert = table.insert
 local string_format = string.format
 local setmetatable = setmetatable
+
+--- Constants
+-- @section constants
+
+local MIN_PROTOCOL_VERSION = 2
+local DEFAULT_PROTOCOL_VERSION = 3
 
 --- Host
 -- A connection to a single host.
@@ -65,7 +70,7 @@ function Host:new(address, options)
   h.host = host
   h.port = port
   h.address = address
-  h.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
+  h.protocol_version = DEFAULT_PROTOCOL_VERSION
 
   h.options = options
   h.reconnection_policy = h.options.policies.reconnection
@@ -235,7 +240,7 @@ function Host:connect()
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
         self:close()
         self:decrease_version()
-        if self.protocol_version < CONSTS.MIN_PROTOCOL_VERSION then
+        if self.protocol_version < MIN_PROTOCOL_VERSION then
           log.err("Connection could not find a supported protocol version.")
         else
           log.info("Decreasing protocol version to v"..self.protocol_version)
@@ -775,7 +780,9 @@ end
 -- @section cassandra
 
 local Cassandra = {
-  _VERSION = "0.4.0"
+  _VERSION = "0.4.0",
+  DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
+  MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
 }
 
 function Cassandra.spawn_session(options)
@@ -850,6 +857,13 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
   return cache.set_hosts(options.shm, addresses)
 end
 
+local Cluster = {}
+Cluster.__index = Cluster
+
+function Cluster:spawn_session()
+  return Cassandra.spawn_session(self.options)
+end
+
 --- Retrieve cluster informations and store them in ngx.shared.DICT
 function Cassandra.spawn_cluster(options)
   options = opts.parse_cluster(options)
@@ -859,11 +873,18 @@ function Cassandra.spawn_cluster(options)
     table_insert(contact_points_hosts, Host:new(contact_point, options))
   end
 
-  return Cassandra.refresh_hosts(contact_points_hosts, options)
+  local ok, err = Cassandra.refresh_hosts(contact_points_hosts, options)
+  if not ok then
+    return false, err
+  end
+
+  return true, nil, setmetatable({
+    options = options
+  }, Cluster)
 end
 
---- CQL types inferers
--- @section
+--- Cassandra Misc
+-- @section cassandra_misc
 
 local CQL_TYPES = types.cql_types
 

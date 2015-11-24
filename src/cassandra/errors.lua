@@ -40,6 +40,9 @@ local ERROR_TYPES = {
     message = function(address)
       return "timeout for peer "..address
     end
+  },
+  AuthenticationError = {
+    info = "Represents an authentication error from the driver or from a Cassandra node."
   }
 }
 

@@ -1,5 +1,5 @@
 -- @TODO
--- authentication
+-- flush from dict on shutdown
 -- tracing
 --
 -- better logging
@@ -8,6 +8,7 @@
 
 local log = require "cassandra.log"
 local opts = require "cassandra.options"
+local auth = require "cassandra.auth"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
 local Object = require "cassandra.classic"
@@ -20,11 +21,11 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
-local setmetatable = setmetatable
-local table_insert = table.insert
-local string_find = string.find
-local string_format = string.format
 local CQL_Errors = types.ERRORS
+local string_find = string.find
+local table_insert = table.insert
+local string_format = string.format
+local setmetatable = setmetatable
 
 --- Host
 -- A connection to a single host.
@@ -178,6 +179,21 @@ local function do_ssl_handshake(self)
   return true
 end
 
+local function send_auth(self, authenticator)
+  local token = authenticator:initial_response()
+  local auth_request = Requests.AuthResponse(token)
+  local res, err = self:send(auth_request)
+  if err then
+    return nil, err
+  elseif res and res.authenticated then
+    return true
+  end
+
+  -- For other authenticators:
+  --   evaluate challenge
+  --   on authenticate success
+end
+
 function Host:connect()
   if self.connected then return true end
 
@@ -206,6 +222,7 @@ function Host:connect()
   end
 
   -- Startup request on first connection
+  local ready = false
   local res, err = startup(self)
   if err then
     log.info("Startup request failed. "..err)
@@ -224,7 +241,23 @@ function Host:connect()
     end
 
     return false, err
+  elseif res.must_authenticate then
+    log.info("Host at "..self.address.." required authentication")
+    local authenticator, err = auth.new_authenticator(res.class_name, self.options)
+    if err then
+      return nil, Errors.AuthenticationError(err)
+    end
+    local ok, err = send_auth(self, authenticator)
+    if err then
+      return nil, Errors.AuthenticationError(err)
+    elseif ok then
+      ready = true
+    end
   elseif res.ready then
+    ready = true
+  end
+
+  if ready then
     log.info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
 
     if self.options.keyspace ~= nil then

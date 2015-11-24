@@ -126,12 +126,12 @@ local FrameReader = Object:extend()
 
 function FrameReader:new(frameHeader, body_bytes)
   self.frameHeader = frameHeader
-  self.frameBody = Buffer(frameHeader.version, body_bytes)
+  self.frame_body = Buffer(frameHeader.version, body_bytes)
 end
 
-local function parse_error(frameBody)
-  local code = frameBody:read_int()
-  local message = frameBody:read_string()
+local function parse_error(frame_body)
+  local code = frame_body:read_int()
+  local message = frame_body:read_string()
   local code_translation = types.ERRORS_TRANSLATIONS[code]
   return errors.ResponseError(code, code_translation, message)
 end
@@ -140,10 +140,20 @@ local function parse_ready()
   return {ready = true}
 end
 
-local function parse_result(frameBody)
-  local result_kind = frameBody:read_int()
+local function parse_result(frame_body)
+  local result_kind = frame_body:read_int()
   local parser = RESULT_PARSERS[result_kind]
-  return parser(frameBody)
+  return parser(frame_body)
+end
+
+local function parse_authenticate(frame_body)
+  local class_name = frame_body:read_string()
+  return {must_authenticate = true, class_name = class_name}
+end
+
+local function parse_auth_success(frame_body)
+  local token = frame_body:read_bytes()
+  return {authenticated = true, token = token}
 end
 
 --- Decode a response frame
@@ -155,11 +165,15 @@ function FrameReader:parse()
 
   -- Parse frame depending on op_code
   if op_code == OP_CODES.ERROR then
-    return nil, parse_error(self.frameBody)
+    return nil, parse_error(self.frame_body)
   elseif op_code == OP_CODES.READY then
-    return parse_ready(self.frameBody)
+    return parse_ready(self.frame_body)
+  elseif op_code == OP_CODES.AUTHENTICATE then
+    return parse_authenticate(self.frame_body)
+  elseif op_code == OP_CODES.AUTH_SUCCESS then
+    return parse_auth_success(self.frame_body)
   elseif op_code == OP_CODES.RESULT then
-    return parse_result(self.frameBody)
+    return parse_result(self.frame_body)
   end
 end
 

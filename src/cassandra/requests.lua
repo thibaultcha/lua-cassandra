@@ -237,11 +237,26 @@ function BatchRequest:build()
   end
 end
 
+--- AuthResponse
+-- @section auth_response
+
+local AuthResponse = Request:extend()
+
+function AuthResponse:new(token)
+  self.token = token
+  AuthResponse.super.new(self, OP_CODES.AUTH_RESPONSE)
+end
+
+function AuthResponse:build()
+  self.frame_body:write_bytes(self.token)
+end
+
 return {
   QueryRequest = QueryRequest,
   StartupRequest = StartupRequest,
   PrepareRequest = PrepareRequest,
   KeyspaceRequest = KeyspaceRequest,
   ExecutePreparedRequest = ExecutePreparedRequest,
-  BatchRequest = BatchRequest
+  BatchRequest = BatchRequest,
+  AuthResponse = AuthResponse
 }

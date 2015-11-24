@@ -4,11 +4,12 @@ local utils = require "cassandra.utils.table"
 --- Defaults
 -- @section defaults
 
+-- Nil values are stubs for the sole purpose of documenting their availability.
 local DEFAULTS = {
-  shm = nil, -- stub
-  prepared_shm = nil, -- stub
+  shm = nil,
+  prepared_shm = nil,
   contact_points = {},
-  keyspace = nil, -- stub
+  keyspace = nil,
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
     load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
@@ -19,7 +20,7 @@ local DEFAULTS = {
     consistency = types.consistencies.one,
     serial_consistency = types.consistencies.serial,
     page_size = 5000,
-    paging_state = nil, -- stub
+    paging_state = nil,
     auto_paging = false,
     prepare = false,
     retry_on_timeout = true
@@ -32,6 +33,8 @@ local DEFAULTS = {
     connect_timeout = 1000,
     read_timeout = 2000
   },
+  username = nil,
+  password = nil,
   -- ssl_options = {
   --   key = nil,
   --   certificate = nil,

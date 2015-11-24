@@ -1,6 +1,6 @@
-local Buffer = require "cassandra.utils.buffer"
-local t_utils = require "cassandra.utils.table"
+local Buffer = require "cassandra.buffer.raw_buffer"
 local types = require "cassandra.types"
+local t_utils = require "cassandra.utils.table"
 local cql_types = types.cql_types
 
 local math_floor = math.floor

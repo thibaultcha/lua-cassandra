@@ -11,7 +11,6 @@ local opts = require "cassandra.options"
 local auth = require "cassandra.auth"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
-local Object = require "cassandra.classic"
 local CONSTS = require "cassandra.constants"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
@@ -32,7 +31,8 @@ local setmetatable = setmetatable
 -- Not cluster aware, only maintain a socket to its peer.
 -- @section host
 
-local Host = Object:extend()
+local Host = {}
+Host.__index = Host
 
 local function new_socket(self)
   local tcp_sock, sock_type
@@ -60,15 +60,19 @@ function Host:new(address, options)
   local host, port = string_utils.split_by_colon(address)
   if not port then port = options.protocol_options.default_port end
 
-  self.host = host
-  self.port = port
-  self.address = address
-  self.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
+  local h = {}
 
-  self.options = options
-  self.reconnection_policy = self.options.policies.reconnection
+  h.host = host
+  h.port = port
+  h.address = address
+  h.protocol_version = CONSTS.DEFAULT_PROTOCOL_VERSION
 
-  new_socket(self)
+  h.options = options
+  h.reconnection_policy = h.options.policies.reconnection
+
+  new_socket(h)
+
+  return setmetatable(h, Host)
 end
 
 function Host:decrease_version()
@@ -399,6 +403,7 @@ end
 -- @section request_handler
 
 local RequestHandler = {}
+RequestHandler.__index = RequestHandler
 
 function RequestHandler:new(hosts, options)
   local o = {
@@ -407,7 +412,7 @@ function RequestHandler:new(hosts, options)
     n_retries = 0
   }
 
-  return setmetatable(o, {__index = self})
+  return setmetatable(o, RequestHandler)
 end
 
 function RequestHandler.get_first_coordinator(hosts)
@@ -624,7 +629,7 @@ function Session:new(options)
   end
 
   for _, addr in ipairs(host_addresses) do
-    table_insert(s.hosts, Host(addr, options))
+    table_insert(s.hosts, Host:new(addr, options))
   end
 
   return setmetatable(s, {__index = self})
@@ -851,7 +856,7 @@ function Cassandra.spawn_cluster(options)
 
   local contact_points_hosts = {}
   for _, contact_point in ipairs(options.contact_points) do
-    table_insert(contact_points_hosts, Host(contact_point, options))
+    table_insert(contact_points_hosts, Host:new(contact_point, options))
   end
 
   return Cassandra.refresh_hosts(contact_points_hosts, options)

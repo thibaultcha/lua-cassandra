@@ -1,6 +1,6 @@
 local bit = require "cassandra.utils.bit"
 local types = require "cassandra.types"
-local Object = require "cassandra.classic"
+local Object = require "cassandra.utils.classic"
 local Buffer = require "cassandra.buffer"
 local errors = require "cassandra.errors"
 local OP_CODES = types.OP_CODES

@@ -1,4 +1,4 @@
-local Object = require "cassandra.classic"
+local Object = require "cassandra.utils.classic"
 local string_sub = string.sub
 
 local Buffer = Object:extend()

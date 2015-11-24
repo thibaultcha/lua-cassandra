@@ -1,7 +1,7 @@
 local bit = require "cassandra.utils.bit"
 local types = require "cassandra.types"
 local CONSTS = require "cassandra.constants"
-local Object = require "cassandra.classic"
+local Object = require "cassandra.utils.classic"
 local Buffer = require "cassandra.buffer"
 local FrameHeader = require "cassandra.types.frame_header"
 

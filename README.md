@@ -13,6 +13,7 @@ It is build on the model of the official Datastax drivers, and tries to implemen
 - Configurable load balancing, reconnection and retry policies
 - TLS client-to-node encryption
 - Client authentication
+- Highly configurable options per session/request
 - Compatible with Cassandra 2.0 and 2.1
 
 ## Usage

@@ -18,7 +18,7 @@ local function shared_exponential_reconnection_policy(base_delay, max_delay)
       local index_key = "exp_reconnection_idx_"..host.address
       local dict = cache.get_dict(host.options.shm)
 
-      local ok, err = dict:set(index_key, 1)
+      local ok, err = dict:set(index_key, 0)
       if not ok then
         log.err("Cannot reset schedule for shared exponential reconnection policy: "..err)
       end
@@ -27,7 +27,7 @@ local function shared_exponential_reconnection_policy(base_delay, max_delay)
       local index_key = "exp_reconnection_idx_"..host.address
       local dict = cache.get_dict(host.options.shm)
 
-      local ok, err = dict:add(index_key, 1)
+      local ok, err = dict:add(index_key, 0)
       if not ok and err ~= "exists" then
         log.err("Cannot prepare shared exponential reconnection policy: "..err)
       end

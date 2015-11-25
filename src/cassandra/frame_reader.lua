@@ -80,7 +80,10 @@ local RESULT_PARSERS = {
 
     local rows = {
       type = "ROWS",
-      meta = metadata
+      meta = {
+        has_more_pages = metadata.has_more_pages,
+        paging_state = metadata.paging_state
+      }
     }
     for _ = 1, rows_count do
       local row = {}

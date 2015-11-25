@@ -22,8 +22,7 @@ With ngx_lua:
 
 ```nginx
 http {
-  # you do not need the following line if you are using
-  # luarocks
+  # you do not need the following line if you are using luarocks
   lua_package_path "/path/to/src/?.lua;/path/to/src/?/init.lua;;";
 
   # all cluster informations will be stored here
@@ -46,26 +45,28 @@ http {
     ...
 
     location /insert {
-      local cassandra = require "cassandra"
+      content_by_lua '
+        local cassandra = require "cassandra"
 
-      local session, err = cassandra.spawn_session {
-        shm = "cassandra" -- defined by "lua_shared_dict"
-      }
-      if err then
-        ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
-        return ngx.exit(500)
-      end
+        local session, err = cassandra.spawn_session {
+          shm = "cassandra" -- defined by "lua_shared_dict"
+        }
+        if err then
+          ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
+          return ngx.exit(500)
+        end
 
-      local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
-        cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
-        "John O'Reilly",
-        42
-      })
-      if err then
-        -- ...
-      end
+        local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
+          cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
+          "John O Reilly",
+          42
+        })
+        if err then
+          -- ...
+        end
 
-      session:set_keep_alive()
+        session:set_keep_alive()
+      ';
     }
 
     location /get {
@@ -132,7 +133,7 @@ $ luarocks install lua-cassandra
 
 If installed manually, this module requires:
 
-- [cjson](https://github.com/mpx/lua-cjson/)
+- [lua-cjson](https://github.com/mpx/lua-cjson/)
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
 - If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)
 
@@ -159,4 +160,4 @@ The current [documentation] targets version `0.3.6` only. `0.4.0` documentation 
 [badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-0.3.6--0-blue.svg?style=flat
+[badge-version-image]: https://img.shields.io/badge/version-0.4.0--0-blue.svg?style=flat

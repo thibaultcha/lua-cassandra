@@ -1,105 +1,156 @@
 # lua-cassandra ![Module Version][badge-version-image] [![Build Status][badge-travis-image]][badge-travis-url] [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-> This project is a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra]. It adds support for binary protocol v3, a few bug fixes and more to come. See the improvements section for more details.
+A pure Lua client library for Apache Cassandra (2.0+), compatible with Lua and [ngx_lua].
 
-Lua Cassandra client using CQL binary protocol v2/v3 for Cassandra 2.0 and later.
+It is build on the model of the official Datastax drivers, and tries to implement the same behaviors and features.
 
-It is 100% non-blocking if used in Nginx/Openresty but can also be used with luasocket.
+## Features
+
+- Leverage the ngx_lua cosocket API (non-blocking, reusable sockets)
+- Fallback on LuaSocket for plain Lua compatibility
+- Simple, prepared and batch statements
+- Cluster topology automatic discovery
+- Configurable load balancing, reconnection and retry policies
+- TLS client-to-node encryption
+- Client authentication
+- Compatible with Cassandra 2.0 and 2.1
+
+## Usage
+
+With ngx_lua:
+
+```nginx
+http {
+  # you do not need the following line if you are using
+  # luarocks
+  lua_package_path "/path/to/src/?.lua;/path/to/src/?/init.lua;;";
+
+  # all cluster informations will be stored here
+  lua_shared_dict cassandra 1m;
+
+  init_by_lua '
+    local cassandra = require "cassandra"
+
+    -- retrieve cluster topology
+    local ok, err = cassandra.spawn_cluster {
+      shm = "cassandra", -- defined by "lua_shared_dict"
+      contact_points = {"127.0.0.1", "127.0.0.2"}
+    }
+    if not ok then
+      ngx.log(ngx.ERR, "Could not spawn cluster: ", err.message)
+    end
+  ';
+
+  server {
+    ...
+
+    location /insert {
+      local cassandra = require "cassandra"
+
+      local session, err = cassandra.spawn_session {
+        shm = "cassandra" -- defined by "lua_shared_dict"
+      }
+      if err then
+        ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
+        return ngx.exit(500)
+      end
+
+      local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
+        cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
+        "John O'Reilly",
+        42
+      })
+      if err then
+        -- ...
+      end
+
+      session:set_keep_alive()
+    }
+
+    location /get {
+      content_by_lua '
+        local cassandra = require "cassandra"
+
+        local session, err = cassandra.spawn_session {
+          shm = "cassandra" -- defined by "lua_shared_dict"
+        }
+        if err then
+          ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
+          return ngx.exit(500)
+        end
+
+        local rows, err = session:execute("SELECT * FROM users")
+        if err then
+          -- ...
+        end
+
+        session:set_keep_alive()
+
+        ngx.say("number of users: ", #rows)
+      ';
+    }
+  }
+}
+```
+
+With plain Lua:
+
+```lua
+local cassandra = require "cassandra"
+
+local ok, err, cluster = cassandra.spawn_cluster {
+  shm = "cassandra",
+  contact_points = {"127.0.0.1", "127.0.0.2"}
+}
+
+local session, err = cluster:spawn_session()
+assert(err == nil)
+
+local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
+  cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
+  "John O'Reilly",
+  42
+})
+assert(err == nil)
+
+local rows, err = session:execute("SELECT * FROM users")
+assert(err == nil)
+
+print("number of users: ", #rows)
+
+session:shutdown()
+```
 
 ## Installation
 
-#### Luarocks
-
-Installation through [luarocks][luarocks-url] is recommended:
+With [Luarocks]:
 
 ```bash
 $ luarocks install lua-cassandra
 ```
 
-#### Manual
+If installed manually, this module requires:
 
-Simply copy the `src/` folder in your application.
+- [cjson](https://github.com/mpx/lua-cjson/)
+- [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
+- If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)
 
-## Usage
+Once you have a local copy of this module's files under `src/`, add this to your Lua package path:
 
-```lua
-local cassandra = require "cassandra"
--- local cassandra = require "cassandra.v2" -- binary protocol v2 for Cassandra 2.0.x
-
-local session = cassandra:new()
-session:set_timeout(1000) -- 1000ms timeout
-
-local connected, err = session:connect("127.0.0.1", 9042)
-assert(connected)
-session:set_keyspace("demo")
-
--- simple query
-local table_created, err = session:execute [[
-  CREATE TABLE users(
-    id uuid PRIMARY KEY,
-    name varchar,
-    age int
-  )
-]]
-
--- query with arguments
-local ok, err = session:execute("INSERT INTO users(name, age, user_id) VALUES(?, ?, ?)"
-  , {"John O'Reilly", 42, cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11")})
-
-
--- select statement
-local users, err = session:execute("SELECT name, age, user_id FROM users")
-assert(1 == #users)
-
-local user = users[1]
-print(user.name) -- "John O'Reilly"
-print(user.user_id) -- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
-print(user.age) -- 42
 ```
-
-You can check more examples on the [documentation][documentation-reference] or in the [tests](https://github.com/thibaultcha/lua-cassandra/blob/master/spec/integration_spec.lua).
+/path/to/src/?.lua;/path/to/src/?/init.lua;
+```
 
 ## Documentation and examples
 
-Refer to the online [manual][documentation-manual] and [reference][documentation-reference].
+The current [documentation] targets version `0.3.6` only. `0.4.0` documentation should come soon.
 
-## Improvements
+[ngx_lua]: https://github.com/openresty/lua-nginx-module
 
-This fork provides the following improvements over the root project:
-
-- [x] Support for binary protocol v3
-  - [x] User Defined Types and Tuples support
-  - [x] Serial Consistency support for batch requests
-- [x] Support for authentication
-- [x] Keyspace switch fix
-- [x] IPv6 encoding fix
-
-## Roadmap
-
-- [ ] Support for binary protocol v3 named values when binding a query
-- [ ] Support for binary protocol v3 default timestamp option
-- [ ] Support for binary protocol v4
-
-## Makefile Operations
-
-When developing, use the `Makefile` for doing the following operations:
-
-| Name          | Description                                   |
-| -------------:| ----------------------------------------------|
-| `dev`         | Install busted, luacov and luacheck           |
-| `test`        | Run the unit tests                            |
-| `lint`        | Lint all Lua files in the repo                |
-| `coverage`    | Run unit tests + coverage report              |
-| `clean`       | Clean coverage report                         |
-
-**Note:** Before running `make lint` or `make test` you will need to run `make dev`.
-
-**Note bis:** Tests are running for both binary protocol v2 and v3, so you must ensure to be running Cassandra `2.O` or later.
-
-[luarocks-url]: https://luarocks.org
+[Luarocks]: https://luarocks.org
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra
-[documentation-reference]: http://thibaultcha.github.io/lua-cassandra/
-[documentation-manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
+[documentation]: http://thibaultcha.github.io/lua-cassandra/
+[manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
 
 [badge-travis-url]: https://travis-ci.org/thibaultCha/lua-cassandra
 [badge-travis-image]: https://img.shields.io/travis/thibaultCha/lua-cassandra.svg?style=flat

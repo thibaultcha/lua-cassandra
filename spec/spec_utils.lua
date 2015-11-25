@@ -117,13 +117,6 @@ _M.cql_map_fixtures = {
    value_type = types.cql_types.int,
    value_type_name = "int",
    value = {k1 = 1, k2 = 2}
-  },
-  {
-   key_type = types.cql_types.text,
-   key_type_name = "text",
-   value_type = types.cql_types.int,
-   value_type_name = "int",
-   value = {}
   }
 }
 

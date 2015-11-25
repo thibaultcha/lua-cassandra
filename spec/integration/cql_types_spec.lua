@@ -42,7 +42,6 @@ describe("CQL types integration", function()
         bigint_sample bigint,
         blob_sample blob,
         boolean_sample boolean,
-        decimal_sample decimal,
         double_sample double,
         float_sample float,
         int_sample int,
@@ -92,6 +91,25 @@ describe("CQL types integration", function()
     end)
   end
 
+  it("[unset] should support unset (NULL)", function()
+    assert.truthy(cassandra.unset)
+    assert.equal("unset", cassandra.unset.type_id)
+
+    local rows, err = session:execute("SELECT * FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
+    assert.falsy(err)
+    assert.truthy(rows)
+    assert.truthy(rows[1].ascii_sample)
+
+    local res, err = session:execute("UPDATE all_types SET ascii_sample = ? WHERE id = ?", {cassandra.unset, cassandra.uuid(_UUID)})
+    assert.falsy(err)
+    assert.truthy(res)
+
+    rows, err = session:execute("SELECT * FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
+    assert.falsy(err)
+    assert.truthy(rows)
+    assert.falsy(rows[1].ascii_sample)
+  end)
+
   it("[list<type>] should be inserted and retrieved", function()
     for _, fixture in ipairs(utils.cql_map_fixtures) do
       local insert_query = string.format("INSERT INTO all_types(id, map_sample_%s_%s) VALUES(?, ?)", fixture.key_type_name, fixture.value_type_name)
@@ -108,6 +126,22 @@ describe("CQL types integration", function()
       local decoded = rows[1]["map_sample_"..fixture.key_type_name.."_"..fixture.value_type_name]
       assert.validFixture("list", fixture.value, decoded)
     end
+  end)
+
+  it("[map<type, types>] should support empty table inserted as null", function()
+    local types = require "cassandra.types"
+    local insert_query = "INSERT INTO all_types(id, map_sample_text_int) VALUES(?, ?)"
+    local select_query = "SELECT * FROM all_types WHERE id = ?"
+    local fixture = {}
+
+    local res, err = session:execute(insert_query, {cassandra.uuid(_UUID), cassandra.map(fixture)})
+    assert.falsy(err)
+    assert.truthy(res)
+
+    local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
+    assert.falsy(err)
+    assert.truthy(rows)
+    assert.falsy(rows[1].map_sample_text_int)
   end)
 
   it("[map<type, type>] should be inserted and retrieved", function()

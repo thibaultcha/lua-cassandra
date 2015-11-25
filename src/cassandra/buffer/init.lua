@@ -5,6 +5,7 @@ local cql_types = types.cql_types
 
 local math_floor = math.floor
 local type = type
+local assert = assert
 
 --- Frame types
 -- @section frame_types
@@ -90,8 +91,10 @@ for _, cql_decoder in pairs(CQL_DECODERS) do
   end
   Buffer["read_cql_"..cql_decoder] = function(self, ...)
     local bytes = self:read_bytes()
-    local buf = Buffer(self.version, bytes)
-    return mod.read(buf, ...)
+    if bytes then
+      local buf = Buffer(self.version, bytes)
+      return mod.read(buf, ...)
+    end
   end
 
   if ALIASES[cql_decoder] ~= nil then
@@ -113,6 +116,7 @@ function Buffer:repr_cql_value(value)
     else
       infered_type = cql_types.float
     end
+  -- infered type
   elseif lua_type == "table" then
     if t_utils.is_array(value) then
       infered_type = cql_types.set
@@ -126,6 +130,10 @@ function Buffer:repr_cql_value(value)
     infered_type = cql_types.varchar
   end
 
+  if infered_type == "unset" then
+    return self:repr_bytes({unset = true})
+  end
+
   local encoder = "repr_cql_"..CQL_DECODERS[infered_type]
   return Buffer[encoder](self, value)
 end
@@ -135,10 +143,11 @@ function Buffer:write_cql_value(...)
 end
 
 function Buffer:read_cql_value(assumed_type)
-  if CQL_DECODERS[assumed_type.type_id] == nil then
-    error("ATTEMPT TO USE NON IMPLEMENTED DECODER FOR TYPE ID: "..assumed_type.type_id)
-  end
-  local decoder = "read_cql_"..CQL_DECODERS[assumed_type.type_id]
+  local decoder_type = CQL_DECODERS[assumed_type.type_id]
+
+  assert(decoder_type ~= nil, "No decoder for type id "..assumed_type.type_id)
+
+  local decoder = "read_cql_"..decoder_type
   return Buffer[decoder](self, assumed_type.value_type_id)
 end
 

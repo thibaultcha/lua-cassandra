@@ -904,6 +904,8 @@ function types_mt:__index(key)
     return function(value)
       return {value = value, type_id = CQL_TYPES[key]}
     end
+  elseif key == "unset" then
+    return {value = "unset", type_id = "unset"}
   end
 
   return rawget(self, key)

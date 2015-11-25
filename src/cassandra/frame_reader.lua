@@ -88,7 +88,7 @@ local RESULT_PARSERS = {
     for _ = 1, rows_count do
       local row = {}
       for i = 1, columns_count do
-        row[columns[i].name] =  buffer:read_cql_value(columns[i].type)
+        row[columns[i].name] = buffer:read_cql_value(columns[i].type)
       end
       rows[#rows + 1] = row
     end

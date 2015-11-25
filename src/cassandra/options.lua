@@ -6,10 +6,10 @@ local utils = require "cassandra.utils.table"
 
 -- Nil values are stubs for the sole purpose of documenting their availability.
 local DEFAULTS = {
-  shm = nil,
-  prepared_shm = nil,
-  contact_points = {},
-  keyspace = nil,
+  -- shm = nil,
+  -- prepared_shm = nil,
+  -- contact_points = {},
+  -- keyspace = nil,
   policies = {
     address_resolution = require "cassandra.policies.address_resolution",
     load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
@@ -33,8 +33,8 @@ local DEFAULTS = {
     connect_timeout = 1000,
     read_timeout = 2000
   },
-  username = nil,
-  password = nil,
+  -- username = nil,
+  -- password = nil,
   -- ssl_options = {
   --   key = nil,
   --   certificate = nil,
@@ -70,6 +70,8 @@ end
 
 local function parse_cluster(options)
   parse_session(options)
+
+  assert(options.contact_points ~= nil, "contact_points option is required")
 
   if type(options.contact_points) ~= "table" then
     error("contact_points must be a table", 3)

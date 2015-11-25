@@ -20,6 +20,13 @@ describe("options parsing", function()
         cassandra.spawn_cluster({
           shm = "test"
         })
+      end, "contact_points option is required")
+
+      assert.has_error(function()
+        cassandra.spawn_cluster({
+          shm = "test",
+          contact_points = {}
+        })
       end, "contact_points must contain at least one contact point")
 
       assert.has_error(function()

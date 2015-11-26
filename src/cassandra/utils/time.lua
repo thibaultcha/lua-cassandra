@@ -1,26 +1,36 @@
-local type = type
 local exec = os.execute
-local ngx_sleep
+local time = os.time
+
+local sleep
+local now
+local ngx_get_phase
 local is_ngx = ngx ~= nil
 if is_ngx then
-  ngx_sleep = ngx.sleep
+  sleep = ngx.sleep
+  now = ngx.now
+  ngx_get_phase = ngx.get_phase
 end
 
 local function get_time()
-  if ngx and type(ngx.now) == "function" then
-    return ngx.now() * 1000
+  if is_ngx and ngx_get_phase() ~= "init" then
+    return now() * 1000
   else
-    return os.time() * 1000
+    return time() * 1000
   end
 end
 
 local function wait(t)
   if t == nil then t = 0.5 end
+
   if is_ngx then
-    ngx_sleep(t)
-  else
-    exec("sleep "..t)
+    local phase = ngx_get_phase()
+    if phase == "rewrite" or phase == "access" or phase == "content" then
+      sleep(t)
+      return
+    end
   end
+
+  exec("sleep "..t)
 end
 
 return {

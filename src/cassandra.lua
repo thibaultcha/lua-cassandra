@@ -25,6 +25,30 @@ local table_insert = table.insert
 local string_format = string.format
 local setmetatable = setmetatable
 
+local is_ngx = ngx ~= nil
+
+local function lock_mutex(shm, key)
+  if is_ngx then
+    local resty_lock = require "resty.lock"
+    local lock = resty_lock:new(shm)
+    local _, err = lock:lock(key)
+    if err then
+      err = "Error locking mutex: "..err
+    end
+    return lock, err
+  end
+end
+
+local function unlock_mutex(lock)
+  if is_ngx then
+    local ok, err = lock:unlock()
+    if not ok then
+      err = "Error unlocking mutex: "..err
+    end
+    return err
+  end
+end
+
 --- Constants
 -- @section constants
 
@@ -138,14 +162,14 @@ function Host:send(request)
 end
 
 local function startup(self)
-  log.info("Startup request. Trying to use protocol v"..self.protocol_version)
+  log.debug("Startup request. Trying to use protocol v"..self.protocol_version)
 
   local startup_req = Requests.StartupRequest()
   return self:send(startup_req)
 end
 
 local function change_keyspace(self, keyspace)
-  log.info("Keyspace request. Using keyspace: "..keyspace)
+  log.debug("Keyspace request. Using keyspace: "..keyspace)
 
   local keyspace_req = Requests.KeyspaceRequest(keyspace)
   return self:send(keyspace_req)
@@ -206,13 +230,13 @@ end
 function Host:connect()
   if self.connected then return true end
 
-  log.info("Connecting to "..self.address)
+  log.debug("Connecting to "..self.address)
 
   self:set_timeout(self.options.socket_options.connect_timeout)
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    log.info("Could not connect to "..self.address..". Reason: "..err)
+    log.err("Could not connect to "..self.address..". Reason: "..err)
     return false, err, true
   end
 
@@ -223,7 +247,7 @@ function Host:connect()
     end
   end
 
-  log.info("Session connected to "..self.address)
+  log.debug("Session connected to "..self.address)
 
   if self:get_reused_times() > 0 then
     -- No need for startup request
@@ -267,7 +291,7 @@ function Host:connect()
   end
 
   if ready then
-    log.info("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
+    log.debug("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
 
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
@@ -335,7 +359,7 @@ function Host:set_keep_alive()
 end
 
 function Host:close()
-  -- don't close if the connection was not opened yet
+  -- don't try to close if the connection was not opened yet
   if not self.connected then
     return true
   end
@@ -403,14 +427,7 @@ function Host:can_be_considered_up()
     return nil, err
   end
 
-  local delay = time_utils.get_time() - host_infos.unhealthy_at
-
-  if is_up then
-    return true
-  elseif (delay >= host_infos.reconnection_delay) then
-    log.info("Host "..self.address.." could nbe considered up after "..delay.."ms")
-    return true
-  end
+  return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
 end
 
 --- Request Handler
@@ -600,11 +617,12 @@ end
 
 function RequestHandler:retry(request)
   self.n_retries = self.n_retries + 1
-  log.info("Retrying request on next coordinator")
+  log.debug("Retrying request on next coordinator")
   return self:send_on_next_coordinator(request)
 end
 
 function RequestHandler:prepare_and_retry(request)
+
   log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
   local query = request.query
   local prepare_request = Requests.PrepareRequest(query)
@@ -650,23 +668,45 @@ function Session:new(options)
 end
 
 local function prepare_query(request_handler, query)
-  local query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
+  -- If the query is found in the cache, all workers can access it.
+  -- If it is not found, we might be in a cold-cache scenario. In that case,
+  -- only one worker needs to
+  local query_id, cache_err, prepared_key = cache.get_prepared_query_id(request_handler.options, query)
   if cache_err then
     return nil, cache_err
   elseif query_id == nil then
-    log.info("Query not prepared in cluster yet. Preparing.")
-    local prepare_request = Requests.PrepareRequest(query)
-    local res, err = request_handler:send(prepare_request)
-    if err then
-      return nil, err
+    -- MUTEX
+    local prepared_key_lock = prepared_key.."_lock"
+    local lock, lock_err = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
+    if lock_err then
+      return nil, lock_err
     end
 
-    query_id = res.query_id
-    local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
-    if not ok then
+    -- once the lock is resolved, all other workers can retry to get the query, and should
+    -- instantly succeed. We then skip the preparation part.
+    query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
+    if cache_err then
       return nil, cache_err
+    elseif query_id == nil then
+      log.info("Query not prepared in cluster yet. Preparing.")
+      local prepare_request = Requests.PrepareRequest(query)
+      local res, err = request_handler:send(prepare_request)
+      if err then
+        return nil, err
+      end
+      query_id = res.query_id
+      local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
+      if not ok then
+        return nil, cache_err
+      end
+      log.info("Query prepared for host "..request_handler.coordinator.address)
     end
-    log.info("Query prepared for host "..request_handler.coordinator.address)
+
+    -- UNLOCK MUTEX
+    local lock_err = unlock_mutex(lock)
+    if lock_err then
+      return nil, "Error unlocking mutex for query preparation: "..lock_err
+    end
   end
 
   return query_id
@@ -869,8 +909,9 @@ end
 local Cluster = {}
 Cluster.__index = Cluster
 
-function Cluster:spawn_session()
-  return Cassandra.spawn_session(self.options)
+function Cluster:spawn_session(options)
+  options = table_utils.extend_table(self.options, options)
+  return Cassandra.spawn_session(options)
 end
 
 --- Retrieve cluster informations and store them in ngx.shared.DICT

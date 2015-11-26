@@ -10,6 +10,7 @@ local string_format = string.format
 -- ngx_lua levels redefinition for helpers and
 -- when outside of ngx_lua.
 local LEVELS = {
+  QUIET = 0,
   ERR = 1,
   WARN = 2,
   INFO = 3,

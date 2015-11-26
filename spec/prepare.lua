@@ -5,10 +5,10 @@ local log = require "cassandra.log"
 
 log.set_lvl("ERR")
 
-local _, err, cluster = cassandra.spawn_cluster {shm = "cassandra", contact_points = {"127.0.0.1", "127.0.0.2"}}
+local _, err, cluster = cassandra.spawn_cluster {shm = "cassandra", contact_points = {"127.0.0.1"}}
 assert(err == nil, inspect(err))
 
-local session, err = cluster:spawn_session()
+local session, err = cluster:spawn_session({keyspace = "page"})
 assert(err == nil, inspect(err))
 
 -- for i = 1, 10000 do
@@ -20,18 +20,18 @@ assert(err == nil, inspect(err))
 
 local start, total
 
-start = os.clock()
+start = os.time()
 for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 20, auto_paging = true}) do
 
 end
 
-total = os.clock() - start
+total = os.time() - start
 print("Time without prepared = "..total)
 
-start = os.clock()
+start = os.time()
 for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 20, auto_paging = true, prepare = true}) do
 
 end
 
-total = os.clock() - start
+total = os.time() - start
 print("Time with prepared = "..total)

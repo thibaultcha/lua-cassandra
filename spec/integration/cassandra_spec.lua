@@ -6,8 +6,10 @@
 local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 
+local LOG_LVL = "ERR"
+
 -- Define log level for tests
-utils.set_log_lvl("ERR")
+utils.set_log_lvl(LOG_LVL)
 
 local _shm = "cassandra_specs"
 
@@ -41,6 +43,11 @@ describe("spawn cluster", function()
     end
   end)
   it("should iterate over contact_points to find an entrance into the cluster", function()
+    utils.set_log_lvl("QUIET")
+    finally(function()
+      utils.set_log_lvl(LOG_LVL)
+    end)
+
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
     contact_points[#contact_points + 1] = utils.contact_points[1]
 
@@ -52,6 +59,11 @@ describe("spawn cluster", function()
     assert.True(ok)
   end)
   it("should return an error when no contact_point is valid", function()
+    utils.set_log_lvl("QUIET")
+    finally(function()
+      utils.set_log_lvl(LOG_LVL)
+    end)
+
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
@@ -63,6 +75,11 @@ describe("spawn cluster", function()
     assert.equal("All hosts tried for query failed. 0.0.0.1: No route to host. 0.0.0.2: No route to host. 0.0.0.3: No route to host.", err.message)
   end)
   it("should accept a custom port for given hosts", function()
+    utils.set_log_lvl("QUIET")
+    finally(function()
+      utils.set_log_lvl(LOG_LVL)
+    end)
+
     local contact_points = {}
     for i, addr in ipairs(utils.contact_points) do
       contact_points[i] = addr..":9043"
@@ -76,6 +93,11 @@ describe("spawn cluster", function()
     assert.equal("NoHostAvailableError", err.type)
   end)
   it("should accept a custom port through an option", function()
+    utils.set_log_lvl("QUIET")
+    finally(function()
+      utils.set_log_lvl(LOG_LVL)
+    end)
+
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
       protocol_options = {default_port = 9043},
@@ -545,7 +567,7 @@ describe("session", function()
       }, {prepare = true})
       assert.falsy(err)
 
-      assert.spy(cache.get_prepared_query_id).was.called(8)
+      assert.spy(cache.get_prepared_query_id).was.called(8 + 2) -- twice called for double check after mutex in ngx_lua
       assert.spy(cache.set_prepared_query_id).was.called(2)
 
       local rows, err = session:execute("SELECT name FROM users WHERE id = ? AND n = ?", {cassandra.uuid(_UUID), 6})

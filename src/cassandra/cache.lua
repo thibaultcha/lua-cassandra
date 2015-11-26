@@ -172,7 +172,7 @@ local function set_prepared_query_id(options, query, query_id)
   if not ok then
     err = "Cannot store prepared query id in shm "..shm..": "..err
   elseif forcible then
-    log.warn("Prepared shm "..shm.." running out of memory. Consider increasing its size.")
+    log.warn("shm for prepared queries '"..shm.."' is running out of memory. Consider increasing its size.")
     dict:flush_expired(1)
   end
   return ok, err
@@ -187,7 +187,7 @@ local function get_prepared_query_id(options, query)
   if err then
     err = "Cannot retrieve prepared query id in shm "..shm..": "..err
   end
-  return value, err
+  return value, err, prepared_key
 end
 
 return {

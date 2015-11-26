@@ -129,7 +129,6 @@ describe("CQL types integration", function()
   end)
 
   it("[map<type, types>] should support empty table inserted as null", function()
-    local types = require "cassandra.types"
     local insert_query = "INSERT INTO all_types(id, map_sample_text_int) VALUES(?, ?)"
     local select_query = "SELECT * FROM all_types WHERE id = ?"
     local fixture = {}

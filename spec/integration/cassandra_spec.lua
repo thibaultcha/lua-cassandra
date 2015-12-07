@@ -12,20 +12,21 @@ local LOG_LVL = "ERR"
 utils.set_log_lvl(LOG_LVL)
 
 local _shm = "cassandra_specs"
+local _hosts = utils.hosts
 
 describe("spawn cluster", function()
   it("should require a 'shm' option", function()
     assert.has_error(function()
       cassandra.spawn_cluster({
         shm = nil,
-        contact_points = utils.contact_points
+        contact_points = _hosts
       })
     end, "shm is required for spawning a cluster/session")
   end)
   it("should spawn a cluster", function()
     local ok, err = cassandra.spawn_cluster({
       shm = _shm,
-      contact_points = utils.contact_points
+      contact_points = _hosts
     })
     assert.falsy(err)
     assert.True(ok)
@@ -35,7 +36,7 @@ describe("spawn cluster", function()
     local hosts, err = cache.get_hosts(_shm)
     assert.falsy(err)
     -- index of hosts
-    assert.equal(3, #hosts)
+    assert.equal(#_hosts, #hosts)
     -- hosts details
     for _, host_addr in ipairs(hosts) do
       local host_details = cache.get_host(_shm, host_addr)
@@ -49,7 +50,7 @@ describe("spawn cluster", function()
     end)
 
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
-    contact_points[#contact_points + 1] = utils.contact_points[1]
+    contact_points[#contact_points + 1] = _hosts[1]
 
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
@@ -72,7 +73,6 @@ describe("spawn cluster", function()
     assert.truthy(err)
     assert.False(ok)
     assert.equal("NoHostAvailableError", err.type)
-    assert.equal("All hosts tried for query failed. 0.0.0.1: No route to host. 0.0.0.2: No route to host. 0.0.0.3: No route to host.", err.message)
   end)
   it("should accept a custom port for given hosts", function()
     utils.set_log_lvl("QUIET")
@@ -81,7 +81,7 @@ describe("spawn cluster", function()
     end)
 
     local contact_points = {}
-    for i, addr in ipairs(utils.contact_points) do
+    for i, addr in ipairs(_hosts) do
       contact_points[i] = addr..":9043"
     end
     local ok, err = cassandra.spawn_cluster({
@@ -101,7 +101,7 @@ describe("spawn cluster", function()
     local ok, err = cassandra.spawn_cluster({
       shm = "test",
       protocol_options = {default_port = 9043},
-      contact_points = utils.contact_points
+      contact_points = _hosts
     })
     assert.truthy(err)
     assert.False(ok)
@@ -110,7 +110,7 @@ describe("spawn cluster", function()
   it("should return a third parameter, cluster, an instance able to spawn sessions", function()
     local ok, err, cluster = cassandra.spawn_cluster({
       shm = "test",
-      contact_points = utils.contact_points
+      contact_points = _hosts
     })
     assert.falsy(err)
     assert.True(ok)
@@ -273,7 +273,7 @@ describe("session", function()
       assert.False(rows.meta.has_more_pages)
     end)
     it("support somewhat heavier insertions", function()
-      for i = 2, 10000 do
+      for i = 2, utils.n_inserts do
         local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {"Alice", i})
         assert.falsy(err)
         assert.truthy(res)
@@ -282,18 +282,18 @@ describe("session", function()
       local rows, err = session:execute("SELECT COUNT(*) FROM users")
       assert.falsy(err)
       assert.truthy(rows)
-      assert.equal(10000, rows[1].count)
+      assert.equal(utils.n_inserts, rows[1].count)
     end)
-    it("should have a default page_size (5000)", function()
+    it("should have a default page_size (1000)", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n")
       assert.falsy(err)
       assert.truthy(rows)
       assert.truthy(rows.meta)
       assert.True(rows.meta.has_more_pages)
       assert.truthy(rows.meta.paging_state)
-      assert.equal(5000, #rows)
+      assert.equal(1000, #rows)
       assert.equal(1, rows[1].n)
-      assert.equal(5000, rows[#rows].n)
+      assert.equal(1000, rows[#rows].n)
     end)
     it("should be possible to specify a per-query page_size option", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
@@ -304,7 +304,7 @@ describe("session", function()
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
       assert.truthy(rows)
-      assert.equal(5000, #rows)
+      assert.equal(1000, #rows) -- back to the default
     end)
     it("should support passing a paging_state to retrieve next pages", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
@@ -333,12 +333,12 @@ describe("session", function()
           assert.equal(10, #rows)
         end
 
-        assert.equal(1000, page_tracker)
+        assert.equal(utils.n_inserts/10, page_tracker)
       end)
       it("should return the latest page of a set", function()
         -- When the latest page contains only 1 element
         local page_tracker = 0
-        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 9999, auto_paging = true}) do
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = utils.n_inserts - 1, auto_paging = true}) do
           assert.falsy(err)
           page_tracker = page_tracker + 1
           assert.equal(page_tracker, page)
@@ -348,11 +348,11 @@ describe("session", function()
 
         -- Even if all results are fetched in the first page
         page_tracker = 0
-        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10000, auto_paging = true}) do
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = utils.n_inserts, auto_paging = true}) do
           assert.falsy(err)
           page_tracker = page_tracker + 1
           assert.equal(page_tracker, page)
-          assert.equal(10000, #rows)
+          assert.equal(utils.n_inserts, #rows)
         end
 
         assert.same(1, page_tracker)
@@ -401,7 +401,7 @@ describe("session", function()
         assert.spy(cache.set_prepared_query_id).was.not_called()
       end)
       it("should support a heavier load of prepared queries", function()
-        for i = 1, 10000 do
+        for i = 1, utils.n_inserts do
           local rows, err = session:execute("SELECT * FROM users", nil, {prepare = false, page_size = 10})
           assert.falsy(err)
           assert.truthy(rows)
@@ -425,7 +425,7 @@ describe("session", function()
           page_tracker = page
         end
 
-        assert.equal(1000, page_tracker)
+        assert.equal(utils.n_inserts/10, page_tracker)
         assert.spy(cache.get_prepared_query_id).was.called(page_tracker + 1)
         assert.spy(cache.set_prepared_query_id).was.called(0)
       end)

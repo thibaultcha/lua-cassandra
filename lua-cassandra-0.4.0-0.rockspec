@@ -10,7 +10,7 @@ description = {
   license = "MIT"
 }
 dependencies = {
-  "luasocket ~> 2.0.2-6",
+  "luasocket ~> 3.0-rc1",
   "lua-cjson ~> 2.1.0-1"
 }
 build = {

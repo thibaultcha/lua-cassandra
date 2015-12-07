@@ -3,7 +3,7 @@ language: erlang
 env:
   global:
     - LUAROCKS=2.2.2
-    - CASSANDRA_VERSION=2.1.8
+    - CASSANDRA_VERSION=2.1.9
   matrix:
     - LUA=lua5.1
     - LUA=lua5.2
@@ -13,7 +13,6 @@ env:
 before_install:
   - bash .travis/setup_lua.sh
   - bash .travis/setup_cassandra.sh
-  - sudo luarocks install luasocket
   - sudo make dev
 
 script:

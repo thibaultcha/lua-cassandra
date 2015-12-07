@@ -8,24 +8,26 @@ return {
     local counter = 0
 
     local dict = cache.get_dict(shm)
-    local ok, err = dict:add("rr_plan_index", 0)
+
+    local ok, err = dict:add("rr_index", -1)
     if not ok and err ~= "exists" then
       log.err("Cannot prepare shared round robin load balancing policy: "..err)
     end
 
+    local index, err = dict:incr("rr_index", 1)
+    if err then
+      log.err("Cannot prepare shared round robin load balancing policy: "..err)
+    end
+
+    local plan_index = math_fmod(index or 0, n)
+
     return function(t, i)
-      local plan_index = dict:get("rr_plan_index")
       local mod = math_fmod(plan_index, n) + 1
-      dict:incr("rr_plan_index", 1)
+      plan_index = plan_index + 1
       counter = counter + 1
 
       if counter <= n then
         return mod, hosts[mod]
-      end
-
-      local ok, err = dict:set("rr_plan_index", 0)
-      if not ok then
-        log.err("Cannot reset shared round robin load balancing policy: "..err)
       end
     end
   end

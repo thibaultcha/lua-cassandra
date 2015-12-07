@@ -31,11 +31,13 @@ local function lock_mutex(shm, key)
   if is_ngx then
     local resty_lock = require "resty.lock"
     local lock = resty_lock:new(shm)
-    local _, err = lock:lock(key)
+    local elapsed, err = lock:lock(key)
     if err then
       err = "Error locking mutex: "..err
     end
-    return lock, err
+    return lock, err, elapsed
+  else
+    return nil, nil, 0
   end
 end
 
@@ -236,7 +238,7 @@ function Host:connect()
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    log.err("Could not connect to "..self.address..". Reason: "..err)
+    --log.err("Could not connect to "..self.address..". Reason: "..err)
     return false, err, true
   end
 
@@ -376,18 +378,34 @@ function Host:close()
 end
 
 function Host:set_down()
-  log.warn("Setting host "..self.address.." as DOWN")
   local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
-    return false, err
+    return err
   end
 
-  host_infos.unhealthy_at = time_utils.get_time()
-  host_infos.reconnection_delay = self.reconnection_policy.next(self)
-  self:close()
-  new_socket(self)
+  if host_infos.unhealthy_at == 0 then
+    local lock, lock_err, elapsed = lock_mutex(self.options.shm, "downing_"..self.address)
+    if lock_err then
+      return lock_err
+    end
 
-  return cache.set_host(self.options.shm, self.address, host_infos)
+    if elapsed and elapsed == 0 then
+      log.warn("Setting host "..self.address.." as DOWN")
+      host_infos.unhealthy_at = time_utils.get_time()
+      host_infos.reconnection_delay = self.reconnection_policy.next(self)
+      self:close()
+      new_socket(self)
+      local ok, err = cache.set_host(self.options.shm, self.address, host_infos)
+      if not ok then
+        return err
+      end
+    end
+
+    lock_err = unlock_mutex(lock)
+    if lock_err then
+      return err
+    end
+  end
 end
 
 function Host:set_up()
@@ -396,8 +414,8 @@ function Host:set_up()
     return false, err
   end
 
-  -- host was previously marked a DOWN
-  if host_infos.unhealthy_at ~= 0 then
+  -- host was previously marked as DOWN (+ a safe delay)
+  if host_infos.unhealthy_at ~= 0 and time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay then
     log.warn("Setting host "..self.address.." as UP")
     host_infos.unhealthy_at = 0
     -- reset schedule for reconnection delay
@@ -464,7 +482,7 @@ function RequestHandler:get_next_coordinator()
   local errors = {}
   local iter = self.options.policies.load_balancing
 
-  for _, host in iter(self.options.shm, self.hosts) do
+  for i, host in iter(self.options.shm, self.hosts) do
     local can_host_be_considered_up, cache_err = host:can_be_considered_up()
     if cache_err then
       return nil, cache_err
@@ -477,8 +495,8 @@ function RequestHandler:get_next_coordinator()
         if maybe_down then
           -- only on socket connect error
           -- might be a bad host, setting DOWN
-          local ok, cache_err = host:set_down()
-          if not ok then
+          local cache_err = host:set_down()
+          if cache_err then
             return nil, cache_err
           end
         end
@@ -536,7 +554,7 @@ end
 
 function RequestHandler:send_on_next_coordinator(request)
   local coordinator, err = self:get_next_coordinator()
-  if err then
+  if not coordinator or err then
     return nil, err
   end
 
@@ -577,8 +595,8 @@ function RequestHandler:handle_error(request, err)
 
   if err.type == "SocketError" then
     -- host seems unhealthy
-    local ok, cache_err = self.coordinator:set_down()
-    if not ok then
+    local cache_err = self.coordinator:set_down()
+    if cache_err then
       return nil, cache_err
     end
     -- always retry, another node will be picked
@@ -617,24 +635,38 @@ end
 
 function RequestHandler:retry(request)
   self.n_retries = self.n_retries + 1
-  log.debug("Retrying request on next coordinator")
+  log.info("Retrying request on next coordinator")
   return self:send_on_next_coordinator(request)
 end
 
 function RequestHandler:prepare_and_retry(request)
+  local preparing_lock_key = string_format("0x%s_host_%s", request.query_id, self.coordinator.address)
 
-  log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
-  local query = request.query
-  local prepare_request = Requests.PrepareRequest(query)
-  local res, err = self:send(prepare_request)
-  if err then
-    return nil, err
+  -- MUTEX
+  local lock, lock_err, elapsed = lock_mutex(self.options.prepared_shm, preparing_lock_key)
+  if lock_err then
+    return nil, lock_err
   end
-  log.info("Query prepared for host "..self.coordinator.address)
 
-  if request.query_id ~= res.query_id then
-    log.warn(string_format("Unexpected difference between query ids for query %s (%s ~= %s)", query, request.query_id, res.query_id))
-    request.query_id = res.query_id
+  if elapsed and elapsed == 0 then
+    -- prepare on this host
+    log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
+    local prepare_request = Requests.PrepareRequest(request.query)
+    local res, err = self:send(prepare_request)
+    if err then
+      return nil, err
+    end
+    log.info("Query prepared for host "..self.coordinator.address)
+
+    if request.query_id ~= res.query_id then
+      log.warn(string_format("Unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request.query_id, res.query_id))
+      request.query_id = res.query_id
+    end
+  end
+
+  lock_err = unlock_mutex(lock)
+  if lock_err then
+    return nil, "Error unlocking mutex for query preparation: "..lock_err
   end
 
   -- Send on the same coordinator as the one it was just prepared on
@@ -677,17 +709,13 @@ local function prepare_query(request_handler, query)
   elseif query_id == nil then
     -- MUTEX
     local prepared_key_lock = prepared_key.."_lock"
-    local lock, lock_err = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
+    local lock, lock_err, elapsed = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
     if lock_err then
       return nil, lock_err
     end
 
-    -- once the lock is resolved, all other workers can retry to get the query, and should
-    -- instantly succeed. We then skip the preparation part.
-    query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
-    if cache_err then
-      return nil, cache_err
-    elseif query_id == nil then
+    if elapsed and elapsed == 0 then
+      -- prepare query in the mutex
       log.info("Query not prepared in cluster yet. Preparing.")
       local prepare_request = Requests.PrepareRequest(query)
       local res, err = request_handler:send(prepare_request)
@@ -700,10 +728,17 @@ local function prepare_query(request_handler, query)
         return nil, cache_err
       end
       log.info("Query prepared for host "..request_handler.coordinator.address)
+    else
+      -- once the lock is resolved, all other workers can retry to get the query, and should
+      -- instantly succeed. We then skip the preparation part.
+      query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
+      if cache_err then
+        return nil, cache_err
+      end
     end
 
     -- UNLOCK MUTEX
-    local lock_err = unlock_mutex(lock)
+    lock_err = unlock_mutex(lock)
     if lock_err then
       return nil, "Error unlocking mutex for query preparation: "..lock_err
     end

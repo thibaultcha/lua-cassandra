@@ -567,7 +567,7 @@ describe("session", function()
       }, {prepare = true})
       assert.falsy(err)
 
-      assert.spy(cache.get_prepared_query_id).was.called(8 + 2) -- twice called for double check after mutex in ngx_lua
+      assert.spy(cache.get_prepared_query_id).was.called(8)
       assert.spy(cache.set_prepared_query_id).was.called(2)
 
       local rows, err = session:execute("SELECT name FROM users WHERE id = ? AND n = ?", {cassandra.uuid(_UUID), 6})

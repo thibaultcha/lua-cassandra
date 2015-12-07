@@ -1,8 +1,11 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 
-.PHONY: dev clean test coverage lint doc
+.PHONY: instal dev clean test coverage lint doc
 
-dev:
+install:
+	@luarocks make lua-cassandra-*.rockspec
+
+dev: install
 	@for rock in $(DEV_ROCKS) ; do \
 		if ! command -v $$rock &> /dev/null ; then \
 			echo $$rock not found, installing via luarocks... ; \

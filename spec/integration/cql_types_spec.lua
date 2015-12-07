@@ -2,7 +2,8 @@ local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 
 local _shm = "cql_types"
-local _KEYSPACE = "resty_cassandra_cql_types_specs"
+local _hosts = utils.hosts
+local _keyspace = "resty_cassandra_cql_types_specs"
 
 -- Define log level for tests
 utils.set_log_lvl("ERR")
@@ -13,16 +14,16 @@ describe("CQL types integration", function()
   setup(function()
     local _, err = cassandra.spawn_cluster({
       shm = _shm,
-      contact_points = utils.contact_points
+      contact_points = _hosts
     })
     assert.falsy(err)
 
     session, err = cassandra.spawn_session({shm = _shm})
     assert.falsy(err)
 
-    utils.create_keyspace(session, _KEYSPACE)
+    utils.create_keyspace(session, _keyspace)
 
-    _, err = session:set_keyspace(_KEYSPACE)
+    _, err = session:set_keyspace(_keyspace)
     assert.falsy(err)
 
     _, err = session:execute [[
@@ -65,7 +66,7 @@ describe("CQL types integration", function()
   end)
 
   teardown(function()
-    utils.drop_keyspace(session, _KEYSPACE)
+    utils.drop_keyspace(session, _keyspace)
     session:shutdown()
   end)
 

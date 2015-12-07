@@ -1,9 +1,16 @@
 language: erlang
 
+sudo: false
+
 env:
   global:
-    - LUAROCKS=2.2.2
-    - CASSANDRA_VERSION=2.1.8
+    - CASSANDRA_VERSION=2.1.9
+    - LUAROCKS_VERSION=2.2.2
+    - LUA_DIR=$HOME/lua
+    - LUAJIT_DIR=$HOME/luajit
+    - LUAROCKS_DIR=$HOME/luarocks
+    - "HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
+    - SMALL_LOAD=true
   matrix:
     - LUA=lua5.1
     - LUA=lua5.2
@@ -11,16 +18,25 @@ env:
     - LUA=luajit
 
 before_install:
-  - bash .travis/setup_lua.sh
-  - bash .travis/setup_cassandra.sh
-  - sudo luarocks install luasocket
-  - sudo make dev
+  - bash .ci/setup_cassandra.sh
+  - bash .ci/setup_lua.sh
+  - export PATH=$LUA_DIR/src:$PATH
+  - export PATH=$LUAJIT_DIR/src:$PATH
+  - export PATH=$LUAROCKS_DIR/bin:$PATH
+  - luarocks install ansicolors
+  - make dev
 
 script:
-  - "busted -v --coverage"
-  - "make lint"
+  - busted -v --coverage -o .ci/busted_print.lua
+  - make lint
 
-after_success: "luacov-coveralls -i cassandra"
+after_success: luacov-coveralls -i cassandra
+
+cache:
+  directories:
+    - $LUAJIT_DIR
+    - $HOME/.ccm/repository/ # ccm cassandra version
+    - $HOME/.local/lib # python packages for ccm
 
 notifications:
   email: false

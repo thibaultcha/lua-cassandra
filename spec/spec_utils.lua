@@ -2,6 +2,14 @@ local say = require "say"
 local log = require "cassandra.log"
 local types = require "cassandra.types"
 local assert = require "luassert.assert"
+local string_utils = require "cassandra.utils.string"
+
+local unpack
+if _VERSION == "Lua 5.3" then
+  unpack = table.unpack
+else
+  unpack = _G.unpack
+end
 
 local _M = {}
 
@@ -127,6 +135,12 @@ _M.cql_tuple_fixtures = {
   {type = {"text", "text"}, value = {"world", "hello"}}
 }
 
-_M.contact_points = {"127.0.0.1", "127.0.0.2"}
+local HOSTS = os.getenv("HOSTS")
+HOSTS = HOSTS and string_utils.split(HOSTS, ",") or {"127.0.0.1"}
+
+local SMALL_LOAD = os.getenv("SMALL_LOAD") ~= nil
+
+_M.hosts = HOSTS
+_M.n_inserts = SMALL_LOAD and 1000 or 10000
 
 return _M

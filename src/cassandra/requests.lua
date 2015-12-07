@@ -7,6 +7,12 @@ local FrameHeader = require "cassandra.types.frame_header"
 local OP_CODES = types.OP_CODES
 local string_byte = string.byte
 local string_format = string.format
+local unpack
+if _VERSION == "Lua 5.3" then
+  unpack = table.unpack
+else
+  unpack = _G.unpack
+end
 
 local CQL_VERSION = "3.0.0"
 

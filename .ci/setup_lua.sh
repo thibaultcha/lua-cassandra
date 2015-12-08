@@ -9,69 +9,63 @@
 LUAJIT="no"
 
 source .ci/platform.sh
-cd $HOME
 
 ############
 # Lua/LuaJIT
 ############
 
-if [ "$PLATFORM" == "macosx" ]; then
-  if [ "$LUA" == "luajit" ]; then
-    LUAJIT="yes"
-  fi
-  if [ "$LUA" == "luajit2.0" ]; then
-    LUAJIT="yes"
-  fi
-  if [ "$LUA" == "luajit2.1" ]; then
-    LUAJIT="yes"
-  fi
-elif [ "$(expr substr $LUA 1 6)" == "luajit" ]; then
+if [ "$LUA" == "luajit" ]; then
+  LUAJIT="yes"
+  LUA="luajit-2.0"
+elif [ "$LUA" == "luajit-2.0" ]; then
+  LUAJIT="yes"
+elif [ "$LUA" == "luajit-2.1" ]; then
   LUAJIT="yes"
 fi
 
 if [ "$LUAJIT" == "yes" ]; then
-
-  LUA_INCLUDE="$LUAJIT_DIR/include/luajit-2.0"
   mkdir -p $LUAJIT_DIR
 
-  # If cache is empty, downlaod and compile
+  # If cache is empty, download and compile
   if [ ! "$(ls -A $LUAJIT_DIR)" ]; then
+    git clone http://luajit.org/git/luajit-2.0.git
+    pushd luajit-2.0
 
-    LUAJIT_BASE="LuaJIT-2.0.4"
-
-    if [ "$LUA" == "luajit" ]; then
-      curl http://luajit.org/download/$LUAJIT_BASE.tar.gz | tar xz
-    else
-      git clone http://luajit.org/git/luajit-2.0.git $LUAJIT_BASE
-    fi
-
-    pushd $LUAJIT_BASE
-
-    if [ "$LUA" == "luajit2.1" ]; then
+    if [ "$LUA" == "luajit-2.0" ]; then
+      git checkout v2.0.4
+    elif [ "$LUA" == "luajit-2.1" ]; then
       git checkout v2.1
     fi
 
     make
     make install PREFIX=$LUAJIT_DIR
-    ln -s $LUAJIT_DIR/bin/luajit $LUAJIT_DIR/bin/lua
-  fi
-else
-  LUA_INCLUDE="$LUA_DIR/include"
+    popd
 
+    if [ "$LUA" == "luajit-2.1" ]; then
+      ln -sf $LUAJIT_DIR/bin/luajit-2.1.0-beta1 $LUAJIT_DIR/bin/luajit
+    fi
+
+    ln -sf $LUAJIT_DIR/bin/luajit $LUAJIT_DIR/bin/lua
+  fi
+
+  LUA_INCLUDE="$LUAJIT_DIR/include/$LUA"
+else
   if [ "$LUA" == "lua5.1" ]; then
     curl http://www.lua.org/ftp/lua-5.1.5.tar.gz | tar xz
-    mv lua-5.1.5 $LUA_DIR
+    pushd lua-5.1.5
   elif [ "$LUA" == "lua5.2" ]; then
     curl http://www.lua.org/ftp/lua-5.2.3.tar.gz | tar xz
-    mv lua-5.2.3 $LUA_DIR
+    pushd lua-5.2.3
   elif [ "$LUA" == "lua5.3" ]; then
     curl http://www.lua.org/ftp/lua-5.3.0.tar.gz | tar xz
-    mv lua-5.3.0 $LUA_DIR
+    pushd lua-5.3.0
   fi
 
-  cd $LUA_DIR
   make $PLATFORM
   make install INSTALL_TOP=$LUA_DIR
+  popd
+
+  LUA_INCLUDE="$LUA_DIR/include"
 fi
 
 ##########
@@ -81,12 +75,9 @@ fi
 LUAROCKS_BASE=luarocks-$LUAROCKS_VERSION
 CONFIGURE_FLAGS=""
 
-cd $HOME
-curl http://luarocks.org/releases/$LUAROCKS_BASE.tar.gz | tar xz
 git clone https://github.com/keplerproject/luarocks.git $LUAROCKS_BASE
 
-mv $LUAROCKS_BASE $LUAROCKS_DIR
-cd $LUAROCKS_DIR
+pushd $LUAROCKS_BASE
 git checkout v$LUAROCKS_VERSION
 
 if [ "$LUAJIT" == "yes" ]; then
@@ -99,8 +90,6 @@ elif [ "$LUA" == "lua5.3" ]; then
   CONFIGURE_FLAGS=$CONFIGURE_FLAGS" --lua-version=5.3"
 fi
 
-tree $LUA_DIR
-
 ./configure \
   --prefix=$LUAROCKS_DIR \
   --with-lua-bin=$LUA_DIR/bin \
@@ -108,3 +97,4 @@ tree $LUA_DIR
   $CONFIGURE_FLAGS
 
 make build && make install
+popd

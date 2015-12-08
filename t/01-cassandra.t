@@ -15,10 +15,12 @@ our $SpawnCluster = <<_EOC_;
     lua_shared_dict cassandra 1m;
     lua_shared_dict cassandra_prepared 1m;
     init_by_lua '
+        local spec_utils = require "spec.spec_utils"
+
         local cassandra = require "cassandra"
         local ok, err = cassandra.spawn_cluster({
             shm = "cassandra",
-            contact_points = {"127.0.0.1", "127.0.0.2"}
+            contact_points = spec_utils.hosts
         })
         if not ok then
             ngx.log(ngx.ERR, tostring(err))

@@ -24,9 +24,9 @@ __DATA__
         content_by_lua '
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
-            local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
+            local hosts_fixtures = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
 
-            for _, host in iter(shm, hosts) do
+            for _, host in iter(shm, hosts_fixtures) do
                 ngx.say(host)
             end
         ';

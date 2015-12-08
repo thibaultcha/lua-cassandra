@@ -16,7 +16,9 @@ return {
 
     local index, err = dict:incr("rr_index", 1)
     if err then
-      log.err("Cannot prepare shared round robin load balancing policy: "..err)
+      log.err("Cannot increment shared round robin load balancing policy index: "..err)
+    elseif index == nil then
+      index = 0
     end
 
     local plan_index = math_fmod(index or 0, n)

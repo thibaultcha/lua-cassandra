@@ -2,9 +2,19 @@
 
 # A script for setting up environment for travis-ci testing.
 # Sets up Lua and Luarocks.
-# LUA must be "lua5.1", "lua5.2" or "luajit".
+# LUA must be "lua5.1", "lua5.2", "lua5.3" or "luajit".
 # luajit2.0 - master v2.0
 # luajit2.1 - master v2.1
+
+set -e
+
+echo $OPENRESTY_TESTS
+
+if [ "$OPENRESTY_TESTS" == "yes" ]; then
+  exit
+fi
+
+echo "NO EXITED"
 
 LUAJIT="no"
 
@@ -55,6 +65,8 @@ if [ "$LUAJIT" == "yes" ]; then
     make && cd src && ln -s luajit lua
   fi
 else
+  echo "LUA IS: $LUA"
+
   if [ "$LUA" == "lua5.1" ]; then
     curl http://www.lua.org/ftp/lua-5.1.5.tar.gz | tar xz
     mv lua-5.1.5 $LUA_DIR
@@ -65,6 +77,9 @@ else
     curl http://www.lua.org/ftp/lua-5.3.0.tar.gz | tar xz
     mv lua-5.3.0 $LUA_DIR
   fi
+
+  echo "ls ."
+  ls .
 
   cd $LUA_DIR
   make $PLATFORM
@@ -78,10 +93,17 @@ LUAROCKS_BASE=luarocks-$LUAROCKS_VERSION
 CONFIGURE_FLAGS=""
 
 cd $HOME
-curl http://luarocks.org/releases/$LUAROCKS_BASE.tar.gz | tar xz
+curl -L http://luarocks.org/releases/$LUAROCKS_BASE.tar.gz | tar xz
 git clone https://github.com/keplerproject/luarocks.git $LUAROCKS_BASE
 
+echo "after DL"
+ls .
+
 mv $LUAROCKS_BASE $LUAROCKS_DIR
+
+echo "after mv"
+ls .
+
 cd $LUAROCKS_DIR
 git checkout v$LUAROCKS_VERSION
 

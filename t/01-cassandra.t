@@ -141,7 +141,13 @@ local
     location /t {
         content_by_lua '
             local cassandra = require "cassandra"
-            local session = cassandra.spawn_session {shm = "cassandra"}
+            local session = cassandra.spawn_session {
+                shm = "cassandra",
+                socket_options = {
+                    connect_timeout = 5000,
+                    read_timeout = 10000
+                }
+            }
             local res, err = session:execute [[
                 CREATE KEYSPACE IF NOT EXISTS resty_t_keyspace
                 WITH REPLICATION = {\'class\': \'SimpleStrategy\', \'replication_factor\': 1}

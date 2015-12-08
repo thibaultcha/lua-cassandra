@@ -1,14 +1,25 @@
-language: erlang
-
+language: perl
+perl: "5.18"
 sudo: false
-
+notifications:
+  email: false
+addons:
+  apt:
+    packages:
+      - libreadline-dev
+      - libncurses5-dev
+      - libpcre3-dev
+      - libssl-dev
+      - build-essential
 env:
   global:
     - CASSANDRA_VERSION=2.1.9
     - LUAROCKS_VERSION=2.2.2
+    - OPENRESTY_VERSION=1.9.3.1
     - LUA_DIR=$HOME/lua
     - LUAJIT_DIR=$HOME/luajit
     - LUAROCKS_DIR=$HOME/luarocks
+    - OPENRESTY_DIR=$HOME/openresty
     - "HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
     - SMALL_LOAD=true
   matrix:
@@ -16,27 +27,24 @@ env:
     - LUA=lua5.2
     - LUA=lua5.3
     - LUA=luajit
-
+    - OPENRESTY_TESTS: "yes"
+      LUA: "luajit"
 before_install:
   - bash .ci/setup_cassandra.sh
   - bash .ci/setup_lua.sh
-  - export PATH=$LUA_DIR/src:$PATH
-  - export PATH=$LUAJIT_DIR/src:$PATH
-  - export PATH=$LUAROCKS_DIR/bin:$PATH
-  - luarocks install ansicolors
+  - bash .ci/setup_openresty.sh
+  - export PATH=$LUA_DIR/src:$LUAJIT_DIR/bin:$LUAROCKS_DIR/bin:$OPENRESTY_DIR/nginx/sbin:$PATH
+  - export LUA_PATH="./?.lua;$LUAROCKS_DIR/share/lua/5.1/?.lua;$LUAROCKS_DIR/share/lua/5.1/?/init.lua;$LUAROCKS_DIR/lib/lua/5.1/?.lua;$LUA_PATH"
+  - export LUA_CPATH="$LUAROCKS_DIR/lib/lua/5.1/?.so;$LUA_CPATH"
+install:
   - make dev
-
-script:
-  - busted -v --coverage -o .ci/busted_print.lua
-  - make lint
-
-after_success: luacov-coveralls -i cassandra
-
+  - luarocks install ansicolors
+script: .ci/run_tests.sh
 cache:
+  cpan: true
+  apt: true
+  pip: true
   directories:
     - $LUAJIT_DIR
-    - $HOME/.ccm/repository/ # ccm cassandra version
-    - $HOME/.local/lib # python packages for ccm
-
-notifications:
-  email: false
+    - $OPENRESTY_DIR
+    - $HOME/.ccm/repository/

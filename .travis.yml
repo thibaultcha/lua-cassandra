@@ -26,9 +26,9 @@ env:
     - LUA=lua5.1
     - LUA=lua5.2
     - LUA=lua5.3
-    - LUA=luajit
+    - LUA=luajit-2.1
     - OPENRESTY_TESTS: "yes"
-      LUA: "luajit"
+      LUA: "luajit-2.1"
 before_install:
   - bash .ci/setup_cassandra.sh
   - bash .ci/setup_lua.sh

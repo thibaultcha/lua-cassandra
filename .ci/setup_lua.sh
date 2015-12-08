@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # A script for setting up environment for travis-ci testing.
 # Sets up Lua and Luarocks.
@@ -31,13 +31,13 @@ fi
 
 if [ "$LUAJIT" == "yes" ]; then
 
+  LUA_INCLUDE="$LUAJIT_DIR/include/luajit-2.0"
   mkdir -p $LUAJIT_DIR
 
   # If cache is empty, downlaod and compile
   if [ ! "$(ls -A $LUAJIT_DIR)" ]; then
 
     LUAJIT_BASE="LuaJIT-2.0.4"
-    cd $LUAJIT_DIR
 
     if [ "$LUA" == "luajit" ]; then
       curl http://luajit.org/download/$LUAJIT_BASE.tar.gz | tar xz
@@ -45,16 +45,19 @@ if [ "$LUAJIT" == "yes" ]; then
       git clone http://luajit.org/git/luajit-2.0.git $LUAJIT_BASE
     fi
 
-    mv $LUAJIT_BASE/* .
-    rm -r $LUAJIT_BASE
+    pushd $LUAJIT_BASE
 
     if [ "$LUA" == "luajit2.1" ]; then
       git checkout v2.1
     fi
 
-    make && cd src && ln -s luajit lua
+    make
+    make install PREFIX=$LUAJIT_DIR
+    ln -s $LUAJIT_DIR/bin/luajit $LUAJIT_DIR/bin/lua
   fi
 else
+  LUA_INCLUDE="$LUA_DIR/include"
+
   if [ "$LUA" == "lua5.1" ]; then
     curl http://www.lua.org/ftp/lua-5.1.5.tar.gz | tar xz
     mv lua-5.1.5 $LUA_DIR
@@ -68,6 +71,7 @@ else
 
   cd $LUA_DIR
   make $PLATFORM
+  make install INSTALL_TOP=$LUA_DIR
 fi
 
 ##########
@@ -95,12 +99,12 @@ elif [ "$LUA" == "lua5.3" ]; then
   CONFIGURE_FLAGS=$CONFIGURE_FLAGS" --lua-version=5.3"
 fi
 
-ls $LUA_DIR/src
+tree $LUA_DIR
 
 ./configure \
   --prefix=$LUAROCKS_DIR \
-  --with-lua-bin=$LUA_DIR/src \
-  --with-lua-include=$LUA_DIR/src \
+  --with-lua-bin=$LUA_DIR/bin \
+  --with-lua-include=$LUA_INCLUDE \
   $CONFIGURE_FLAGS
 
 make build && make install

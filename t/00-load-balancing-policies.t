@@ -146,4 +146,4 @@ GET /t
 127.0.0.1
 127.0.0.1
 --- error_log
-Cannot increment shared round robin load balancing policy index: not a number
+Cannot increment shared round robin load balancing policy index in shared dict cassandra: not a number

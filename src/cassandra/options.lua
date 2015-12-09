@@ -1,5 +1,6 @@
 local types = require "cassandra.types"
 local utils = require "cassandra.utils.table"
+local type = type
 
 --- Defaults
 -- @section defaults
@@ -43,46 +44,71 @@ local DEFAULTS = {
   -- }
 }
 
-local function parse_session(options)
+local function parse_session(options, lvl)
   if options == nil then options = {} end
   utils.extend_table(DEFAULTS, options)
 
-  if options.keyspace ~= nil then
-    assert(type(options.keyspace) == "string", "keyspace must be a string")
+  if options.keyspace ~= nil and type(options.keyspace) ~= "string" then
+    return nil, "keyspace must be a string"
   end
 
-  assert(options.shm ~= nil, "shm is required for spawning a cluster/session")
-  assert(type(options.shm) == "string", "shm must be a string")
-  assert(options.shm ~= "", "shm must be a valid string")
+  if options.shm == nil then
+    return nil, "shm is required for spawning a cluster/session"
+  end
+
+  if type(options.shm) ~= "string" then
+    return nil, "shm must be a string"
+  end
+
+  if options.shm == "" then
+    return nil, "shm must be a valid string"
+  end
 
   if options.prepared_shm == nil then
     options.prepared_shm = options.shm
   end
 
-  assert(type(options.prepared_shm) == "string", "prepared_shm must be a string")
-  assert(options.prepared_shm ~= "", "prepared_shm must be a valid string")
+  if type(options.prepared_shm) ~= "string" then
+    return nil, "prepared_shm must be a string"
+  end
 
-  assert(type(options.protocol_options.default_port) == "number", "protocol default_port must be a number")
-  assert(type(options.policies.address_resolution) == "function", "address_resolution policy must be a function")
+  if options.prepared_shm == "" then
+    return nil, "prepared_shm must be a valid string"
+  end
+
+  if type(options.protocol_options.default_port) ~= "number" then
+    return nil, "protocol default_port must be a number"
+  end
+
+  if type(options.policies.address_resolution) ~= "function" then
+    return nil, "address_resolution policy must be a function"
+  end
 
   return options
 end
 
 local function parse_cluster(options)
-  parse_session(options)
+  local err
 
-  assert(options.contact_points ~= nil, "contact_points option is required")
+  options, err = parse_session(options)
+  if err then
+    return nil, err
+  end
+
+  if options.contact_points == nil then
+    return nil, "contact_points option is required"
+  end
 
   if type(options.contact_points) ~= "table" then
-    error("contact_points must be a table", 3)
+    return nil, "contact_points must be a table"
   end
 
   if not utils.is_array(options.contact_points) then
-    error("contact_points must be an array (integer-indexed table)")
+    return nil, "contact_points must be an array (integer-indexed table)"
   end
 
   if #options.contact_points < 1 then
-    error("contact_points must contain at least one contact point")
+    return nil, "contact_points must contain at least one contact point"
   end
 
   options.keyspace = nil -- it makes no sense to use keyspace in this context

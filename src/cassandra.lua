@@ -207,7 +207,7 @@ local function do_ssl_handshake(self)
       return false, err
     end
   else
-    -- returns a boolean since`reused_session` is false.
+    -- returns a boolean since `reused_session` is false.
     return self.socket:sslhandshake(false, nil, self.options.ssl_options.verify)
   end
 
@@ -239,13 +239,13 @@ function Host:connect()
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
     --log.err("Could not connect to "..self.address..". Reason: "..err)
-    return false, err, true
+    return false, Errors.SocketError(self.address, err), true
   end
 
   if self.options.ssl_options ~= nil then
     ok, err = do_ssl_handshake(self)
     if not ok then
-      return false, err
+      return false, Errors.SocketError(self.address, err)
     end
   end
 
@@ -352,7 +352,7 @@ function Host:set_keep_alive()
     local ok, err = self.socket:setkeepalive()
     if err then
       log.err("Could not set keepalive socket to "..self.address..". "..err)
-      return ok, err
+      return ok, Errors.SocketError(self.address, err)
     end
   end
 
@@ -370,7 +370,7 @@ function Host:close()
   local _, err = self.socket:close()
   if err then
     log.err("Could not close socket to "..self.address..". "..err)
-    return false, err
+    return false, Errors.SocketError(self.address, err)
   end
 
   self.connected = false
@@ -558,7 +558,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.debug("Acquired connection through load balancing policy: "..coordinator.address)
+  log.info("Acquired connection through load balancing policy: "..coordinator.address)
 
   return self:send(request)
 end
@@ -680,20 +680,23 @@ end
 local Session = {}
 
 function Session:new(options)
-  options = opts.parse_session(options)
+  local session_options, err = opts.parse_session(options)
+  if err then
+    return nil, err
+  end
 
   local s = {
-    options = options,
+    options = session_options,
     hosts = {}
   }
 
-  local host_addresses, cache_err = cache.get_hosts(options.shm)
+  local host_addresses, cache_err = cache.get_hosts(session_options.shm)
   if cache_err then
     return nil, cache_err
   end
 
   for _, addr in ipairs(host_addresses) do
-    table_insert(s.hosts, Host:new(addr, options))
+    table_insert(s.hosts, Host:new(addr, session_options))
   end
 
   return setmetatable(s, {__index = self})
@@ -792,7 +795,7 @@ end
 
 function Session:execute(query, args, query_options)
   if self.terminated then
-    return nil, Errors.NoHostAvailableError(nil, "Cannot reuse a session that has been shut down.")
+    return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
   end
 
   local options = table_utils.deep_copy(self.options)
@@ -876,7 +879,7 @@ end
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
 local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version FROM system.local WHERE key='local'"
 
---- Retrieve cluster informations form a connected contact_point
+--- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(contact_points_hosts, options)
   log.info("Refreshing local and peers info")
 
@@ -951,21 +954,22 @@ end
 
 --- Retrieve cluster informations and store them in ngx.shared.DICT
 function Cassandra.spawn_cluster(options)
-  options = opts.parse_cluster(options)
+  local cluster_options, err = opts.parse_cluster(options)
+  if err then
+    return nil, err
+  end
 
   local contact_points_hosts = {}
-  for _, contact_point in ipairs(options.contact_points) do
-    table_insert(contact_points_hosts, Host:new(contact_point, options))
+  for _, contact_point in ipairs(cluster_options.contact_points) do
+    table_insert(contact_points_hosts, Host:new(contact_point, cluster_options))
   end
 
-  local ok, err = Cassandra.refresh_hosts(contact_points_hosts, options)
+  local ok, err = Cassandra.refresh_hosts(contact_points_hosts, cluster_options)
   if not ok then
-    return false, err
+    return nil, err
   end
 
-  return true, nil, setmetatable({
-    options = options
-  }, Cluster)
+  return setmetatable({options = cluster_options}, Cluster)
 end
 
 --- Cassandra Misc

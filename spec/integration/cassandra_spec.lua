@@ -16,20 +16,20 @@ local _hosts = utils.hosts
 
 describe("spawn cluster", function()
   it("should require a 'shm' option", function()
-    assert.has_error(function()
-      cassandra.spawn_cluster({
-        shm = nil,
-        contact_points = _hosts
-      })
-    end, "shm is required for spawning a cluster/session")
+    local cluster, err = cassandra.spawn_cluster {
+      shm = nil,
+      contact_points = _hosts
+    }
+    assert.falsy(cluster)
+    assert.equal("shm is required for spawning a cluster/session", err)
   end)
   it("should spawn a cluster", function()
-    local ok, err = cassandra.spawn_cluster({
+    local cluster, err = cassandra.spawn_cluster {
       shm = _shm,
       contact_points = _hosts
-    })
+    }
     assert.falsy(err)
-    assert.True(ok)
+    assert.truthy(cluster)
   end)
   it("should retrieve cluster infos in spawned cluster's shm", function()
     local cache = require "cassandra.cache"
@@ -52,12 +52,12 @@ describe("spawn cluster", function()
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
     contact_points[#contact_points + 1] = _hosts[1]
 
-    local ok, err = cassandra.spawn_cluster({
+    local cluster, err = cassandra.spawn_cluster({
       shm = "test",
       contact_points = contact_points
     })
     assert.falsy(err)
-    assert.True(ok)
+    assert.truthy(cluster)
   end)
   it("should return an error when no contact_point is valid", function()
     utils.set_log_lvl("QUIET")
@@ -66,12 +66,12 @@ describe("spawn cluster", function()
     end)
 
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
-    local ok, err = cassandra.spawn_cluster({
+    local cluster, err = cassandra.spawn_cluster({
       shm = "test",
       contact_points = contact_points
     })
     assert.truthy(err)
-    assert.False(ok)
+    assert.falsy(cluster)
     assert.equal("NoHostAvailableError", err.type)
   end)
   it("should accept a custom port for given hosts", function()
@@ -84,12 +84,12 @@ describe("spawn cluster", function()
     for i, addr in ipairs(_hosts) do
       contact_points[i] = addr..":9043"
     end
-    local ok, err = cassandra.spawn_cluster({
+    local cluster, err = cassandra.spawn_cluster({
       shm = "test",
       contact_points = contact_points
     })
     assert.truthy(err)
-    assert.False(ok)
+    assert.falsy(cluster)
     assert.equal("NoHostAvailableError", err.type)
   end)
   it("should accept a custom port through an option", function()
@@ -98,41 +98,27 @@ describe("spawn cluster", function()
       utils.set_log_lvl(LOG_LVL)
     end)
 
-    local ok, err = cassandra.spawn_cluster({
+    local cluster, err = cassandra.spawn_cluster({
       shm = "test",
       protocol_options = {default_port = 9043},
       contact_points = _hosts
     })
     assert.truthy(err)
-    assert.False(ok)
+    assert.falsy(cluster)
     assert.equal("NoHostAvailableError", err.type)
-  end)
-  it("should return a third parameter, cluster, an instance able to spawn sessions", function()
-    local ok, err, cluster = cassandra.spawn_cluster({
-      shm = "test",
-      contact_points = _hosts
-    })
-    assert.falsy(err)
-    assert.True(ok)
-    assert.truthy(cluster)
-    assert.truthy(cluster.spawn_session)
   end)
 end)
 
 describe("spawn session", function()
   local session
   it("should require a 'shm' option", function()
-    assert.has_error(function()
-      cassandra.spawn_session({
-        shm = nil
-      })
-    end, "shm is required for spawning a cluster/session")
+    local session, err = cassandra.spawn_session({shm = nil})
+    assert.falsy(session)
+    assert.equal("shm is required for spawning a cluster/session", err)
   end)
   it("should spawn a session", function()
     local err
-    session, err = cassandra.spawn_session({
-      shm = _shm
-    })
+    session, err = cassandra.spawn_session({shm = _shm})
     assert.falsy(err)
     assert.truthy(session)
     assert.truthy(session.hosts)

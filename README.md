@@ -15,6 +15,7 @@ It is build on the model of the official Datastax drivers, and tries to implemen
 - Client authentication
 - Highly configurable options per session/request
 - Compatible with Cassandra 2.0 and 2.1
+- Works with Lua 5.1, 5.2, 5.3 and LuaJIT 2.x
 
 ## Usage
 
@@ -32,11 +33,11 @@ http {
     local cassandra = require "cassandra"
 
     -- retrieve cluster topology
-    local ok, err = cassandra.spawn_cluster {
+    local cluster, err = cassandra.spawn_cluster {
       shm = "cassandra", -- defined by "lua_shared_dict"
       contact_points = {"127.0.0.1", "127.0.0.2"}
     }
-    if not ok then
+    if err then
       ngx.log(ngx.ERR, "Could not spawn cluster: ", err.message)
     end
   ';
@@ -100,10 +101,11 @@ With plain Lua:
 ```lua
 local cassandra = require "cassandra"
 
-local ok, err, cluster = cassandra.spawn_cluster {
+local cluster, err = cassandra.spawn_cluster {
   shm = "cassandra",
   contact_points = {"127.0.0.1", "127.0.0.2"}
 }
+assert(err == nil)
 
 local session, err = cluster:spawn_session()
 assert(err == nil)

@@ -1,9 +1,15 @@
 local log = require "cassandra.log"
 local json = require "cjson"
+local Errors = require "cassandra.errors"
 local string_utils = require "cassandra.utils.string"
 local table_concat = table.concat
 local in_ngx = ngx ~= nil
 local shared
+if in_ngx then
+  shared = ngx.shared
+else
+  shared = {}
+end
 
 -- DICT Proxy
 -- https://github.com/bsm/fakengx/blob/master/fakengx.lua
@@ -90,12 +96,6 @@ function SharedDict:flush_expired(n)
   return flushed
 end
 
-if in_ngx then
-  shared = ngx.shared
-else
-  shared = {}
-end
-
 local function get_dict(shm)
   if not in_ngx then
     if shared[shm] == nil then
@@ -103,7 +103,11 @@ local function get_dict(shm)
     end
   end
 
-  return shared[shm]
+  local dict = shared[shm]
+  if dict == nil then
+    error("No shared dict named "..shm)
+  end
+  return dict
 end
 
 --- Hosts
@@ -116,21 +120,21 @@ local function set_hosts(shm, hosts)
   local dict = get_dict(shm)
   local ok, err = dict:safe_set(_HOSTS_KEY, table_concat(hosts, _SEP))
   if not ok then
-    err = "Cannot store hosts for cluster under shm "..shm..": "..err
+    return false, Errors.SharedDictError("Cannot store hosts for cluster under shm "..shm..": "..err, shm)
   end
-  return ok, err
+  return true
 end
 
 local function get_hosts(shm)
   local dict = get_dict(shm)
-  local value, err = dict:get(_HOSTS_KEY)
+  local host_addresses, err = dict:get(_HOSTS_KEY)
   if err then
-    return nil, "Cannot retrieve hosts for cluster under shm "..shm..": "..err
-  elseif value == nil then
-    return nil, "Not hosts set for cluster under "..shm
+    return nil, Errors.SharedDictError(err, "Cannot retrieve hosts for cluster under shm "..shm..": "..err, shm)
+  elseif host_addresses == nil then
+    return nil, Errors.DriverError("No hosts set for cluster under shm: "..shm..". Is the cluster initialized?")
   end
 
-  return string_utils.split(value, _SEP)
+  return string_utils.split(host_addresses, _SEP)
 end
 
 --- Host
@@ -140,18 +144,18 @@ local function set_host(shm, host_addr, host)
   local dict = get_dict(shm)
   local ok, err = dict:safe_set(host_addr, json.encode(host))
   if not ok then
-    err = "Cannot store host details for cluster "..shm..": "..err
+    return false, Errors.SharedDictError("Cannot store host details for cluster "..shm..": "..err, shm)
   end
-  return ok, err
+  return true
 end
 
 local function get_host(shm, host_addr)
   local dict = get_dict(shm)
   local value, err = dict:get(host_addr)
   if err then
-    return nil, "Cannot retrieve host details for cluster under shm "..shm..": "..err
+    return nil, Errors.SharedDictError("Cannot retrieve host details for cluster under shm "..shm..": "..err, shm)
   elseif value == nil then
-    return nil, "No details for host "..host_addr.." under shm "..shm
+    return nil, Errors.DriverError("No details for host "..host_addr.." under shm "..shm)
   end
   return json.decode(value)
 end
@@ -170,12 +174,12 @@ local function set_prepared_query_id(options, query, query_id)
 
   local ok, err, forcible = dict:set(prepared_key, query_id)
   if not ok then
-    err = "Cannot store prepared query id in shm "..shm..": "..err
+    return false, Errors.SharedDictError("Cannot store prepared query id in shm "..shm..": "..err, shm)
   elseif forcible then
     log.warn("shm for prepared queries '"..shm.."' is running out of memory. Consider increasing its size.")
-    dict:flush_expired(1)
+    dict:flush_expired(1) -- flush oldest query
   end
-  return ok, err
+  return true
 end
 
 local function get_prepared_query_id(options, query)
@@ -185,9 +189,9 @@ local function get_prepared_query_id(options, query)
 
   local value, err = dict:get(prepared_key)
   if err then
-    err = "Cannot retrieve prepared query id in shm "..shm..": "..err
+    return nil, Errors.SharedDictError("Cannot retrieve prepared query id in shm "..shm..": "..err, shm)
   end
-  return value, err, prepared_key
+  return value, nil, prepared_key
 end
 
 return {

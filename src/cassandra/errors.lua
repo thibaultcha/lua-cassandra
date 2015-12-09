@@ -15,7 +15,7 @@ local ERROR_TYPES = {
 
       local message = "All hosts tried for query failed."
       for address, err in pairs(errors) do
-        message = string_format("%s %s: %s.", message, address, err)
+        message = string_format("%s %s: %s.", message, address, tostring(err))
       end
       return message
     end
@@ -43,6 +43,22 @@ local ERROR_TYPES = {
   },
   AuthenticationError = {
     info = "Represents an authentication error from the driver or from a Cassandra node."
+  },
+  SharedDictError = {
+    info = "Represents an error with the lua_shared_dict in use.",
+    message = function(msg, shm)
+      if shm ~= nil then
+        return "shared dict "..shm.." returned error: "..msg
+      else
+        return msg
+      end
+    end,
+    meta = function(message, shm)
+      return {shm = shm}
+    end
+  },
+  DriverError = {
+    info = "Represents an error indicating the library is used in an erroneous way."
   }
 }
 
@@ -69,8 +85,8 @@ end
 
 local _ERRORS = {}
 
-for k, v in pairs(ERROR_TYPES) do
-  _ERRORS[k] = function(...)
+local function build_error(k, v)
+  return function(...)
     local arg = {...}
     local err = {
       type = k,
@@ -91,4 +107,16 @@ for k, v in pairs(ERROR_TYPES) do
   end
 end
 
-return _ERRORS
+for k, v in pairs(ERROR_TYPES) do
+  _ERRORS[k] = build_error(k, v)
+end
+
+if _G.test then
+  return {
+    error_mt = _error_mt,
+    errors = _ERRORS,
+    build_error = build_error
+  }
+else
+  return _ERRORS
+end

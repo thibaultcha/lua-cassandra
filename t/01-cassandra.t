@@ -179,6 +179,7 @@ local
 GET /t
 --- response_body
 
+--- timeout: 5s
 --- no_error_log
 [error]
 

@@ -33,7 +33,7 @@ local DEFAULTS = {
   socket_options = {
     connect_timeout = 1000,
     read_timeout = 2000
-  },
+  }
   -- username = nil,
   -- password = nil,
   -- ssl_options = {
@@ -48,9 +48,13 @@ local function parse_session(options, lvl)
   if options == nil then options = {} end
   utils.extend_table(DEFAULTS, options)
 
-  if options.keyspace ~= nil and type(options.keyspace) ~= "string" then
-    return nil, "keyspace must be a string"
+  -- keyspace
+
+  if options.keyspace ~= nil and type(options.keyspace) ~= "string" or options.keyspace == "" then
+    return nil, "keyspace must be a valid string"
   end
+
+  -- shms
 
   if options.shm == nil then
     return nil, "shm is required for spawning a cluster/session"
@@ -76,12 +80,36 @@ local function parse_session(options, lvl)
     return nil, "prepared_shm must be a valid string"
   end
 
+  -- protocol options
+
   if type(options.protocol_options.default_port) ~= "number" then
     return nil, "protocol default_port must be a number"
   end
 
+  if type(options.protocol_options.max_schema_consensus_wait) ~= "number" then
+    return nil, "protocol max_schema_consensus_wait must be a number"
+  end
+
+  -- policies
+
   if type(options.policies.address_resolution) ~= "function" then
     return nil, "address_resolution policy must be a function"
+  end
+
+  -- query options
+
+  if type(options.query_options.page_size) ~= "number" then
+    return nil, "query page_size must be a number"
+  end
+
+  -- socket options
+
+  if type(options.socket_options.connect_timeout) ~= "number" then
+    return nil, "socket connect_timeout must be a number"
+  end
+
+  if type(options.socket_options.read_timeout) ~= "number" then
+    return nil, "socket read_timeout must be a number"
   end
 
   return options

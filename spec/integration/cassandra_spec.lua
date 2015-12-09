@@ -14,15 +14,7 @@ utils.set_log_lvl(LOG_LVL)
 local _shm = "cassandra_specs"
 local _hosts = utils.hosts
 
-describe("spawn cluster", function()
-  it("should require a 'shm' option", function()
-    local cluster, err = cassandra.spawn_cluster {
-      shm = nil,
-      contact_points = _hosts
-    }
-    assert.falsy(cluster)
-    assert.equal("shm is required for spawning a cluster/session", err)
-  end)
+describe("spawn_cluster()", function()
   it("should spawn a cluster", function()
     local cluster, err = cassandra.spawn_cluster {
       shm = _shm,
@@ -59,21 +51,6 @@ describe("spawn cluster", function()
     assert.falsy(err)
     assert.truthy(cluster)
   end)
-  it("should return an error when no contact_point is valid", function()
-    utils.set_log_lvl("QUIET")
-    finally(function()
-      utils.set_log_lvl(LOG_LVL)
-    end)
-
-    local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
-    local cluster, err = cassandra.spawn_cluster({
-      shm = "test",
-      contact_points = contact_points
-    })
-    assert.truthy(err)
-    assert.falsy(cluster)
-    assert.equal("NoHostAvailableError", err.type)
-  end)
   it("should accept a custom port for given hosts", function()
     utils.set_log_lvl("QUIET")
     finally(function()
@@ -109,13 +86,8 @@ describe("spawn cluster", function()
   end)
 end)
 
-describe("spawn session", function()
+describe("spawn_session()", function()
   local session
-  it("should require a 'shm' option", function()
-    local session, err = cassandra.spawn_session({shm = nil})
-    assert.falsy(session)
-    assert.equal("shm is required for spawning a cluster/session", err)
-  end)
   it("should spawn a session", function()
     local err
     session, err = cassandra.spawn_session({shm = _shm})
@@ -222,7 +194,7 @@ describe("session", function()
     session:shutdown()
   end)
 
-  describe(":set_keyspace()", function()
+  describe("set_keyspace()", function()
     it("should set a session's 'keyspace' option", function()
       local ok, err = session:set_keyspace(_KEYSPACE)
       assert.falsy(err)
@@ -235,7 +207,7 @@ describe("session", function()
     end)
   end)
 
-  describe(":execute()", function()
+  describe("execute()", function()
     it("should accept values to bind", function()
       local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(?, ?, ?)",
         {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 1})
@@ -418,7 +390,7 @@ describe("session", function()
     end)
   end)
 
-  describe(":batch()", function()
+  describe("batch()", function()
     local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
 
     setup(function()
@@ -564,7 +536,7 @@ describe("session", function()
     end)
   end)
 
-  describe(":shutdown()", function()
+  describe("shutdown()", function()
     it("should close all connection and make the session unusable", function()
       session:shutdown()
       assert.True(session.terminated)

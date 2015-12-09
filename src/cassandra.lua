@@ -982,6 +982,10 @@ local types_mt = {}
 function types_mt:__index(key)
   if CQL_TYPES[key] ~= nil then
     return function(value)
+      if value == nil then
+        error("argument #1 required for '"..key.."' type shorthand", 2)
+      end
+
       return {value = value, type_id = CQL_TYPES[key]}
     end
   elseif key == "unset" then

@@ -130,11 +130,9 @@ local function get_hosts(shm)
   local host_addresses, err = dict:get(_HOSTS_KEY)
   if err then
     return nil, Errors.SharedDictError(err, "Cannot retrieve hosts for cluster under shm "..shm..": "..err, shm)
-  elseif host_addresses == nil then
-    return nil, Errors.DriverError("No hosts set for cluster under shm: "..shm..". Is the cluster initialized?")
+  elseif host_addresses ~= nil then
+    return string_utils.split(host_addresses, _SEP)
   end
-
-  return string_utils.split(host_addresses, _SEP)
 end
 
 --- Host

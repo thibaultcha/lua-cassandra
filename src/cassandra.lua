@@ -57,6 +57,16 @@ end
 local MIN_PROTOCOL_VERSION = 2
 local DEFAULT_PROTOCOL_VERSION = 3
 
+--- Cassandra
+-- @section cassandra
+
+local Cassandra = {
+  _VERSION = "0.4.0",
+  DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
+  MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
+}
+
+
 --- Host
 -- A connection to a single host.
 -- Not cluster aware, only maintain a socket to its peer.
@@ -693,6 +703,14 @@ function Session:new(options)
   local host_addresses, cache_err = cache.get_hosts(session_options.shm)
   if cache_err then
     return nil, cache_err
+  elseif host_addresses == nil then
+    log.warn("No cluster infos in shared dict '"..session_options.shm.."'.")
+    if session_options.contact_points ~= nil then
+      host_addresses, err = Cassandra.refresh_hosts(session_options)
+      if host_addresses == nil then
+        return nil, err
+      end
+    end
   end
 
   for _, addr in ipairs(host_addresses) do
@@ -866,12 +884,6 @@ end
 --- Cassandra
 -- @section cassandra
 
-local Cassandra = {
-  _VERSION = "0.4.0",
-  DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
-  MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
-}
-
 function Cassandra.spawn_session(options)
   return Session:new(options)
 end
@@ -880,12 +892,17 @@ local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_ver
 local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version FROM system.local WHERE key='local'"
 
 --- Retrieve cluster informations from a connected contact_point
-function Cassandra.refresh_hosts(contact_points_hosts, options)
+function Cassandra.refresh_hosts(options)
   log.info("Refreshing local and peers info")
+
+  local contact_points_hosts = {}
+  for _, contact_point in ipairs(options.contact_points) do
+    table_insert(contact_points_hosts, Host:new(contact_point, options))
+  end
 
   local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
   if err then
-    return false, err
+    return nil, err
   end
 
   local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
@@ -894,7 +911,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
 
   local rows, err = coordinator:send(local_query)
   if err then
-    return false, err
+    return nil, err
   end
   local row = rows[1]
   local address = options.policies.address_resolution(row["rpc_address"])
@@ -911,7 +928,7 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
 
   rows, err = coordinator:send(peers_query)
   if err then
-    return false, err
+    return nil, err
   end
 
   for _, row in ipairs(rows) do
@@ -937,11 +954,16 @@ function Cassandra.refresh_hosts(contact_points_hosts, options)
     table_insert(addresses, addr)
     local ok, cache_err = cache.set_host(options.shm, addr, host)
     if not ok then
-      return false, cache_err
+      return nil, cache_err
     end
   end
 
-  return cache.set_hosts(options.shm, addresses)
+  local ok, err = cache.set_hosts(options.shm, addresses)
+  if not ok then
+    return nil, err
+  end
+
+  return addresses
 end
 
 local Cluster = {}
@@ -959,13 +981,8 @@ function Cassandra.spawn_cluster(options)
     return nil, err
   end
 
-  local contact_points_hosts = {}
-  for _, contact_point in ipairs(cluster_options.contact_points) do
-    table_insert(contact_points_hosts, Host:new(contact_point, cluster_options))
-  end
-
-  local ok, err = Cassandra.refresh_hosts(contact_points_hosts, cluster_options)
-  if not ok then
+  local addresses, err = Cassandra.refresh_hosts(cluster_options)
+  if addresses == nil then
     return nil, err
   end
 

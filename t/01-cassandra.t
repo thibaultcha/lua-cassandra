@@ -18,7 +18,7 @@ our $SpawnCluster = <<_EOC_;
         local cassandra = require "cassandra"
         local cluster, err = cassandra.spawn_cluster {
             shm = "cassandra",
-            contact_points = {"127.0.0.1", "127.0.0.2"}
+            contact_points = {"127.0.0.1"}
         }
         if err then
             ngx.log(ngx.ERR, tostring(err))
@@ -203,7 +203,7 @@ GET /t
 
             local rows, err = session:execute("SELECT key FROM system.local")
             if err then
-                ngx.say(tostring(err))
+                ngx.log(ngx.ERR, tostring(err))
                 return ngx.exit(200)
             end
 
@@ -213,9 +213,9 @@ GET /t
 --- request
 GET /t
 --- response_body
-NoHostAvailableError: Cannot reuse a session that has been shut down.
---- no_error_log
-[error]
+
+--- error_log eval
+qr/\[error\].*?NoHostAvailableError: Cannot reuse a session that has been shut down./
 
 
 

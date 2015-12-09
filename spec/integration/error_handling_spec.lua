@@ -100,4 +100,33 @@ describe("error handling", function()
       assert.equal("ResponseError", err.type)
     end)
   end)
+  describe("shm errors", function()
+    it("should trigger a cluster refresh if the hosts are not available anymore", function()
+      local shm = "test_shm_errors"
+      local cache = require "cassandra.cache"
+      local dict = cache.get_dict(shm)
+      assert.truthy(dict)
+
+      local cluster, err = cassandra.spawn_cluster {
+        shm = shm,
+        contact_points = _hosts
+      }
+      assert.falsy(err)
+      assert.truthy(cache.get_hosts(shm))
+
+      -- erase hosts from the cache
+      dict:delete("hosts")
+      assert.falsy(cache.get_hosts(shm))
+
+      -- attempt session create
+      local session, err = cluster:spawn_session()
+      assert.falsy(err)
+
+      -- attempt query
+      local rows, err = session:execute("SELECT * FROM system.local")
+      assert.falsy(err)
+      assert.truthy(rows)
+      assert.equal(1, #rows)
+    end)
+  end)
 end)

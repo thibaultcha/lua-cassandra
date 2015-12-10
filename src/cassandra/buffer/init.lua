@@ -126,6 +126,8 @@ function Buffer:repr_cql_value(value)
     else
       infered_type = cql_types.map
     end
+  elseif lua_type == "boolean" then
+    infered_type = cql_types.boolean
   else
     infered_type = cql_types.varchar
   end

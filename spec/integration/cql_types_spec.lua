@@ -209,4 +209,63 @@ describe("CQL types integration", function()
       assert.equal(fixture.value[2], tuple[2])
     end
   end)
+
+  describe("type inference", function()
+    for _, fixture_type in ipairs({"ascii", "boolean", "float", "int", "text", "varchar"}) do
+      local fixture_values = utils.cql_fixtures[fixture_type]
+      it("["..fixture_type.."] should be inferred", function()
+        for _, fixture in ipairs(fixture_values) do
+          local insert_query = string.format("INSERT INTO all_types(id, %s_sample) VALUES(?, ?)", fixture_type)
+          local select_query = string.format("SELECT %s_sample FROM all_types WHERE id = ?", fixture_type)
+
+          local res, err = session:execute(insert_query, {cassandra.uuid(_UUID), fixture})
+          assert.falsy(err)
+          assert.truthy(res)
+
+          local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
+          assert.falsy(err)
+          assert.truthy(rows)
+
+          local decoded = rows[1][fixture_type.."_sample"]
+          assert.validFixture(fixture_type, fixture, decoded)
+        end
+      end)
+    end
+
+    it("[map<type, type>] should be inferred", function()
+      for _, fixture in ipairs(utils.cql_list_fixtures) do
+        local insert_query = string.format("INSERT INTO all_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
+        local select_query = string.format("SELECT list_sample_%s FROM all_types WHERE id = ?", fixture.type_name)
+
+        local res, err = session:execute(insert_query, {cassandra.uuid(_UUID), fixture.value})
+        assert.falsy(err)
+        assert.truthy(res)
+
+        local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
+        assert.falsy(err)
+        assert.truthy(rows)
+
+        local decoded = rows[1]["list_sample_"..fixture.type_name]
+        assert.validFixture("list", fixture.value, decoded)
+      end
+    end)
+  end)
+
+  it("[set<type>] should be inferred", function()
+    for _, fixture in ipairs(utils.cql_list_fixtures) do
+      local insert_query = string.format("INSERT INTO all_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
+      local select_query = string.format("SELECT set_sample_%s FROM all_types WHERE id = ?", fixture.type_name)
+
+      local res, err = session:execute(insert_query, {cassandra.uuid(_UUID), fixture.value})
+      assert.falsy(err)
+      assert.truthy(res)
+
+      local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
+      assert.falsy(err)
+      assert.truthy(rows)
+
+      local decoded = rows[1]["set_sample_"..fixture.type_name]
+      assert.sameSet(fixture.value, decoded)
+    end
+  end)
 end)

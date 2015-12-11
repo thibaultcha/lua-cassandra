@@ -16,12 +16,12 @@ local _hosts = utils.hosts
 
 describe("spawn_cluster()", function()
   it("should spawn a cluster", function()
-    local cluster, err = cassandra.spawn_cluster {
+    local ok, err = cassandra.spawn_cluster {
       shm = _shm,
       contact_points = _hosts
     }
     assert.falsy(err)
-    assert.truthy(cluster)
+    assert.True(ok)
   end)
   it("should retrieve cluster infos in spawned cluster's shm", function()
     local cache = require "cassandra.cache"
@@ -44,12 +44,12 @@ describe("spawn_cluster()", function()
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
     contact_points[#contact_points + 1] = _hosts[1]
 
-    local cluster, err = cassandra.spawn_cluster({
+    local ok, err = cassandra.spawn_cluster({
       shm = "test",
       contact_points = contact_points
     })
     assert.falsy(err)
-    assert.truthy(cluster)
+    assert.True(ok)
   end)
   it("should accept a custom port for given hosts", function()
     utils.set_log_lvl("QUIET")
@@ -61,12 +61,12 @@ describe("spawn_cluster()", function()
     for i, addr in ipairs(_hosts) do
       contact_points[i] = addr..":9043"
     end
-    local cluster, err = cassandra.spawn_cluster({
+    local ok, err = cassandra.spawn_cluster({
       shm = "test",
       contact_points = contact_points
     })
     assert.truthy(err)
-    assert.falsy(cluster)
+    assert.False(ok)
     assert.equal("NoHostAvailableError", err.type)
   end)
   it("should accept a custom port through an option", function()
@@ -75,13 +75,13 @@ describe("spawn_cluster()", function()
       utils.set_log_lvl(LOG_LVL)
     end)
 
-    local cluster, err = cassandra.spawn_cluster({
+    local ok, err = cassandra.spawn_cluster({
       shm = "test",
       protocol_options = {default_port = 9043},
       contact_points = _hosts
     })
     assert.truthy(err)
-    assert.falsy(cluster)
+    assert.False(ok)
     assert.equal("NoHostAvailableError", err.type)
   end)
 end)

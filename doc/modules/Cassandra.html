@@ -32,17 +32,14 @@
 
 <h2>Contents</h2>
 <ul>
-<li><a href="#Functions">Functions</a></li>
+<li><a href="#Cassandra">Cassandra </a></li>
 </ul>
 
 
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><strong>Cassandra</strong></li>
-  <li><a href="../modules/PasswordAuthenticator.html">PasswordAuthenticator</a></li>
-  <li><a href="../modules/BatchStatement.html">BatchStatement</a></li>
-  <li><a href="../modules/Error.html">Error</a></li>
-  <li><a href="../modules/Session.html">Session</a></li>
+  <li><strong>cassandra</strong></li>
+  <li><a href="../modules/cassandra.log.html">cassandra.log</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -61,42 +58,22 @@
 
 <div id="content">
 
-<h1>Module <code>Cassandra</code></h1>
-<p>This module allows the creation of sessions and provides shorthand
- annotations for type encoding and batch statement creation.</p>
+<h1>Module <code>cassandra</code></h1>
+<p>Constants</p>
 <p>
-
-<p> Depending on how it will be initialized, it supports either the binary
- protocol v2 or v3:</p>
-
-
-<pre>
-<span class="global">require</span> <span class="string">"cassandra"</span> <span class="comment">-- binary protocol v3 (Cassandra 2.0.x and 2.1.x)
-</span><span class="global">require</span> <span class="string">"cassandra.v2"</span> <span class="comment">-- binary procotol v2 (Cassandra 2.0.x)
-</span>
-</pre>
-
-<p> Shorthands to give a type to a value in a query:</p>
-
-
-<pre>
-session:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, {
-  cassandra.uuid(<span class="string">"2644bada-852c-11e3-89fb-e0b9a54a6d93"</span>)
-})
-</pre>
 
 </p>
 
 
-<h2><a href="#Functions">Functions</a></h2>
+<h2><a href="#Cassandra">Cassandra </a></h2>
 <table class="function_list">
 	<tr>
-	<td class="name" nowrap><a href="#new">new ()</a></td>
-	<td class="summary">Instanciate a new <a href="../modules/Session.html#">Session</a>.</td>
+	<td class="name" nowrap><a href="#Cassandra.refresh_hosts">Cassandra.refresh_hosts (options)</a></td>
+	<td class="summary">Retrieve cluster informations from a connected contact_point</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#BatchStatement">BatchStatement (batch_type)</a></td>
-	<td class="summary">Instanciate a <a href="../modules/BatchStatement.html#">BatchStatement</a>.</td>
+	<td class="name" nowrap><a href="#Cassandra.spawn_cluster">Cassandra.spawn_cluster (options)</a></td>
+	<td class="summary">Load the cluster topology.</td>
 	</tr>
 </table>
 
@@ -104,49 +81,60 @@ session:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, 
 <br/>
 
 
-    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+    <h2 class="section-header "><a name="Cassandra"></a>Cassandra </h2>
 
     <dl class="function">
     <dt>
-    <a name = "new"></a>
-    <strong>new ()</strong>
+    <a name = "Cassandra.refresh_hosts"></a>
+    <strong>Cassandra.refresh_hosts (options)</strong>
     </dt>
     <dd>
-    Instanciate a new <a href="../modules/Session.html#">Session</a>.
- Create a socket with the cosocket API if in Nginx and available, fallback to luasocket otherwise.
- The instanciated session will communicate using the binary protocol of the current cassandra
- implementation being required.
+    Retrieve cluster informations from a connected contact_point
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">options</span>
 
 
 
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-        session The created session.</li>
-        <li>
-        err     Any <a href="../modules/Error.html#">Error</a> encountered during the socket creation.</li>
-    </ol>
+        </li>
+    </ul>
+
 
 
 
 
 </dd>
     <dt>
-    <a name = "BatchStatement"></a>
-    <strong>BatchStatement (batch_type)</strong>
+    <a name = "Cassandra.spawn_cluster"></a>
+    <strong>Cassandra.spawn_cluster (options)</strong>
     </dt>
     <dd>
-    Instanciate a <a href="../modules/BatchStatement.html#">BatchStatement</a>.
- The instanciated batch will then provide an ":add()" method to add queries,
- and can be executed by a session's ":execute()" function.
- See the related <a href="../modules/BatchStatement.html#">BatchStatement</a> module and <a href="../examples/batch.lua.html#">batch.lua</a> example.
- See http://docs.datastax.com/en/cql/3.1/cql/cql<em>reference/batch</em>r.html
+
+<p>Load the cluster topology.
+ Iterates over the given <code>contact_points</code> and connects to the first one available
+ to load the cluster topology. All peers of the chosen contact point will be
+ retrieved and stored locally so that the load balancing policy can chose one
+ on each request that will be executed.
+ Use this function if you want to retrieve the cluster topology sooner than when
+ you will create your first <code>Session</code>. For example:</p>
+
+<pre><code> local hello = "world"
+</code></pre>
+
+
+
+
+
 
 
     <h3>Parameters:</h3>
     <ul>
-        <li><span class="parameter">batch_type</span>
-         The type of this batch. Can be one of: 'Logged, Unlogged, Counter'
+        <li><span class="parameter">options</span>
+
+
+
         </li>
     </ul>
 
@@ -162,7 +150,7 @@ session:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, 
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2015-08-14 20:05:42 </i>
+<i style="float:right;">Last updated 2015-12-11 00:21:07 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

@@ -1,10 +1,9 @@
+--- Cassandra client library for Lua.
+-- @module cassandra
+
 -- @TODO
--- flush from dict on shutdown
+-- flush dicts on shutdown?
 -- tracing
---
--- better logging
--- more options validation
--- more error types
 
 local log = require "cassandra.log"
 local opts = require "cassandra.options"
@@ -52,13 +51,11 @@ local function unlock_mutex(lock)
 end
 
 --- Constants
--- @section constants
 
 local MIN_PROTOCOL_VERSION = 2
 local DEFAULT_PROTOCOL_VERSION = 3
 
 --- Cassandra
--- @section cassandra
 
 local Cassandra = {
   _VERSION = "0.4.0",
@@ -70,7 +67,6 @@ local Cassandra = {
 --- Host
 -- A connection to a single host.
 -- Not cluster aware, only maintain a socket to its peer.
--- @section host
 
 local Host = {}
 Host.__index = Host
@@ -459,7 +455,6 @@ function Host:can_be_considered_up()
 end
 
 --- Request Handler
--- @section request_handler
 
 local RequestHandler = {}
 RequestHandler.__index = RequestHandler
@@ -684,7 +679,6 @@ function RequestHandler:prepare_and_retry(request)
 end
 
 --- Session
--- A short-lived session, cluster-aware through the cache.
 -- @section session
 
 local Session = {}
@@ -813,6 +807,41 @@ local function page_iterator(request_handler, query, args, query_options)
   end, query, nil
 end
 
+--- Execute a query.
+-- The session will choose a coordinator from the cached cluster topology according
+-- to the configured load balancing policy. Once connected to it, it will perform the
+-- given query. This operation is non-blocking in the context of ngx_lua because it
+-- uses the cosocket API (coroutine based).
+--
+-- Queries can have parameters binded to it, they can be prepared, result sets can
+-- be paginated, and more, depending on the given `query_options`.
+--
+-- If a node is not responding, it will be marked as being down. Since the state of
+-- the cluster is shared accross all workers by the ngx.shared.DICT API, all the other
+-- active sessions will be aware of it and will not attempt to connect to that node. The
+-- configured reconnection policy will decide when it is time to try to connect to that
+-- node again.
+--
+--     local res, err = session:execute [[
+--       CREATE KEYSPACE IF NOT EXISTS my_keyspace
+--       WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
+--     ]]
+--
+--     local rows, err = session:execute("SELECT * FROM system.schema_keyspaces")
+--     for i, row in ipairs(rows) do
+--       print(row.keyspace_name)
+--     end
+--
+--     local rows, err = session:execute("SELECT * FROM users WHERE age = ?", {42}, {prepare = true})
+--     for i, row in ipairs(rows) do
+--       print(row.username)
+--     end
+--
+-- @param[type=string] query The CQL query to execute, possibly with placeholder for binded parameters.
+-- @param[type=table] args *Optional* A list of parameters to be binded to the query's placeholders.
+-- @param[type=table] query_options *Optional* Override the session`s `options.query_options` with the given values, for this request only.
+-- @treturn table `result/rows`: A table describing the result. The content of this table depends on the type of the query. If an error occurred, this value will be `nil` and a second value is returned describing the error.
+-- @treturn table `error`: A table describing the error that occurred.
 function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
@@ -886,6 +915,35 @@ end
 --- Cassandra
 -- @section cassandra
 
+--- Spawn a session to connect to the cluster.
+-- Sessions are meant to be short-lived and many can be created in parallel. In the context
+-- of ngx_lua, it makes perfect sense for a session to be spawned in a phase handler, and
+-- quickly disposed of by putting the sockets it used back into the cosocket connection pool.
+--
+-- The session will retrieve the cluster topology from the configured shared dict or,
+-- if not found, by connecting to one of the optionally given `contact_points`.
+-- If you want to pre-load the cluster topology, see `spawn_cluster`.
+-- The created session will use the configured load balancing policy to choose a
+-- coordinator from the retrieved cluster topology on each query.
+--
+--     access_by_lua_block {
+--         local cassandra = require "cassandra"
+--         local session, err = cassandra.spawn_session {
+--             shm = "cassandra",
+--             contact_points = {"127.0.0.1", "127.0.0.2"}
+--         }
+--         if not session then
+--             ngx.log(ngx.ERR, tostring(err))
+--         end
+--
+--         -- execute query(ies)
+--
+--         session:set_keep_alive()
+--     }
+--
+-- @param[type=table] options The session's options, including the shared dict name and **optionally* the contact points
+-- @treturn table `session`: A instanciated session, ready to be used. If an error occurred, this value will be `nil` and a second value is returned describing the error.
+-- @treturn table `error`: A table describing the error that occurred.
 function Cassandra.spawn_session(options)
   return Session:new(options)
 end
@@ -893,7 +951,7 @@ end
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
 local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version FROM system.local WHERE key='local'"
 
---- Retrieve cluster informations from a connected contact_point
+-- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(options)
   local addresses = {}
 
@@ -987,34 +1045,93 @@ function Cassandra.refresh_hosts(options)
   return addresses
 end
 
-local Cluster = {}
-Cluster.__index = Cluster
-
-function Cluster:spawn_session(options)
-  options = table_utils.extend_table(self.options, options)
-  return Cassandra.spawn_session(options)
-end
-
---- Retrieve cluster informations and store them in ngx.shared.DICT
+--- Load the cluster topology.
+-- Iterate over the given `contact_points` and connects to the first one available
+-- to load the cluster topology. All peers of the chosen contact point will be
+-- retrieved and stored locally so that the load balancing policy can chose one
+-- on each request that will be executed.
+--
+-- Use this function if you want to retrieve the cluster topology sooner than when
+-- you will create your first `Session`. For example:
+--
+--     init_worker_by_lua_block {
+--         local cassandra = require "cassandra"
+--         local cluster, err = cassandra.spawn_cluster {
+--              shm = "cassandra",
+--              contact_points = {"127.0.0.1"}
+--         }
+--     }
+--
+--     access_by_lua_block {
+--         local cassandra = require "cassandra"
+--         -- The cluster topology is already loaded at this point,
+--         -- avoiding latency on your first request.
+--         local session, err = cassandra.spawn_session {
+--             shm = "cassandra"
+--         }
+--     }
+--
+-- @param[type=table] options The cluster's options, including the shared dict name and the contact points.
+-- @treturn boolean `ok`: Success of the cluster topology retrieval. If false, a second value will be returned describing the error.
+-- @treturn table `error`: An error in case the operation did not succeed.
 function Cassandra.spawn_cluster(options)
   local cluster_options, err = opts.parse_cluster(options)
   if err then
-    return nil, err
+    return false, err
   end
 
   local addresses, err = Cassandra.refresh_hosts(cluster_options)
   if addresses == nil then
-    return nil, err
+    return false, err
   end
 
-  return setmetatable({options = cluster_options}, Cluster)
+  return true
 end
 
---- Cassandra Misc
--- @section cassandra_misc
+--- Type serializer shorthands.
+-- When binding parameters to a query from `execute`, some
+-- types cannot be infered automatically and will require manual
+-- serialization. Some other times, it can be useful to manually enforce
+-- the type of a parameter.
+--
+-- See the [Cassandra Data Types](http://docs.datastax.com/en/cql/3.1/cql/cql_reference/cql_data_types_c.html).
+--
+-- For this purpose, shorthands for type serialization are available
+-- on the `Cassandra` table:
+--
+-- @field uuid Serialize a 32 lowercase characters string to a uuid
+--     cassandra.uuid("123e4567-e89b-12d3-a456-426655440000")
+-- @field timestamp Serialize a 10 digits number into a Cassandra timestamp
+--     cassandra.timestamp(1405356926)
+-- @field list
+--     cassandra.list({"abc", "def"})
+-- @field map
+--     cassandra.map({foo = "bar"})
+-- @field set
+--     cassandra.set({foo = "bar"})
+-- @field udt
+-- @field tuple
+-- @field inet
+--     cassandra.inet("127.0.0.1")
+--     cassandra.inet("2001:0db8:85a3:0042:1000:8a2e:0370:7334")
+-- @field bigint
+--     cassandra.bigint(42000000000)
+-- @field double
+--     cassandra.bigint(1.0000000000000004)
+-- @field ascii
+-- @field blob
+-- @field boolean
+-- @field counter
+-- @field decimal
+-- @field float
+-- @field int
+-- @field text
+-- @field timeuuid
+-- @field varchar
+-- @field varint
+-- @table type_serializers
 
 local CQL_TYPES = types.cql_types
-
 local types_mt = {}
 
 function types_mt:__index(key)

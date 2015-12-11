@@ -12,13 +12,10 @@ describe("CQL types integration", function()
   local session
 
   setup(function()
-    local cluster, err = cassandra.spawn_cluster({
+    local session, err = cluster:spawn_session {
       shm = _shm,
       contact_points = _hosts
-    })
-    assert.falsy(err)
-
-    session, err = cluster:spawn_session({shm = _shm})
+    }
     assert.falsy(err)
 
     utils.create_keyspace(session, _keyspace)

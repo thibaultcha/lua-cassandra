@@ -1,4 +1,4 @@
---- Logging wrapper
+-- Logging wrapper
 -- lua-cassandra is built with support for pure Lua, outside of ngx_lua,
 -- this module provides a fallback to `print` when lua-cassandra runs
 -- outside of ngx_lua.

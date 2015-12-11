@@ -12,7 +12,8 @@ describe("CQL types integration", function()
   local session
 
   setup(function()
-    local session, err = cluster:spawn_session {
+    local err
+    session, err = cassandra.spawn_session {
       shm = _shm,
       contact_points = _hosts
     }

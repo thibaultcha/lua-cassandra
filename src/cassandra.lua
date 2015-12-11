@@ -18,17 +18,20 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
+local resty_lock
+local status, res = pcall(require, "resty.lock")
+if status then
+  resty_lock = res
+end
+
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
 local string_format = string.format
 local setmetatable = setmetatable
 
-local is_ngx = ngx ~= nil
-
 local function lock_mutex(shm, key)
-  if is_ngx then
-    local resty_lock = require "resty.lock"
+  if resty_lock then
     local lock = resty_lock:new(shm)
     local elapsed, err = lock:lock(key)
     if err then
@@ -41,7 +44,7 @@ local function lock_mutex(shm, key)
 end
 
 local function unlock_mutex(lock)
-  if is_ngx then
+  if resty_lock then
     local ok, err = lock:unlock()
     if not ok then
       err = "Error unlocking mutex: "..err

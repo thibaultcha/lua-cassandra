@@ -86,13 +86,11 @@ describe("error handling", function()
     local session
 
     setup(function()
-      local cluster, err = cassandra.spawn_cluster {
+      local err
+      session, err = cassandra.spawn_session {
         shm = _shm,
         contact_points = _hosts
       }
-      assert.falsy(err)
-
-      session, err = cluster:spawn_session {shm = _shm}
       assert.falsy(err)
     end)
     teardown(function()
@@ -117,11 +115,12 @@ describe("error handling", function()
       local dict = cache.get_dict(shm)
       assert.truthy(dict)
 
-      local cluster, err = cassandra.spawn_cluster {
+      local ok, err = cassandra.spawn_cluster {
         shm = shm,
         contact_points = _hosts
       }
       assert.falsy(err)
+      assert.True(ok)
       assert.truthy(cache.get_hosts(shm))
 
       -- erase hosts from the cache
@@ -129,7 +128,10 @@ describe("error handling", function()
       assert.falsy(cache.get_hosts(shm))
 
       -- attempt session create
-      local session, err = cluster:spawn_session()
+      local session, err = cassandra.spawn_session {
+        shm = shm,
+        contact_points = _hosts
+      }
       assert.falsy(err)
 
       -- attempt query

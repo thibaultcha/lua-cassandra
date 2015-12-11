@@ -96,6 +96,26 @@ describe("spawn_session()", function()
     assert.truthy(session.hosts)
     assert.equal(3, #session.hosts)
   end)
+  it("should spawn a session without having to spawn a cluster", function()
+    local shm = "session_without_cluster"
+    local session, err = cassandra.spawn_session {
+      shm = shm,
+      contact_points = _hosts
+    }
+    assert.falsy(err)
+    assert.truthy(session)
+    -- Check cache
+    local cache = require "cassandra.cache"
+    local hosts, err = cache.get_hosts(shm)
+    assert.falsy(err)
+    -- index of hosts
+    assert.equal(#_hosts, #hosts)
+    -- hosts details
+    for _, host_addr in ipairs(hosts) do
+      local host_details = cache.get_host(shm, host_addr)
+      assert.truthy(host_details)
+    end
+  end)
   describe(":execute()", function()
     teardown(function()
       -- drop keyspace in case tests failed

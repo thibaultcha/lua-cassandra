@@ -5,7 +5,9 @@
 
 local is_ngx = ngx ~= nil
 local ngx_log = is_ngx and ngx.log
+local ngx_get_phase = is_ngx and ngx.get_phase
 local string_format = string.format
+local print = print
 
 -- ngx_lua levels redefinition for helpers and
 -- when outside of ngx_lua.
@@ -31,7 +33,7 @@ end
 
 for lvl_name, lvl in pairs(LEVELS) do
   log[lvl_name:lower()] = function(...)
-    if is_ngx and ngx.get_phase() ~= "init" then
+    if is_ngx and ngx_get_phase() ~= "init" then
       ngx_log(ngx[lvl_name], ...)
     elseif lvl <= cur_lvl then
       print(string_format("%s -- %s", lvl_name, ...))

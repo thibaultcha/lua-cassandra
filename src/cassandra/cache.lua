@@ -4,12 +4,7 @@ local Errors = require "cassandra.errors"
 local string_utils = require "cassandra.utils.string"
 local table_concat = table.concat
 local in_ngx = ngx ~= nil
-local shared
-if in_ngx then
-  shared = ngx.shared
-else
-  shared = {}
-end
+local dicts = {}
 
 -- DICT Proxy
 -- https://github.com/bsm/fakengx/blob/master/fakengx.lua
@@ -97,16 +92,20 @@ function SharedDict:flush_expired(n)
 end
 
 local function get_dict(shm)
-  if not in_ngx then
-    if shared[shm] == nil then
-      shared[shm] = SharedDict:new()
+  local dict = dicts[shm]
+
+  if dict == nil then
+    if in_ngx then
+      dict = ngx.shared[shm]
+      if dict == nil then
+        error("No shared dict named "..shm)
+      end
+    else
+      dict = SharedDict:new()
     end
+    dicts[shm] = dict
   end
 
-  local dict = shared[shm]
-  if dict == nil then
-    error("No shared dict named "..shm)
-  end
   return dict
 end
 

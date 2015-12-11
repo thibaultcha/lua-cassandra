@@ -3,7 +3,7 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * blocks() * 4;
+plan tests => repeat_each() * blocks() * 5;
 
 my $pwd = cwd();
 
@@ -92,7 +92,7 @@ local
 --- no_error_log
 [error]
 --- error_log eval
-qr/\[warn\].*?No cluster infos in shared dict/
-
-
-
+[
+    qr/\[warn\].*?No cluster infos in shared dict/,
+    qr/\[info\].*?Cluster infos retrieved in shared dict cassandra/
+]

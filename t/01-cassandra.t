@@ -67,7 +67,7 @@ GET /t
 
 
 
-=== TEST 2: session:execute()
+=== TEST 3: session:execute()
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -100,7 +100,7 @@ local
 
 
 
-=== TEST 3: session:execute() with request arguments
+=== TEST 4: session:execute() with request arguments
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -133,7 +133,7 @@ local
 
 
 
-=== TEST 4: wait for schema consensus
+=== TEST 5: wait for schema consensus
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -185,7 +185,7 @@ GET /t
 
 
 
-=== TEST 5: session:shutdown()
+=== TEST 6: session:shutdown()
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -220,7 +220,7 @@ qr/\[error\].*?NoHostAvailableError: Cannot reuse a session that has been shut d
 
 
 
-=== TEST 6: session:set_keep_alive()
+=== TEST 7: session:set_keep_alive()
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"
@@ -255,7 +255,7 @@ GET /t
 
 
 
-=== TEST 7: session:execute() prepared query
+=== TEST 8: session:execute() prepared query
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"

@@ -71,6 +71,16 @@ describe("error handling", function()
       assert.spy(options.parse_session).was.called()
       assert.equal("shm is required for spawning a cluster/session", err)
     end)
+    it("should error when spawning a session without contact_points not cluster", function()
+      local shm = "session_without_cluster_nor_contact_points"
+      local session, err = cassandra.spawn_session {
+        shm = shm
+      }
+      assert.truthy(err)
+      assert.falsy(session)
+      assert.equal("DriverError", err.type)
+      assert.equal("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.", err.message)
+    end)
   end)
   describe("execute()", function()
     local session

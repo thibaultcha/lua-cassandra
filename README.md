@@ -29,19 +29,6 @@ http {
   # all cluster informations will be stored here
   lua_shared_dict cassandra 1m;
 
-  init_by_lua '
-    local cassandra = require "cassandra"
-
-    -- retrieve cluster topology
-    local cluster, err = cassandra.spawn_cluster {
-      shm = "cassandra", -- defined by "lua_shared_dict"
-      contact_points = {"127.0.0.1", "127.0.0.2"}
-    }
-    if err then
-      ngx.log(ngx.ERR, "Could not spawn cluster: ", err.message)
-    end
-  ';
-
   server {
     ...
 
@@ -50,10 +37,11 @@ http {
         local cassandra = require "cassandra"
 
         local session, err = cassandra.spawn_session {
-          shm = "cassandra" -- defined by "lua_shared_dict"
+          shm = "cassandra", -- defined by "lua_shared_dict"
+          contact_points = {"127.0.0.1"}
         }
         if err then
-          ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
+          ngx.log(ngx.ERR, "Could not spawn session: ", tostring(err))
           return ngx.exit(500)
         end
 
@@ -75,10 +63,11 @@ http {
         local cassandra = require "cassandra"
 
         local session, err = cassandra.spawn_session {
-          shm = "cassandra" -- defined by "lua_shared_dict"
+          shm = "cassandra", -- defined by "lua_shared_dict"
+          contact_points = {"127.0.0.1"}
         }
         if err then
-          ngx.log(ngx.ERR, "Could not spawn session: ", err.message)
+          ngx.log(ngx.ERR, "Could not spawn session: ", tostring(err))
           return ngx.exit(500)
         end
 
@@ -89,7 +78,7 @@ http {
 
         session:set_keep_alive()
 
-        ngx.say("number of users: ", #rows)
+        ngx.say("rows retrieved: ", #rows)
       ';
     }
   }
@@ -101,13 +90,10 @@ With plain Lua:
 ```lua
 local cassandra = require "cassandra"
 
-local cluster, err = cassandra.spawn_cluster {
+local session, err = cassandra.spawn_session {
   shm = "cassandra",
   contact_points = {"127.0.0.1", "127.0.0.2"}
 }
-assert(err == nil)
-
-local session, err = cluster:spawn_session()
 assert(err == nil)
 
 local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {

@@ -704,12 +704,14 @@ function Session:new(options)
   if cache_err then
     return nil, cache_err
   elseif host_addresses == nil then
-    log.warn("No cluster infos in shared dict '"..session_options.shm.."'.")
+    log.warn("No cluster infos in shared dict "..session_options.shm)
     if session_options.contact_points ~= nil then
       host_addresses, err = Cassandra.refresh_hosts(session_options)
       if host_addresses == nil then
         return nil, err
       end
+    else
+      return nil, Errors.DriverError("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.")
     end
   end
 
@@ -893,74 +895,93 @@ local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version 
 
 --- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(options)
-  log.info("Refreshing local and peers info")
+  local addresses = {}
 
-  local contact_points_hosts = {}
-  for _, contact_point in ipairs(options.contact_points) do
-    table_insert(contact_points_hosts, Host:new(contact_point, options))
+  local lock, lock_err, elapsed = lock_mutex(options.shm, "refresh_hosts")
+  if lock_err then
+    return nil, lock_err
   end
 
-  local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
-  if err then
-    return nil, err
-  end
+  if elapsed and elapsed == 0 then
+    log.info("Refreshing local and peers info")
 
-  local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
-  local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
-  local hosts = {}
+    local contact_points_hosts = {}
+    for _, contact_point in ipairs(options.contact_points) do
+      table_insert(contact_points_hosts, Host:new(contact_point, options))
+    end
 
-  local rows, err = coordinator:send(local_query)
-  if err then
-    return nil, err
-  end
-  local row = rows[1]
-  local address = options.policies.address_resolution(row["rpc_address"])
-  local local_host = {
-    datacenter = row["data_center"],
-    rack = row["rack"],
-    cassandra_version = row["release_version"],
-    protocol_versiom = row["native_protocol_version"],
-    unhealthy_at = 0,
-    reconnection_delay = 0
-  }
-  hosts[address] = local_host
-  log.info("Local info retrieved")
+    local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
+    if err then
+      return nil, err
+    end
 
-  rows, err = coordinator:send(peers_query)
-  if err then
-    return nil, err
-  end
+    local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
+    local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
+    local hosts = {}
 
-  for _, row in ipairs(rows) do
-    address = options.policies.address_resolution(row["rpc_address"])
-    log.info("Adding host "..address)
-    hosts[address] = {
+    local rows, err = coordinator:send(local_query)
+    if err then
+      return nil, err
+    end
+    local row = rows[1]
+    local address = options.policies.address_resolution(row["rpc_address"])
+    local local_host = {
       datacenter = row["data_center"],
       rack = row["rack"],
       cassandra_version = row["release_version"],
-      protocol_version = local_host.native_protocol_version,
+      protocol_versiom = row["native_protocol_version"],
       unhealthy_at = 0,
       reconnection_delay = 0
     }
-  end
-  log.info("Peers info retrieved")
-  log.info(string_format("---- cluster spawned under shm %s ----", options.shm))
+    hosts[address] = local_host
+    log.info("Local info retrieved")
 
-  coordinator:close()
+    rows, err = coordinator:send(peers_query)
+    if err then
+      return nil, err
+    end
 
-  -- Store cluster mapping for future sessions
-  local addresses = {}
-  for addr, host in pairs(hosts) do
-    table_insert(addresses, addr)
-    local ok, cache_err = cache.set_host(options.shm, addr, host)
+    for _, row in ipairs(rows) do
+      address = options.policies.address_resolution(row["rpc_address"])
+      log.info("Adding host "..address)
+      hosts[address] = {
+        datacenter = row["data_center"],
+        rack = row["rack"],
+        cassandra_version = row["release_version"],
+        protocol_version = local_host.native_protocol_version,
+        unhealthy_at = 0,
+        reconnection_delay = 0
+      }
+    end
+    log.info("Peers info retrieved")
+    log.info(string_format("Cluster infos retrieved in shared dict %s", options.shm))
+
+    coordinator:close()
+
+    -- Store cluster mapping for future sessions
+    for addr, host in pairs(hosts) do
+      table_insert(addresses, addr)
+      local ok, cache_err = cache.set_host(options.shm, addr, host)
+      if not ok then
+        return nil, cache_err
+      end
+    end
+
+    local ok, cache_err = cache.set_hosts(options.shm, addresses)
     if not ok then
+      return nil, cache_err
+    end
+  else
+    local cache_err
+    addresses, cache_err = cache.get_hosts(options.shm)
+    if cache_err then
       return nil, cache_err
     end
   end
 
-  local ok, err = cache.set_hosts(options.shm, addresses)
-  if not ok then
-    return nil, err
+  lock_err = unlock_mutex(lock)
+  if lock_err then
+    return nil, lock_err
   end
 
   return addresses

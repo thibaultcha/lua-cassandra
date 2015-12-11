@@ -5,7 +5,7 @@ source = {
   tag = "0.4.0"
 }
 description = {
-  summary = "Lua Cassandra client library",
+  summary = "Feature-rich client library for Cassandra",
   homepage = "http://thibaultcha.github.io/lua-cassandra",
   license = "MIT"
 }

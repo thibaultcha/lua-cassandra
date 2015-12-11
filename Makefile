@@ -1,6 +1,6 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 
-.PHONY: instal dev clean test coverage lint doc
+.PHONY: install dev clean test coverage lint doc
 
 install:
 	@luarocks make lua-cassandra-*.rockspec

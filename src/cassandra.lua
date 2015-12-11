@@ -926,10 +926,10 @@ function Cassandra.refresh_hosts(options)
     local row = rows[1]
     local address = options.policies.address_resolution(row["rpc_address"])
     local local_host = {
-      datacenter = row["data_center"],
-      rack = row["rack"],
-      cassandra_version = row["release_version"],
-      protocol_versiom = row["native_protocol_version"],
+      --datacenter = row["data_center"],
+      --rack = row["rack"],
+      --cassandra_version = row["release_version"],
+      --protocol_versiom = row["native_protocol_version"],
       unhealthy_at = 0,
       reconnection_delay = 0
     }
@@ -945,10 +945,10 @@ function Cassandra.refresh_hosts(options)
       address = options.policies.address_resolution(row["rpc_address"])
       log.info("Adding host "..address)
       hosts[address] = {
-        datacenter = row["data_center"],
-        rack = row["rack"],
-        cassandra_version = row["release_version"],
-        protocol_version = local_host.native_protocol_version,
+        --datacenter = row["data_center"],
+        --rack = row["rack"],
+        --cassandra_version = row["release_version"],
+        --protocol_version = local_host.native_protocol_version,
         unhealthy_at = 0,
         reconnection_delay = 0
       }

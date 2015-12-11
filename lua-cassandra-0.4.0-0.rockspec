@@ -10,8 +10,7 @@ description = {
   license = "MIT"
 }
 dependencies = {
-  "luasocket ~> 3.0-rc1",
-  "lua-cjson ~> 2.1.0-1"
+  "luasocket ~> 3.0-rc1"
 }
 build = {
   type = "builtin",

@@ -1,13 +1,19 @@
 local log = require "cassandra.log"
-local json = require "cjson"
 local Errors = require "cassandra.errors"
 local string_utils = require "cassandra.utils.string"
+
 local table_concat = table.concat
+local tonumber = tonumber
+
 local in_ngx = ngx ~= nil
 local dicts = {}
 
--- DICT Proxy
+-- ngx.shared.DICT proxy
 -- https://github.com/bsm/fakengx/blob/master/fakengx.lua
+-- Used when the driver is required outside of ngx_lua.
+-- Eventually, attaching the cluster infos to the session
+-- should be done standardly, but this is a faster alternative
+-- for now.
 
 local SharedDict = {}
 
@@ -139,7 +145,7 @@ end
 
 local function set_host(shm, host_addr, host)
   local dict = get_dict(shm)
-  local ok, err = dict:safe_set(host_addr, json.encode(host))
+  local ok, err = dict:safe_set(host_addr, host.unhealthy_at.._SEP..host.reconnection_delay)
   if not ok then
     return false, Errors.SharedDictError("Cannot store host details for cluster "..shm..": "..err, shm)
   end
@@ -154,7 +160,12 @@ local function get_host(shm, host_addr)
   elseif value == nil then
     return nil, Errors.DriverError("No details for host "..host_addr.." under shm "..shm)
   end
-  return json.decode(value)
+
+  local h = string_utils.split(value, _SEP)
+  return {
+    unhealthy_at = tonumber(h[1]),
+    reconnection_delay = tonumber(h[2])
+  }
 end
 
 --- Prepared query ids

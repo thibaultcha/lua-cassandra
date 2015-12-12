@@ -90,11 +90,11 @@ describe("spawn_session()", function()
   local session
   it("should spawn a session", function()
     local err
-    session, err = cassandra.spawn_session({shm = _shm})
+    session, err = cassandra.spawn_session {shm = _shm}
     assert.falsy(err)
     assert.truthy(session)
     assert.truthy(session.hosts)
-    assert.equal(3, #session.hosts)
+    assert.equal(#_hosts, #session.hosts)
   end)
   it("should spawn a session without having to spawn a cluster", function()
     local shm = "session_without_cluster"
@@ -565,6 +565,23 @@ describe("session", function()
       assert.truthy(err)
       assert.equal("NoHostAvailableError", err.type)
       assert.falsy(rows)
+    end)
+  end)
+
+  describe("set_keep_alive()", function()
+    it("should fallback to close() when outside of ngx_lua", function()
+      local session, err = cassandra.spawn_session {
+        shm = _shm,
+        contact_points = _hosts
+      }
+      assert.falsy(err)
+
+      local _, err = session:execute("SELECT * FROM system.local")
+      assert.falsy(err)
+
+      assert.has_no_error(function()
+        session:set_keep_alive()
+      end)
     end)
   end)
 end)

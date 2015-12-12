@@ -29,6 +29,8 @@ local string_find = string.find
 local table_insert = table.insert
 local string_format = string.format
 local setmetatable = setmetatable
+local ipairs = ipairs
+local pairs = pairs
 
 local function lock_mutex(shm, key)
   if resty_lock then
@@ -65,7 +67,6 @@ local Cassandra = {
   DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
   MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
 }
-
 
 --- Host
 -- A connection to a single host.
@@ -351,6 +352,10 @@ function Host:get_reused_times()
   return 0
 end
 
+function Host:can_keep_alive()
+  return self.socket_type == "ngx"
+end
+
 function Host:set_keep_alive()
   -- don't close if the connection was not opened yet
   if not self.connected then
@@ -381,7 +386,6 @@ function Host:close()
     log.err("Could not close socket to "..self.address..". "..err)
     return false, Errors.SocketError(self.address, err)
   end
-
   self.connected = false
   return true
 end
@@ -903,7 +907,11 @@ end
 
 function Session:set_keep_alive()
   for _, host in ipairs(self.hosts) do
-    host:set_keep_alive()
+    if host:can_keep_alive() then
+      host:set_keep_alive()
+    else
+      host:close()
+    end
   end
 end
 

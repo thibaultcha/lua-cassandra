@@ -9,7 +9,7 @@ local cassandra = require "cassandra"
 local LOG_LVL = "ERR"
 
 -- Define log level for tests
-utils.set_log_lvl(LOG_LVL)
+cassandra.set_log_level(LOG_LVL)
 
 local _shm = "cassandra_specs"
 local _hosts = utils.hosts
@@ -36,9 +36,9 @@ describe("spawn_cluster()", function()
     end
   end)
   it("should iterate over contact_points to find an entrance into the cluster", function()
-    utils.set_log_lvl("QUIET")
+    cassandra.set_log_level("QUIET")
     finally(function()
-      utils.set_log_lvl(LOG_LVL)
+      cassandra.set_log_level(LOG_LVL)
     end)
 
     local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
@@ -52,9 +52,9 @@ describe("spawn_cluster()", function()
     assert.True(ok)
   end)
   it("should accept a custom port for given hosts", function()
-    utils.set_log_lvl("QUIET")
+    cassandra.set_log_level("QUIET")
     finally(function()
-      utils.set_log_lvl(LOG_LVL)
+      cassandra.set_log_level(LOG_LVL)
     end)
 
     local contact_points = {}
@@ -70,9 +70,9 @@ describe("spawn_cluster()", function()
     assert.equal("NoHostAvailableError", err.type)
   end)
   it("should accept a custom port through an option", function()
-    utils.set_log_lvl("QUIET")
+    cassandra.set_log_level("QUIET")
     finally(function()
-      utils.set_log_lvl(LOG_LVL)
+      cassandra.set_log_level(LOG_LVL)
     end)
 
     local ok, err = cassandra.spawn_cluster({

@@ -9,8 +9,7 @@ local ngx_get_phase = is_ngx and ngx.get_phase
 local string_format = string.format
 local print = print
 
--- ngx_lua levels redefinition for helpers and
--- when outside of ngx_lua.
+-- ngx_lua levels redefinition when outside of ngx_lua.
 local LEVELS = {
   QUIET = 0,
   ERR = 1,
@@ -21,14 +20,27 @@ local LEVELS = {
 
 -- Default logging level when outside of ngx_lua.
 local cur_lvl = LEVELS.INFO
+local cur_fmt = "%s -- %s"
 
 local log = {}
 
 function log.set_lvl(lvl_name)
-  if is_ngx then return end
   if LEVELS[lvl_name] ~= nil then
     cur_lvl = LEVELS[lvl_name]
   end
+end
+
+function log.get_lvl()
+  return cur_lvl
+end
+
+function log.set_format(fmt)
+  cur_fmt = fmt
+end
+
+-- Makes this module testable by spying on this function
+function log.print(str)
+  print(str)
 end
 
 for lvl_name, lvl in pairs(LEVELS) do
@@ -36,7 +48,7 @@ for lvl_name, lvl in pairs(LEVELS) do
     if is_ngx and ngx_get_phase() ~= "init" then
       ngx_log(ngx[lvl_name], ...)
     elseif lvl <= cur_lvl then
-      print(string_format("%s -- %s", lvl_name, ...))
+      log.print(string_format(cur_fmt, lvl_name, ...))
     end
   end
 end

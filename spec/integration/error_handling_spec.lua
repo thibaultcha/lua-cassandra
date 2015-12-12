@@ -4,7 +4,7 @@ local cassandra = require "cassandra"
 local LOG_LVL = "ERR"
 
 -- Define log level for tests
-utils.set_log_lvl(LOG_LVL)
+cassandra.set_log_level(LOG_LVL)
 
 local _shm = "cassandra_error_specs"
 local _hosts = utils.hosts

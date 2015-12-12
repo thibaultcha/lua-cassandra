@@ -566,7 +566,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.info("Acquired connection through load balancing policy: "..coordinator.address)
+  log.debug("Acquired connection through load balancing policy: "..coordinator.address)
 
   return self:send(request)
 end
@@ -1089,6 +1089,14 @@ function Cassandra.spawn_cluster(options)
   end
 
   return true
+end
+
+function Cassandra.set_log_level(lvl)
+  log.set_lvl(lvl)
+end
+
+function Cassandra.set_log_format(fmt)
+  log.set_format(fmt)
 end
 
 --- Type serializer shorthands.

@@ -6,7 +6,7 @@ local _hosts = utils.hosts
 local _keyspace = "resty_cassandra_cql_types_specs"
 
 -- Define log level for tests
-utils.set_log_lvl("ERR")
+cassandra.set_log_level("ERR")
 
 describe("CQL types integration", function()
   local session

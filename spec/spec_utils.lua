@@ -1,5 +1,4 @@
 local say = require "say"
-local log = require "cassandra.log"
 local types = require "cassandra.types"
 local assert = require "luassert.assert"
 local string_utils = require "cassandra.utils.string"
@@ -12,10 +11,6 @@ else
 end
 
 local _M = {}
-
-function _M.set_log_lvl(lvl)
-  log.set_lvl(lvl)
-end
 
 function _M.create_keyspace(session, keyspace)
   local res, err = session:execute([[

@@ -61,5 +61,15 @@ describe("table_utils", function()
       target = table_utils.extend_table(source, target)
       assert.False(target.source)
     end)
+    it("should ignore targets that are not tables", function()
+      local source = {foo = {bar = "foobar"}}
+      local target = {foo = "hello"}
+
+      assert.has_no_error(function()
+        target = table_utils.extend_table(source, target)
+      end)
+
+      assert.equal("hello", target.foo)
+    end)
   end)
 end)

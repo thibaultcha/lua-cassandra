@@ -33,15 +33,16 @@ local DEFAULTS = {
   socket_options = {
     connect_timeout = 1000,
     read_timeout = 2000
-  }
+  },
   -- username = nil,
   -- password = nil,
-  -- ssl_options = {
-  --   key = nil,
-  --   certificate = nil,
-  --   ca = nil, -- stub
-  --   verify = false
-  -- }
+  ssl_options = {
+    enabled = false
+  -- key = nil,
+  -- certificate = nil,
+  -- ca = nil, -- stub
+  -- verify = false
+  }
 }
 
 local function parse_session(options, lvl)
@@ -110,6 +111,14 @@ local function parse_session(options, lvl)
 
   if type(options.socket_options.read_timeout) ~= "number" then
     return nil, "socket read_timeout must be a number"
+  end
+
+  if type(options.ssl_options) ~= "table" then
+    return nil, "ssl_options must be a table"
+  end
+
+  if type(options.ssl_options.enabled) ~= "boolean" then
+    return nil, "ssl_options.enabled must be a boolean"
   end
 
   return options

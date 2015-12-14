@@ -101,17 +101,14 @@ function Host:new(address, options)
   local host, port = string_utils.split_by_colon(address)
   if not port then port = options.protocol_options.default_port end
 
-  local h = {}
-
-  h.host = host
-  h.port = port
-  h.address = address
-  h.protocol_version = DEFAULT_PROTOCOL_VERSION
-
-  h.options = options
-  h.reconnection_policy = h.options.policies.reconnection
-
-  new_socket(h)
+  local h = {
+    host = host,
+    port = port,
+    address = address,
+    protocol_version = DEFAULT_PROTOCOL_VERSION,
+    options = options,
+    reconnection_policy = options.policy.reconnection
+  }
 
   return setmetatable(h, Host)
 end
@@ -242,6 +239,8 @@ end
 function Host:connect()
   if self.connected then return true end
 
+  new_socket(self)
+
   log.debug("Connecting to "..self.address)
 
   self:set_timeout(self.options.socket_options.connect_timeout)
@@ -252,7 +251,7 @@ function Host:connect()
     return false, Errors.SocketError(self.address, err), true
   end
 
-  if self.options.ssl_options ~= nil then
+  if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
     if not ok then
       return false, Errors.SocketError(self.address, err)
@@ -391,33 +390,29 @@ function Host:close()
 end
 
 function Host:set_down()
-  local host_infos, err = cache.get_host(self.options.shm, self.address)
-  if err then
-    return err
+  local lock, lock_err, elapsed = lock_mutex(self.options.shm, "downing_"..self.address)
+  if lock_err then
+    return lock_err
   end
 
-  if host_infos.unhealthy_at == 0 then
-    local lock, lock_err, elapsed = lock_mutex(self.options.shm, "downing_"..self.address)
-    if lock_err then
-      return lock_err
-    end
-
-    if elapsed and elapsed == 0 then
-      log.warn("Setting host "..self.address.." as DOWN")
-      host_infos.unhealthy_at = time_utils.get_time()
-      host_infos.reconnection_delay = self.reconnection_policy.next(self)
-      self:close()
-      new_socket(self)
-      local ok, err = cache.set_host(self.options.shm, self.address, host_infos)
-      if not ok then
-        return err
-      end
-    end
-
-    lock_err = unlock_mutex(lock)
-    if lock_err then
+  if elapsed and elapsed == 0 then
+    local host_infos, err = cache.get_host(self.options.shm, self.address)
+    if err then
       return err
     end
+    log.warn("Setting host "..self.address.." as DOWN")
+    host_infos.unhealthy_at = time_utils.get_time()
+    host_infos.reconnection_delay = self.reconnection_policy.next(self)
+    self:close()
+    local ok, err = cache.set_host(self.options.shm, self.address, host_infos)
+    if not ok then
+      return err
+    end
+  end
+
+  lock_err = unlock_mutex(lock)
+  if lock_err then
+    return lock_err
   end
 end
 
@@ -458,7 +453,9 @@ function Host:can_be_considered_up()
     return nil, err
   end
 
-  return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
+  if is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay) then
+    return true
+  end
 end
 
 --- Request Handler

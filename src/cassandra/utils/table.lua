@@ -1,6 +1,8 @@
 local setmetatable = setmetatable
 local getmetatable = getmetatable
+local table_remove = table.remove
 local tostring = tostring
+local ipairs = ipairs
 local pairs = pairs
 local type = type
 
@@ -8,14 +10,14 @@ local _M = {}
 
 function _M.extend_table(...)
   local sources = {...}
-  local values = table.remove(sources)
+  local values = table_remove(sources)
 
   for _, source in ipairs(sources) do
     for k in pairs(source) do
       if values[k] == nil then
         values[k] = source[k]
       end
-      if type(source[k]) == "table" then
+      if type(source[k]) == "table" and type(values[k]) == "table" then
         _M.extend_table(source[k], values[k])
       end
     end

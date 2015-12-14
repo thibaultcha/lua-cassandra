@@ -107,6 +107,21 @@ describe("options parsing", function()
       }))
       assert.equal("socket read_timeout must be a number", err)
     end)
+    it("should validate SSL options", function()
+      local err = select(2, parse_session {
+        shm = "test",
+        ssl_options = ""
+      })
+      assert.equal("ssl_options must be a table", err)
+
+      err = select(2, parse_session {
+        shm = "test",
+        ssl_options = {
+          enabled = ""
+        }
+      })
+      assert.equal("ssl_options.enabled must be a boolean", err)
+    end)
     it("should set `prepared_shm` to `shm` if nil", function()
       local options, err = parse_session {
         shm = "test"

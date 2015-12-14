@@ -90,7 +90,7 @@ local function new_socket(self)
 
   local socket, err = tcp_sock()
   if not socket then
-    error(err)
+    error("Could not create socket: "..err)
   end
 
   self.socket = socket
@@ -107,7 +107,7 @@ function Host:new(address, options)
     address = address,
     protocol_version = DEFAULT_PROTOCOL_VERSION,
     options = options,
-    reconnection_policy = options.policy.reconnection
+    reconnection_policy = options.policies.reconnection
   }
 
   return setmetatable(h, Host)

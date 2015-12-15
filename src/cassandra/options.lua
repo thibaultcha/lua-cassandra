@@ -31,8 +31,8 @@ local DEFAULTS = {
     max_schema_consensus_wait = 5000
   },
   socket_options = {
-    connect_timeout = 1000,
-    read_timeout = 2000
+    connect_timeout = 1000, -- ms
+    read_timeout = 2000 -- ms
   },
   -- username = nil,
   -- password = nil,

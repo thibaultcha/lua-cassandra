@@ -4,7 +4,7 @@ local DECISIONS = {
 }
 
 local function on_unavailable(request_infos)
-  return DECISIONS.retry
+  return DECISIONS.throw
 end
 
 local function on_read_timeout(request_infos)

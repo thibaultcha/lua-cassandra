@@ -400,9 +400,9 @@ function Host:set_down()
     if err then
       return err
     end
-    log.warn("Setting host "..self.address.." as DOWN")
     host_infos.unhealthy_at = time_utils.get_time()
     host_infos.reconnection_delay = self.reconnection_policy.next(self)
+    log.warn("Setting host "..self.address.." as DOWN. Next retry in: "..host_infos.reconnection_delay.."ms.")
     self:close()
     local ok, err = cache.set_host(self.options.shm, self.address, host_infos)
     if not ok then
@@ -453,9 +453,7 @@ function Host:can_be_considered_up()
     return nil, err
   end
 
-  if is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay) then
-    return true
-  end
+  return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
 end
 
 --- Request Handler
@@ -567,7 +565,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.debug("Acquired connection through load balancing policy: "..coordinator.address)
+  log.debug("Load balancing policy proposed to try host at: "..coordinator.address)
 
   return self:send(request)
 end
@@ -665,7 +663,7 @@ function RequestHandler:prepare_and_retry(request)
     if err then
       return nil, err
     end
-    log.info("Query prepared for host "..self.coordinator.address)
+    log.info("Prepared query for host "..self.coordinator.address)
 
     if request.query_id ~= res.query_id then
       log.warn(string_format("Unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request.query_id, res.query_id))
@@ -849,6 +847,8 @@ end
 function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
+  elseif type(query) ~= "string" then
+    return nil, Errors.DriverError("execute() #arg1 must be a string.")
   end
 
   local options = table_utils.deep_copy(self.options)

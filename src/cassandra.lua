@@ -848,7 +848,7 @@ function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
   elseif type(query) ~= "string" then
-    return nil, Errors.DriverError("execute() #arg1 must be a string.")
+    error("argument #1 must be a string", 2)
   end
 
   local options = table_utils.deep_copy(self.options)
@@ -1147,27 +1147,27 @@ end
 -- @field varint
 -- @table type_serializers
 
-local CQL_TYPES = types.cql_types
-local types_mt = {}
+local types_mt = {
+  __index = function(self, key)
+    if types.cql_types[key] ~= nil then
+      return function(value)
+        if value == nil then
+          error("argument #1 required for '"..key.."' type shorthand", 2)
+        end
 
-function types_mt:__index(key)
-  if CQL_TYPES[key] ~= nil then
-    return function(value)
-      if value == nil then
-        error("argument #1 required for '"..key.."' type shorthand", 2)
+        return {value = value, type_id = types.cql_types[key]}
       end
-
-      return {value = value, type_id = CQL_TYPES[key]}
+    elseif key == "unset" then
+      return {value = "unset", type_id = "unset"}
     end
-  elseif key == "unset" then
-    return {value = "unset", type_id = "unset"}
-  end
 
-  return rawget(self, key)
-end
+    return rawget(self, key)
+  end
+}
 
 setmetatable(Cassandra, types_mt)
 
 Cassandra.consistencies = types.consistencies
+Cassandra.cql_errors = types.ERRORS
 
 return Cassandra

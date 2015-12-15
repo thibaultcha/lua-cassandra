@@ -93,6 +93,12 @@ describe("options parsing", function()
     it("should validate socket options", function()
       local err = select(2, parse_session({
         shm = "test",
+        socket_options = ""
+      }))
+      assert.equal("socket_options must be a table", err)
+
+      err = select(2, parse_session({
+        shm = "test",
         socket_options = {
           connect_timeout = ""
         }
@@ -106,6 +112,22 @@ describe("options parsing", function()
         }
       }))
       assert.equal("socket read_timeout must be a number", err)
+
+      err = select(2, parse_session({
+        shm = "test",
+        socket_options = {
+          pool_timeout = ""
+        }
+      }))
+      assert.equal("socket pool_timeout must be a number", err)
+
+      err = select(2, parse_session({
+        shm = "test",
+        socket_options = {
+          pool_size = ""
+        }
+      }))
+      assert.equal("socket pool_size must be a number", err)
     end)
     it("should validate SSL options", function()
       local err = select(2, parse_session {

@@ -362,7 +362,7 @@ function Host:set_keep_alive()
   end
 
   if self.socket_type == "ngx" then
-    local ok, err = self.socket:setkeepalive()
+    local ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout, self.options.socket_options.pool_size)
     if err then
       log.err("Could not set keepalive socket to "..self.address..". "..err)
       return ok, Errors.SocketError(self.address, err)

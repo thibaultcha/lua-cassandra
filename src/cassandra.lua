@@ -362,7 +362,18 @@ function Host:set_keep_alive()
   end
 
   if self.socket_type == "ngx" then
-    local ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout, self.options.socket_options.pool_size)
+    -- tcpsock:setkeepalive() does not accept nil values, so this is a quick workaround
+    -- see https://github.com/openresty/lua-nginx-module/pull/625
+    local ok, err
+    if self.options.socket_options.pool_timeout ~= nil then
+      if self.options.socket_options.pool_size ~= nil then
+        ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout, self.options.socket_options.pool_size)
+      else
+        ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout)
+      end
+    else
+      ok, err = self.socket:setkeepalive()
+    end
     if err then
       log.err("Could not set keepalive socket to "..self.address..". "..err)
       return ok, Errors.SocketError(self.address, err)

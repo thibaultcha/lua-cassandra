@@ -255,7 +255,132 @@ GET /t
 
 
 
-=== TEST 8: session:execute() prepared query
+=== TEST 8: session:set_keep_alive() with pool timeout option
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {
+                shm = "cassandra",
+                socket_options = {
+                    pool_timeout = 60
+                }
+            }
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            session:set_keep_alive()
+
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            ngx.exit(200)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+[error]
+
+
+
+=== TEST 9: session:set_keep_alive() with pool size option
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            -- It should ignore it since ngx_lua cannot accept
+            -- a nil arg #1
+            local session = cassandra.spawn_session {
+                shm = "cassandra",
+                socket_options = {
+                    pool_size = 25
+                }
+            }
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            session:set_keep_alive()
+
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            ngx.exit(200)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+[error]
+
+
+
+=== TEST 10: session:set_keep_alive() with pool size and pool timeout options
+--- http_config eval
+"$::HttpConfig
+ $::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua '
+            local cassandra = require "cassandra"
+            -- It should ignore it since ngx_lua cannot accept
+            -- a nil arg #1
+            local session = cassandra.spawn_session {
+                shm = "cassandra",
+                socket_options = {
+                    pool_timeout = 60,
+                    pool_size = 25
+                }
+            }
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            session:set_keep_alive()
+
+            local rows, err = session:execute("SELECT key FROM system.local")
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+                ngx.exit(500)
+            end
+
+            ngx.exit(200)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+[error]
+
+
+
+=== TEST 11: session:execute() prepared query
 --- http_config eval
 "$::HttpConfig
  $::SpawnCluster"

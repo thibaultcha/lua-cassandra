@@ -27,15 +27,16 @@
 <h1>lua-cassandra</h1>
 
 
+<h2>Contents</h2>
+<ul>
+<li><a href="#Session">Session </a></li>
+<li><a href="#Cassandra">Cassandra </a></li>
+</ul>
 
 
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="modules/Cassandra.html">Cassandra</a></li>
-  <li><a href="modules/PasswordAuthenticator.html">PasswordAuthenticator</a></li>
-  <li><a href="modules/BatchStatement.html">BatchStatement</a></li>
-  <li><a href="modules/Error.html">Error</a></li>
-  <li><a href="modules/Session.html">Session</a></li>
+  <li><strong>cassandra</strong></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -54,69 +55,389 @@
 
 <div id="content">
 
+<h1>Module <code>cassandra</code></h1>
+<p>Cassandra client library for Lua.</p>
+<p>
 
-  <h2>A Lua Cassandra client for binary protocol v2 and v3</h2>
+</p>
 
-<h2>Modules</h2>
-<table class="module_list">
+
+<h2><a href="#Session">Session </a></h2>
+<table class="function_list">
 	<tr>
-		<td class="name"  nowrap><a href="modules/Cassandra.html">Cassandra</a></td>
-		<td class="summary">This module allows the creation of sessions and provides shorthand
- annotations for type encoding and batch statement creation.</td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="modules/PasswordAuthenticator.html">PasswordAuthenticator</a></td>
-		<td class="summary">The client authenticator for the Cassandra <a href="modules/PasswordAuthenticator.html#">PasswordAuthenticator</a> IAuthenticator.</td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="modules/BatchStatement.html">BatchStatement</a></td>
-		<td class="summary">This module represents a Cassandra batch statement.</td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="modules/Error.html">Error</a></td>
-		<td class="summary">Every error is represented by a table with the following properties.</td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="modules/Session.html">Session</a></td>
-		<td class="summary">This module provides a session to interact with a Cassandra cluster.</td>
+	<td class="name" nowrap><a href="#Session:execute">Session:execute (query, args, query_options)</a></td>
+	<td class="summary">Execute a query.</td>
 	</tr>
 </table>
-<h2>Manual</h2>
-<table class="module_list">
+<h2><a href="#Cassandra">Cassandra </a></h2>
+<table class="function_list">
 	<tr>
-		<td class="name"  nowrap><a href="manual/README.md.html">README.md</a></td>
-		<td class="summary"></td>
+	<td class="name" nowrap><a href="#Cassandra.spawn_session">Cassandra.spawn_session (options)</a></td>
+	<td class="summary">Spawn a session to connect to the cluster.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Cassandra.spawn_cluster">Cassandra.spawn_cluster (options)</a></td>
+	<td class="summary">Load the cluster topology.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#type_serializers">type_serializers</a></td>
+	<td class="summary">Type serializer shorthands.</td>
 	</tr>
 </table>
-<h2>Examples</h2>
-<table class="module_list">
-	<tr>
-		<td class="name"  nowrap><a href="examples/authentication.lua.html">authentication.lua</a></td>
-		<td class="summary"></td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="examples/basic.lua.html">basic.lua</a></td>
-		<td class="summary"></td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="examples/batch.lua.html">batch.lua</a></td>
-		<td class="summary"></td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="examples/pagination.lua.html">pagination.lua</a></td>
-		<td class="summary"></td>
-	</tr>
-	<tr>
-		<td class="name"  nowrap><a href="examples/ssl.lua.html">ssl.lua</a></td>
-		<td class="summary"></td>
-	</tr>
-</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header "><a name="Session"></a>Session </h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "Session:execute"></a>
+    <strong>Session:execute (query, args, query_options)</strong>
+    </dt>
+    <dd>
+
+<p>Execute a query.
+ The session will choose a coordinator from the cached cluster topology according
+ to the configured load balancing policy. Once connected to it, it will perform the
+ given query. This operation is non-blocking in the context of ngx_lua because it
+ uses the cosocket API (coroutine based).</p>
+
+<p> Queries can have parameters binded to it, they can be prepared, result sets can
+ be paginated, and more, depending on the given <code>query_options</code>.</p>
+
+<p> If a node is not responding, it will be marked as being down. Since the state of
+ the cluster is shared accross all workers by the ngx.shared.DICT API, all the other
+ active sessions will be aware of it and will not attempt to connect to that node. The
+ configured reconnection policy will decide when it is time to try to connect to that
+ node again.</p>
+
+<pre><code> local res, err = session:execute [[
+   CREATE KEYSPACE IF NOT EXISTS my_keyspace
+   WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
+ ]]
+
+ local rows, err = session:execute("SELECT * FROM system.schema_keyspaces")
+ for i, row in ipairs(rows) do
+   print(row.keyspace_name)
+ end
+
+ local rows, err = session:execute("SELECT * FROM users WHERE age = ?", {42}, {prepare = true})
+ for i, row in ipairs(rows) do
+   print(row.username)
+ end
+</code></pre>
+
+
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">query</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         The CQL query to execute, possibly with placeholder for binded parameters.
+        </li>
+        <li><span class="parameter">args</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         <em>Optional</em> A list of parameters to be binded to the query's placeholders.
+        </li>
+        <li><span class="parameter">query_options</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         <em>Optional</em> Override the session<code>s </code>options.query_options` with the given values, for this request only.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>result/rows</code>: A table describing the result. The content of this table depends on the type of the query. If an error occurred, this value will be <code>nil</code> and a second value is returned describing the error.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>error</code>: A table describing the error that occurred.</li>
+    </ol>
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header "><a name="Cassandra"></a>Cassandra </h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "Cassandra.spawn_session"></a>
+    <strong>Cassandra.spawn_session (options)</strong>
+    </dt>
+    <dd>
+
+<p>Spawn a session to connect to the cluster.
+ Sessions are meant to be short-lived and many can be created in parallel. In the context
+ of ngx_lua, it makes perfect sense for a session to be spawned in a phase handler, and
+ quickly disposed of by putting the sockets it used back into the cosocket connection pool.</p>
+
+<p> The session will retrieve the cluster topology from the configured shared dict or,
+ if not found, by connecting to one of the optionally given <code>contact_points</code>.
+ If you want to pre-load the cluster topology, see <a href="index.html#Cassandra.spawn_cluster">spawn_cluster</a>.
+ The created session will use the configured load balancing policy to choose a
+ coordinator from the retrieved cluster topology on each query.</p>
+
+<pre><code> access_by_lua_block {
+     local cassandra = require "cassandra"
+     local session, err = cassandra.spawn_session {
+         shm = "cassandra",
+         contact_points = {"127.0.0.1", "127.0.0.2"}
+     }
+     if not session then
+         ngx.log(ngx.ERR, tostring(err))
+     end
+
+     -- execute query(ies)
+
+     session:set_keep_alive()
+ }
+</code></pre>
+
+
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">options</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         The session's options, including the shared dict name and <em>*optionally</em> the contact points
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>session</code>: A instanciated session, ready to be used. If an error occurred, this value will be <code>nil</code> and a second value is returned describing the error.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>error</code>: A table describing the error that occurred.</li>
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Cassandra.spawn_cluster"></a>
+    <strong>Cassandra.spawn_cluster (options)</strong>
+    </dt>
+    <dd>
+
+<p>Load the cluster topology.
+ Iterate over the given <code>contact_points</code> and connects to the first one available
+ to load the cluster topology. All peers of the chosen contact point will be
+ retrieved and stored locally so that the load balancing policy can chose one
+ on each request that will be executed.</p>
+
+<p> Use this function if you want to retrieve the cluster topology sooner than when
+ you will create your first <code>Session</code>. For example:</p>
+
+<pre><code> init_worker_by_lua_block {
+     local cassandra = require "cassandra"
+     local cluster, err = cassandra.spawn_cluster {
+          shm = "cassandra",
+          contact_points = {"127.0.0.1"}
+     }
+ }
+
+ access_by_lua_block {
+     local cassandra = require "cassandra"
+     -- The cluster topology is already loaded at this point,
+     -- avoiding latency on your first request.
+     local session, err = cassandra.spawn_session {
+         shm = "cassandra"
+     }
+ }
+</code></pre>
+
+
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">options</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         The cluster's options, including the shared dict name and the contact points.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><span class="type">boolean</span></span>
+        <code>ok</code>: Success of the cluster topology retrieval. If false, a second value will be returned describing the error.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>error</code>: An error in case the operation did not succeed.</li>
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "type_serializers"></a>
+    <strong>type_serializers</strong>
+    </dt>
+    <dd>
+    Type serializer shorthands.
+ When binding parameters to a query from <a href="index.html#Session:execute">execute</a>, some
+ types cannot be infered automatically and will require manual
+ serialization. Some other times, it can be useful to manually enforce
+ the type of a parameter.</p>
+
+<p> See the <a href="http://docs.datastax.com/en/cql/3.1/cql/cql_reference/cql_data_types_c.html">Cassandra Data Types</a>.</p>
+
+<p> For this purpose, shorthands for type serialization are available
+ on the <code>Cassandra</code> table:
+
+
+    <h3>Fields:</h3>
+    <ul>
+        <li><span class="parameter">uuid</span>
+
+<p> Serialize a 32 lowercase characters string to a uuid</p>
+<pre><code> cassandra.uuid("123e4567-e89b-12d3-a456-426655440000")
+</code></pre>
+
+        </li>
+        <li><span class="parameter">timestamp</span>
+
+<p> Serialize a 10 digits number into a Cassandra timestamp</p>
+<pre><code> cassandra.timestamp(1405356926)
+</code></pre>
+
+        </li>
+        <li><span class="parameter">list</span>
+
+
+<pre><code> cassandra.list({"abc", "def"})
+</code></pre>
+
+        </li>
+        <li><span class="parameter">map</span>
+
+
+<pre><code> cassandra.map({foo = "bar"})
+</code></pre>
+
+        </li>
+        <li><span class="parameter">set</span>
+
+
+<pre><code> cassandra.set({foo = "bar"})
+</code></pre>
+
+        </li>
+        <li><span class="parameter">udt</span>
+
+
+
+        </li>
+        <li><span class="parameter">tuple</span>
+
+
+
+        </li>
+        <li><span class="parameter">inet</span>
+
+
+<pre><code> cassandra.inet("127.0.0.1")
+ cassandra.inet("2001:0db8:85a3:0042:1000:8a2e:0370:7334")
+</code></pre>
+
+        </li>
+        <li><span class="parameter">bigint</span>
+
+
+<pre><code> cassandra.bigint(42000000000)
+</code></pre>
+
+        </li>
+        <li><span class="parameter">double</span>
+
+
+<pre><code> cassandra.bigint(1.0000000000000004)
+</code></pre>
+
+        </li>
+        <li><span class="parameter">ascii</span>
+
+
+
+        </li>
+        <li><span class="parameter">blob</span>
+
+
+
+        </li>
+        <li><span class="parameter">boolean</span>
+
+
+
+        </li>
+        <li><span class="parameter">counter</span>
+
+
+
+        </li>
+        <li><span class="parameter">decimal</span>
+
+
+
+        </li>
+        <li><span class="parameter">float</span>
+
+
+
+        </li>
+        <li><span class="parameter">int</span>
+
+
+
+        </li>
+        <li><span class="parameter">text</span>
+
+
+
+        </li>
+        <li><span class="parameter">timeuuid</span>
+
+
+
+        </li>
+        <li><span class="parameter">varchar</span>
+
+
+
+        </li>
+        <li><span class="parameter">varint</span>
+
+
+
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+</dl>
+
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2015-08-14 20:05:42 </i>
+<i style="float:right;">Last updated 2015-12-11 01:52:31 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

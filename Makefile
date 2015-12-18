@@ -1,8 +1,11 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 
-.PHONY: dev clean test coverage lint doc
+.PHONY: install dev clean test coverage lint doc
 
-dev:
+install:
+	@luarocks make lua-cassandra-*.rockspec
+
+dev: install
 	@for rock in $(DEV_ROCKS) ; do \
 		if ! command -v $$rock &> /dev/null ; then \
 			echo $$rock not found, installing via luarocks... ; \
@@ -13,7 +16,7 @@ dev:
 	done;
 
 test:
-	@busted -v
+	@busted -v && prove
 
 clean:
 	@rm -f luacov.*
@@ -23,7 +26,7 @@ coverage: clean
 	@luacov cassandra
 
 lint:
-	@find . -not -path './doc/*' -name '*.lua' | xargs luacheck -q
+	@find src spec -not -path './doc/*' -name '*.lua' | xargs luacheck -q
 
 doc:
 	@ldoc -c doc/config.ld src

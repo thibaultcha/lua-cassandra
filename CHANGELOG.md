@@ -1,5 +1,46 @@
 ### [Unreleased][unreleased]
 
+### [0.4.1] - 2015/12/18
+
+##### Fixed
+
+- Compatibility for C* < 2.1.6. The query to retrieve the local node's details does not rely on the existance of an `rpc_address` field anymore, since that field was only added in 2.1.6. See https://issues.apache.org/jira/browse/CASSANDRA-9436.
+
+### [0.4.0] - 2015/12/17
+
+Complete rewrite of the driver, to the exception of the serializers.
+
+##### Breaking changes
+
+This release is a complete breaking change with previous versions of the driver. [#15](https://github.com/thibaultCha/lua-cassandra/pull/15)
+
+##### Added
+
+- Cluster topology auto detection. `contact_points` are not used as the only available nodes anymore but as entry point to discover the cluster's topology.
+- Cluster awareness capabilities. The driver is now capable of keeping track of which nodes are healthy or unhealthy.
+- Load balancing, reconnection, retry and address resolution policies. Only one of each is currently implemented.
+  - Load balancing: shared round-robin accross all workers. Used to load-balance the queries in the cluster.
+  - Reconnection: shared exponential (exponential reconnection time shared accross all workers). Used to determine when an unhealthy node should be retried.
+  - Retry: a basic retry policy. Used to determine which queries to retry or throw errors.
+  - Address resolution: a basic address resolution policy. Used to resolve `rpc_address` fields.
+- Waiting for schema consensus between nodes on `SCHEMA_CHANGE` (DML queries).
+- Many more options, configurable per session/query (queries can be executed with options overriding the session's option).
+- Complete abstraction of prepared queries. A simple option to `execute()` will handle the query preparation. If a node throws an `UNPREPARED` error, the query will be prepared and retried seamlessly.
+- Stronger test suite. Unit/integration tests with Busted, and ngx_lua integration tests with Test::Nginx Perl module. Travis-CI jobs are also faster and more reliable, and run all test suites.
+- Binary protocol auto-detection: downgrade from 3 to 2 automatically when using C* 2.0.
+- Compatible with Lua 5.1, 5.2, 5.3, LuaJIT.
+- Overall, a better architecture for a better maintainability.
+
+##### Unchanged
+
+- Still optimized for ngx_lua (cosocket API) and plain Lua (with LuaSocket).
+- TLS client-to-node encryption and Authentication (PasswordAuthenticator) are still supported.
+- The serializers stayed the same (even if their architecture was rewritten).
+
+##### Removed
+
+- No more support for query tracing (will be added back later).
+
 ### [0.3.6] - 2015/08/06
 
 ##### Added
@@ -58,7 +99,9 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.6...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...HEAD
+[0.4.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.0...0.4.1
+[0.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.6...0.4.0
 [0.3.6]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.5...0.3.6
 [0.3.5]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.3...0.3.5
 [0.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.0...0.3.3

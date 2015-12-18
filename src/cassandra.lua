@@ -547,7 +547,7 @@ local function check_schema_consensus(request_handler)
 
   local match = true
   for _, peer_row in ipairs(peers_res) do
-    if peer_row.schema_version ~= local_res[1].schema_version then
+    if peer_row.schema_version == nil or #local_res < 1 or local_res[1].schema_version == nil or peer_row.schema_version ~= local_res[1].schema_version then
       match = false
       break
     end
@@ -968,7 +968,7 @@ function Cassandra.spawn_session(options)
 end
 
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
-local SELECT_LOCAL_QUERY = "SELECT data_center,rack,rpc_address,release_version FROM system.local WHERE key='local'"
+local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
 
 -- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(options)
@@ -984,7 +984,8 @@ function Cassandra.refresh_hosts(options)
 
     local contact_points_hosts = {}
     for _, contact_point in ipairs(options.contact_points) do
-      table_insert(contact_points_hosts, Host:new(contact_point, options))
+      local address = options.policies.address_resolution(contact_point)
+      table_insert(contact_points_hosts, Host:new(address, options))
     end
 
     local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
@@ -1001,7 +1002,6 @@ function Cassandra.refresh_hosts(options)
       return nil, err
     end
     local row = rows[1]
-    local address = options.policies.address_resolution(row["rpc_address"])
     local local_host = {
       --datacenter = row["data_center"],
       --rack = row["rack"],
@@ -1010,7 +1010,7 @@ function Cassandra.refresh_hosts(options)
       unhealthy_at = 0,
       reconnection_delay = 0
     }
-    hosts[address] = local_host
+    hosts[coordinator.address] = local_host
     log.info("Local info retrieved")
 
     rows, err = coordinator:send(peers_query)

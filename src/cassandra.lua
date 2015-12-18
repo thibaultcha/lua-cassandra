@@ -31,6 +31,7 @@ local string_format = string.format
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
+local pcall = pcall
 
 local function lock_mutex(shm, key)
   if resty_lock then
@@ -63,7 +64,7 @@ local DEFAULT_PROTOCOL_VERSION = 3
 --- Cassandra
 
 local Cassandra = {
-  _VERSION = "0.4.0",
+  _VERSION = "0.4.1",
   DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
   MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
 }
@@ -86,6 +87,12 @@ local function new_socket(self)
     -- fallback to luasocket
     tcp_sock = require("socket").tcp
     sock_type = "luasocket"
+    local status, res = pcall(require, "socket")
+    if status then
+      tcp_sock = res.tcp
+    else
+      error("Error requiring LuaSocket while outside of ngx_lua: "..res)
+    end
   end
 
   local socket, err = tcp_sock()
@@ -547,7 +554,7 @@ local function check_schema_consensus(request_handler)
 
   local match = true
   for _, peer_row in ipairs(peers_res) do
-    if peer_row.schema_version == nil or #local_res < 1 or local_res[1].schema_version == nil or peer_row.schema_version ~= local_res[1].schema_version then
+    if peer_row.schema_version ~= local_res[1].schema_version then
       match = false
       break
     end
@@ -968,7 +975,7 @@ function Cassandra.spawn_session(options)
 end
 
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
-local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
+--local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
 
 -- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(options)
@@ -993,15 +1000,15 @@ function Cassandra.refresh_hosts(options)
       return nil, err
     end
 
-    local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
+    --local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
     local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
     local hosts = {}
 
-    local rows, err = coordinator:send(local_query)
-    if err then
-      return nil, err
-    end
-    local row = rows[1]
+    --local rows, err = coordinator:send(local_query)
+    --if err then
+    --  return nil, err
+    --end
+    --local row = rows[1]
     local local_host = {
       --datacenter = row["data_center"],
       --rack = row["rack"],
@@ -1013,13 +1020,13 @@ function Cassandra.refresh_hosts(options)
     hosts[coordinator.address] = local_host
     log.info("Local info retrieved")
 
-    rows, err = coordinator:send(peers_query)
+    local rows, err = coordinator:send(peers_query)
     if err then
       return nil, err
     end
 
     for _, row in ipairs(rows) do
-      address = options.policies.address_resolution(row["rpc_address"])
+      local address = options.policies.address_resolution(row["rpc_address"])
       log.info("Adding host "..address)
       hosts[address] = {
         --datacenter = row["data_center"],

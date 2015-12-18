@@ -126,7 +126,7 @@ Once you have a local copy of this module's `src/` fo   lder, add it to your `LU
 
 ## Documentation and examples
 
-The current [documentation] targets version `0.3.6` only. `0.4.0` documentation should come soon.
+The current [documentation] targets version `0.3.6` only. `0.4.x` documentation should come soon.
 
 ## Test Suite
 
@@ -197,4 +197,4 @@ $ make doc
 [badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-0.4.0--0-blue.svg?style=flat
+[badge-version-image]: https://img.shields.io/badge/version-0.4.1--0-blue.svg?style=flat

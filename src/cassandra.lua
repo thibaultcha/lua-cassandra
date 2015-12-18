@@ -284,7 +284,7 @@ function Host:connect()
       end
     end
 
-    return false, err
+    return false, err, true
   elseif res.must_authenticate then
     log.info("Host at "..self.address.." required authentication")
     local authenticator, err = auth.new_authenticator(res.class_name, self.options)

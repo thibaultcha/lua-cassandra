@@ -44,6 +44,11 @@ local function validFixture(state, arguments)
   else
     result = pcall(assert.equal, fixture, decoded)
   end
+
+  -- pop first argument, for proper output message (like assert.same)
+  table.remove(arguments, 1)
+  table.insert(arguments, 1, table.remove(arguments, 2))
+
   return result
 end
 
@@ -70,8 +75,8 @@ say:set("assertion.sameSet.positive", "Fixture and decoded value do not match")
 say:set("assertion.sameSet.negative", "Fixture and decoded value do not match")
 assert:register("assertion", "sameSet", sameSet, "assertion.sameSet.positive", "assertion.sameSet.negative")
 
-say:set("assertion.validFixture.positive", "Fixture and decoded value do not match")
-say:set("assertion.validFixture.negative", "Fixture and decoded value do not match")
+say:set("assertion.validFixture.positive", "Expected fixture and decoded value to match.\nPassed in:\n%s\nExpected:\n%s")
+say:set("assertion.validFixture.negative", "Expected fixture and decoded value to not match.\nPassed in:\n%s\nExpected:\n%s")
 assert:register("assertion", "validFixture", validFixture, "assertion.validFixture.positive", "assertion.validFixture.negative")
 
 _M.cql_fixtures = {

@@ -23,8 +23,8 @@ It is build following the example of the official Datastax drivers, and tries to
 - TLS client-to-node encryption
 - Client authentication
 - Highly configurable options per session/query
-- Compatible with Cassandra 2.0 and 2.1
-- Works with Lua 5.1, 5.2, 5.3 and LuaJIT 2.x
+- Support Cassandra 2.0+
+- Compatible with Lua 5.1, 5.2, 5.3, LuaJIT 2.x, and optimized for OpenResty/ngx_lua.
 
 ## Usage
 

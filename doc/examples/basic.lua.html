@@ -53,48 +53,109 @@
     <h2>basic.lua</h2>
 <pre>
 <span class="comment">--------
-</span><span class="comment">-- Basic example
+</span><span class="comment">-- Basic example using LuaSocket in plain Lua
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
-<span class="comment">-- local cassandra = require "cassandra.v2" -- binary protocol v2 for Cassandra 2.0.x
-</span>
-<span class="keyword">local</span> session = cassandra:new()
-session:set_timeout(<span class="number">1000</span>) <span class="comment">-- 1000ms timeout
-</span>
-<span class="keyword">local</span> connected, err = session:connect(<span class="string">"127.0.0.1"</span>, <span class="number">9042</span>)
-<span class="global">assert</span>(connected)
-session:set_keyspace(<span class="string">"demo"</span>)
+
+<span class="comment">-- If this <code>shm</code> is empty, this will connect to the cluster
+</span><span class="comment">-- and retrieve its infos first.
+</span><span class="keyword">local</span> session, err = cassandra.spawn_session {
+  shm = <span class="string">"cassandra"</span>, <span class="comment">-- used to store cluster infos
+</span>  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>}, <span class="comment">-- entry points to your cluster
+</span>  keyspace = <span class="string">"my_keyspace"</span>, <span class="comment">-- this keyspace must exist
+</span>  socket_options = {
+    connect_timeout = <span class="number">5000</span>, <span class="comment">-- 5s timeout for connect
+</span>    read_timeout = <span class="number">8000</span> <span class="comment">-- 8s timeout for operations
+</span>  }
+}
+<span class="global">assert</span>(err == <span class="keyword">nil</span>)
 
 <span class="comment">-- simple query
-</span><span class="keyword">local</span> table_created, err = session:execute <span class="string">[[
+</span><span class="keyword">local</span> result, err = session:execute <span class="string">[[
   CREATE TABLE users(
     id uuid PRIMARY KEY,
     name varchar,
     age int
   )
 ]]</span>
+<span class="global">assert</span>(err == <span class="keyword">nil</span>)
+<span class="global">assert</span>(result.<span class="global">type</span> == <span class="string">"SCHEMA_CHANGE"</span>)
 
 <span class="comment">-- query with arguments
-</span><span class="keyword">local</span> ok, err = session:execute(<span class="string">"INSERT INTO users(name, age, user_id) VALUES(?, ?, ?)"</span>
-  , {<span class="string">"John O'Reilly"</span>, <span class="number">42</span>, cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>)})
+</span><span class="keyword">local</span> ok, err = session:execute(<span class="string">"INSERT INTO users(id, name, age) VALUES(?, ?, ?)"</span>, {
+  cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>),
+  <span class="string">"John O'Reilly"</span>,
+  <span class="number">42</span>
+})
 
+<span class="comment">-- select statement with some custom query options, overriding
+</span><span class="comment">-- the ones defined at session creation
+</span><span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT id, name, age FROM users"</span>, <span class="keyword">nil</span>, {
+  consistency = cassandra.concistencies.local_one, <span class="comment">-- desired consistency (default is 'ONE')
+</span>  page_size = <span class="number">100</span> <span class="comment">-- no more than 100 rows
+</span>}
+<span class="global">assert</span>(<span class="number">1</span> == #rows)
 
-<span class="comment">-- select statement
-</span><span class="keyword">local</span> users, err = session:execute(<span class="string">"SELECT name, age, user_id FROM users"</span>)
-<span class="global">assert</span>(<span class="number">1</span> == #users)
-
-<span class="keyword">local</span> user = users[<span class="number">1</span>]
+<span class="keyword">local</span> user = rows[<span class="number">1</span>]
 <span class="global">print</span>(user.name) <span class="comment">-- "John O'Reilly"
-</span><span class="global">print</span>(user.user_id) <span class="comment">-- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
 </span><span class="global">print</span>(user.age) <span class="comment">-- 42
-</span></pre>
+</span><span class="global">print</span>(user.id) <span class="comment">-- "1144bada-852c-11e3-89fb-e0b9a54a6d11"
+</span>
+session:shutdown()
+
+<span class="comment">--------
+</span><span class="comment">-- Basic example in ngx_lua
+</span>
+http {
+
+  # will store cluster infos
+  lua_shared_dict cassandra <span class="number">1</span>m;
+
+  server {
+    ...
+
+    location / {
+
+      content_by_lua_block {
+        <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+
+        <span class="keyword">local</span> session, err = cassandra.spawn_session {
+          shm = <span class="string">"cassandra"</span>, <span class="comment">-- name of the shared dict
+</span>          contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>},
+          keyspace = <span class="string">"my_keyspace"</span>, <span class="comment">-- this keyspace must exist
+</span>          socket_options = {
+            connect_timeout = <span class="number">5000</span>, <span class="comment">-- 5s timeout for connect
+</span>            read_timeout = <span class="number">8000</span> <span class="comment">-- 8s timeout for operations
+</span>          }
+        }
+        <span class="keyword">if</span> err <span class="keyword">then</span>
+          ngx.log(ngx.ERR, err)
+          ngx.exit(<span class="number">500</span>)
+        <span class="keyword">end</span>
+
+
+        <span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM users"</span>)
+        <span class="keyword">if</span> err <span class="keyword">then</span>
+          <span class="comment">-- ...
+</span>        <span class="keyword">end</span>
+
+        <span class="keyword">for</span> _, row <span class="keyword">in</span> <span class="global">ipairs</span>(rows) <span class="keyword">do</span>
+          ngx.say(row.name..<span class="string">": "</span>..row.age)
+        <span class="keyword">end</span>
+
+        <span class="comment">-- keep the sockets alive in the connection pool
+</span>        session:set_keep_alive()
+      }
+    }
+  }
+}</pre>
 
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2015-12-21 00:28:06 </i>
+<i style="float:right;">Last updated 2015-12-24 14:57:10 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

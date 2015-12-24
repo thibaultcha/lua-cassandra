@@ -29,7 +29,7 @@ $ luarocks install lua-cassandra
 
 Manually:
 
-Once you have a local copy of this module's `src/` fo   lder, add it to your `LUA_PATH` (or `lua_package_path` for ngx_lua):
+Once you have a local copy of this module's `src/` directory, add it to your `LUA_PATH` (or `lua_package_path` directive for ngx_lua):
 
 ```
 /path/to/src/?.lua;/path/to/src/?/init.lua;

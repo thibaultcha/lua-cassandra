@@ -1,8 +1,8 @@
 # lua-cassandra ![Module Version][badge-version-image] [![Build Status][badge-travis-image]][badge-travis-url] [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-A pure Lua client library for Apache Cassandra (2.0+), compatible with Lua and [ngx_lua].
+A pure Lua client library for Apache Cassandra (2.0+), compatible with [ngx_lua]/[OpenResty] and plain Lua.
 
-It is build following the example of the official Datastax drivers, and tries to implement the same behaviors, options and features.
+It is implemented following the example of the official Datastax drivers, and tries to offer the same behaviors, options and features.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ It is build following the example of the official Datastax drivers, and tries to
 - [Usage](#usage)
 - [Installation](#installation)
 - [Documentation and Examples](#documentation-and-examples)
+- [Roadmap](#roadmap)
 - [Test Suites](#test-suites)
 - [Tools](#tools)
 
@@ -124,9 +125,22 @@ Once you have a local copy of this module's `src/` directory, add it to your `LU
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
 - If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)
 
-## Documentation and examples
+## Documentation and Examples
 
-The current [documentation] targets version `0.3.6` only. `0.4.x` documentation should come soon.
+Refer to the online [manual] and detailed [documentation]. You will also find [examples] there and you can browse the test suites for in-depth ones.
+
+## Roadmap
+
+CQL:
+- Support for query tracing
+- Support for native protocol v3's default timestamps and named parameters
+- Support for native protocol v4
+
+Documentation:
+- Options
+- Errors
+- Type inference of binded parameters
+- Type serialization example
 
 ## Test Suites
 
@@ -186,10 +200,12 @@ $ make doc
 ```
 
 [ngx_lua]: https://github.com/openresty/lua-nginx-module
+[OpenResty]: https://openresty.org
 
 [Luarocks]: https://luarocks.org
 [documentation]: http://thibaultcha.github.io/lua-cassandra/
 [manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
+[examples]: http://thibaultcha.github.io/lua-cassandra/examples/basic.lua.html
 
 [badge-travis-url]: https://travis-ci.org/thibaultCha/lua-cassandra
 [badge-travis-image]: https://travis-ci.org/thibaultCha/lua-cassandra.svg?branch=master
@@ -198,3 +214,4 @@ $ make doc
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
 [badge-version-image]: https://img.shields.io/badge/version-0.4.1--0-blue.svg?style=flat
+

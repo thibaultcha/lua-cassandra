@@ -10,7 +10,7 @@ It is build following the example of the official Datastax drivers, and tries to
 - [Usage](#usage)
 - [Installation](#installation)
 - [Documentation and Examples](#documentation-and-examples)
-- [Test Suite](#test-suite)
+- [Test Suites](#test-suites)
 - [Tools](#tools)
 
 ## Features
@@ -113,7 +113,7 @@ $ luarocks install lua-cassandra
 
 Manually:
 
-Once you have a local copy of this module's `src/` fo   lder, add it to your `LUA_PATH` (or `lua_package_path` for ngx_lua):
+Once you have a local copy of this module's `src/` directory, add it to your `LUA_PATH` (or `lua_package_path` directive for ngx_lua):
 
 ```
 /path/to/src/?.lua;/path/to/src/?/init.lua;
@@ -128,21 +128,21 @@ Once you have a local copy of this module's `src/` fo   lder, add it to your `LU
 
 The current [documentation] targets version `0.3.6` only. `0.4.x` documentation should come soon.
 
-## Test Suite
+## Test Suites
 
-This library uses three test suites:
+This library relies on three test suites:
 
 - Unit tests, with busted
 - Integration tests, with busted and a running Cassandra cluster
-- ngx_lua integration tests with Test::Nginx::Socket and a running Cassandra cluster
+- ngx_lua integration tests with Test::Nginx::Socket and a running Cassandra cluster too
 
-- The first can simply be run after installing [busted](http://olivinelabs.com/busted/) and running:
+The first can simply be run after installing [busted](http://olivinelabs.com/busted/) and running:
 
 ```shell
 $ busted spec/unit
 ```
 
-- The integration tests are located in another folder, and require a Cassandra instance (currently 2.1+) to be running. Your cluster's hosts (not just the contact points, but all of them) should be declared in the `HOSTS` environment variable:
+The integration tests are located in another folder, and require a Cassandra instance (currently 2.1+) to be running. Your cluster's hosts (not just the contact points, but all of them) should be declared in the `HOSTS` environment variable:
 
 ```shell
 $ HOSTS=127.0.0.1,127.0.0.2,127.0.0.3 busted spec/integration
@@ -156,7 +156,7 @@ $ prove t/
 
 ## Tools
 
-This module can also use various tools for code quality, they can easily be installed from Luarocks by running:
+This module can also use various tools for documentation and code quality, they can easily be installed from Luarocks by running:
 
 ```
 $ make dev

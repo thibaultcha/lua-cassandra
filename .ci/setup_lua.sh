@@ -28,8 +28,8 @@ if [ "$LUAJIT" == "yes" ]; then
 
   # If cache is empty, download and compile
   if [ ! "$(ls -A $LUAJIT_DIR)" ]; then
-    git clone http://luajit.org/git/luajit-2.0.git
-    pushd luajit-2.0
+    git clone https://github.com/luajit/luajit
+    pushd luajit
 
     if [ "$LUA" == "luajit-2.0" ]; then
       git checkout v2.0.4

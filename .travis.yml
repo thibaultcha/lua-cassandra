@@ -26,9 +26,10 @@ env:
     - LUA=lua5.1
     - LUA=lua5.2
     - LUA=lua5.3
+    - LUA=luajit-2.0
     - LUA=luajit-2.1
-    - OPENRESTY_TESTS: "yes"
-      LUA: "luajit-2.1"
+    - OPENRESTY_TESTS: yes
+      LUA: luajit-2.1
 before_install:
   - bash .ci/setup_cassandra.sh
   - bash .ci/setup_lua.sh
@@ -38,13 +39,11 @@ before_install:
   - export LUA_CPATH="$LUAROCKS_DIR/lib/lua/5.1/?.so;$LUA_CPATH"
 install:
   - make dev
-  - luarocks install ansicolors
 script: .ci/run_tests.sh
 cache:
   cpan: true
   apt: true
-  pip: true
   directories:
-    - $LUAJIT_DIR
     - $OPENRESTY_DIR
     - $HOME/.ccm/repository/
+    - $HOME/.cache/pip

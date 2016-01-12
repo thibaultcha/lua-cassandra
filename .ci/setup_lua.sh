@@ -24,29 +24,24 @@ elif [ "$LUA" == "luajit-2.1" ]; then
 fi
 
 if [ "$LUAJIT" == "yes" ]; then
-  mkdir -p $LUAJIT_DIR
+  git clone https://github.com/luajit/luajit $LUAJIT_DIR
+  pushd $LUAJIT_DIR
 
-  # If cache is empty, download and compile
-  if [ ! "$(ls -A $LUAJIT_DIR)" ]; then
-    git clone https://github.com/luajit/luajit
-    pushd luajit
-
-    if [ "$LUA" == "luajit-2.0" ]; then
-      git checkout v2.0.4
-    elif [ "$LUA" == "luajit-2.1" ]; then
-      git checkout v2.1
-    fi
-
-    make
-    make install PREFIX=$LUAJIT_DIR
-    popd
-
-    if [ "$LUA" == "luajit-2.1" ]; then
-      ln -sf $LUAJIT_DIR/bin/luajit-2.1.0-beta1 $LUAJIT_DIR/bin/luajit
-    fi
-
-    ln -sf $LUAJIT_DIR/bin/luajit $LUAJIT_DIR/bin/lua
+  if [ "$LUA" == "luajit-2.0" ]; then
+    git checkout v2.0.4
+  elif [ "$LUA" == "luajit-2.1" ]; then
+    git checkout v2.1
   fi
+
+  make
+  make install PREFIX=$LUAJIT_DIR
+  popd
+
+  if [ "$LUA" == "luajit-2.1" ]; then
+    ln -sf $LUAJIT_DIR/bin/luajit-2.1.0-beta1 $LUAJIT_DIR/bin/luajit
+  fi
+
+  ln -sf $LUAJIT_DIR/bin/luajit $LUAJIT_DIR/bin/lua
 
   LUA_INCLUDE="$LUAJIT_DIR/include/$LUA"
 else

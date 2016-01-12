@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if [ "$OPENRESTY_TESTS" != "yes" ]; then
-  exit
   echo "Exiting, no openresty tests"
+  exit
 fi
 
 set -e

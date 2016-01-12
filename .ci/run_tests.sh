@@ -3,7 +3,7 @@
 set -e
 
 if [ "$OPENRESTY_TESTS" != "yes" ]; then
-  busted -v --coverage -o .ci/busted_print.lua
+  busted -v --coverage -o gtest
   make lint
   luacov-coveralls -i cassandra
 else

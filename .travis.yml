@@ -15,7 +15,7 @@ env:
   global:
     - CASSANDRA_VERSION=2.1.12
     - LUAROCKS_VERSION=2.2.3
-    - OPENRESTY_VERSION=1.9.3.1
+    - OPENRESTY_VERSION=1.9.7.1
     - LUA_DIR=$HOME/lua
     - LUAJIT_DIR=$HOME/luajit
     - LUAROCKS_DIR=$HOME/luarocks

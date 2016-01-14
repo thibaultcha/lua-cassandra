@@ -42,7 +42,7 @@ describe("error handling", function()
         shm = "test",
         contact_points = contact_points
       }
-      assert.truthy(err)
+      assert.is_table(err)
       assert.falsy(cluster)
       assert.equal("NoHostAvailableError", err.type)
     end)
@@ -76,7 +76,7 @@ describe("error handling", function()
       local session, err = cassandra.spawn_session {
         shm = shm
       }
-      assert.truthy(err)
+      assert.is_table(err)
       assert.falsy(session)
       assert.equal("DriverError", err.type)
       assert.equal("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.", err.message)
@@ -99,12 +99,12 @@ describe("error handling", function()
     it("should handle CQL errors", function()
       local res, err = session:execute("CAN I HAZ CQL")
       assert.falsy(res)
-      assert.truthy(err)
+      assert.is_table(err)
       assert.equal("ResponseError", err.type)
 
       res, err = session:execute("SELECT * FROM system.local WHERE key = ?")
       assert.falsy(res)
-      assert.truthy(err)
+      assert.is_table(err)
       assert.equal("ResponseError", err.type)
     end)
   end)
@@ -113,7 +113,7 @@ describe("error handling", function()
       local shm = "test_shm_errors"
       local cache = require "cassandra.cache"
       local dict = cache.get_dict(shm)
-      assert.truthy(dict)
+      assert.is_table(dict)
 
       local ok, err = cassandra.spawn_cluster {
         shm = shm,
@@ -121,7 +121,7 @@ describe("error handling", function()
       }
       assert.falsy(err)
       assert.True(ok)
-      assert.truthy(cache.get_hosts(shm))
+      assert.is_table(cache.get_hosts(shm))
 
       -- erase hosts from the cache
       dict:delete("hosts")
@@ -137,7 +137,7 @@ describe("error handling", function()
       -- attempt query
       local rows, err = session:execute("SELECT * FROM system.local")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(1, #rows)
     end)
   end)

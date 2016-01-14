@@ -558,18 +558,18 @@ local function check_schema_consensus(request_handler)
     return nil, err
   end
 
+  local match = false
   if #peers_res > 0 and #local_res > 0 then
-    local match = true
+    match = true
     for _, peer_row in ipairs(peers_res) do
       if peer_row.schema_version ~= local_res[1].schema_version then
         match = false
         break
       end
     end
-    return match
-  else
-    return false
   end
+
+  return match
 end
 
 function RequestHandler:wait_for_schema_consensus()

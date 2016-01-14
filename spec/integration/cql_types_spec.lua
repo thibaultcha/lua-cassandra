@@ -82,9 +82,11 @@ describe("CQL types integration", function()
 
         local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
         assert.falsy(err)
-        assert.truthy(rows)
+        assert.is_table(rows)
+        assert.equal(1, #rows)
 
         local decoded = rows[1][fixture_type.."_sample"]
+        assert.is_not_nil(decoded)
         assert.validFixture(fixture_type, fixture, decoded)
       end
     end)
@@ -96,7 +98,8 @@ describe("CQL types integration", function()
 
     local rows, err = session:execute("SELECT * FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
     assert.falsy(err)
-    assert.truthy(rows)
+    assert.is_table(rows)
+    assert.equal(1, #rows)
     assert.truthy(rows[1].ascii_sample)
 
     local res, err = session:execute("UPDATE all_types SET ascii_sample = ? WHERE id = ?", {cassandra.unset, cassandra.uuid(_UUID)})
@@ -105,7 +108,8 @@ describe("CQL types integration", function()
 
     rows, err = session:execute("SELECT * FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
     assert.falsy(err)
-    assert.truthy(rows)
+    assert.is_table(rows)
+    assert.equal(1, #rows)
     assert.falsy(rows[1].ascii_sample)
   end)
 
@@ -120,9 +124,11 @@ describe("CQL types integration", function()
 
       local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
+      assert.equal(1, #rows)
 
       local decoded = rows[1]["map_sample_"..fixture.key_type_name.."_"..fixture.value_type_name]
+      assert.is_not_nil(decoded)
       assert.validFixture("list", fixture.value, decoded)
     end
   end)
@@ -138,7 +144,8 @@ describe("CQL types integration", function()
 
     local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
     assert.falsy(err)
-    assert.truthy(rows)
+    assert.is_table(rows)
+    assert.equal(1, #rows)
     assert.falsy(rows[1].map_sample_text_int)
   end)
 
@@ -153,9 +160,11 @@ describe("CQL types integration", function()
 
       local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
+      assert.equal(1, #rows)
 
       local decoded = rows[1]["list_sample_"..fixture.type_name]
+      assert.is_not_nil(decoded)
       assert.validFixture("list", fixture.value, decoded)
     end
   end)
@@ -172,8 +181,11 @@ describe("CQL types integration", function()
       local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
       assert.falsy(err)
       assert.truthy(rows)
+      assert.is_table(rows)
+      assert.equal(1, #rows)
 
       local decoded = rows[1]["set_sample_"..fixture.type_name]
+      assert.is_not_nil(decoded)
       assert.sameSet(fixture.value, decoded)
     end
   end)
@@ -186,8 +198,10 @@ describe("CQL types integration", function()
 
     local rows, err = session:execute("SELECT udt_sample FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
     assert.falsy(err)
-    assert.truthy(rows)
+    assert.is_table(rows)
+    assert.equal(1, #rows)
     local address = rows[1].udt_sample
+    assert.is_table(address)
     assert.equal("montgomery st", address.street)
     assert.equal("san francisco", address.city)
     assert.equal(94111, address.zip)
@@ -201,8 +215,10 @@ describe("CQL types integration", function()
 
       local rows, err = session:execute("SELECT tuple_sample FROM all_types WHERE id = ?", {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
+      assert.equal(1, #rows)
       local tuple = rows[1].tuple_sample
+      assert.is_not_nil(tuple)
       assert.equal(fixture.value[1], tuple[1])
       assert.equal(fixture.value[2], tuple[2])
     end
@@ -222,9 +238,11 @@ describe("CQL types integration", function()
 
           local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
           assert.falsy(err)
-          assert.truthy(rows)
+          assert.is_table(rows)
+          assert.equal(1, #rows)
 
           local decoded = rows[1][fixture_type.."_sample"]
+          assert.is_not_nil(decoded)
           assert.validFixture(fixture_type, fixture, decoded)
         end
       end)
@@ -241,9 +259,11 @@ describe("CQL types integration", function()
 
         local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
         assert.falsy(err)
-        assert.truthy(rows)
+        assert.is_table(rows)
+        assert.equal(1, #rows)
 
         local decoded = rows[1]["list_sample_"..fixture.type_name]
+        assert.is_not_nil(decoded)
         assert.validFixture("list", fixture.value, decoded)
       end
     end)
@@ -260,9 +280,11 @@ describe("CQL types integration", function()
 
       local rows, err = session:execute(select_query, {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
+      assert.equal(1, #rows)
 
       local decoded = rows[1]["set_sample_"..fixture.type_name]
+      assert.is_not_nil(decoded)
       assert.sameSet(fixture.value, decoded)
     end
   end)

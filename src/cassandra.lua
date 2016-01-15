@@ -548,21 +548,24 @@ local function check_schema_consensus(request_handler)
 
   local local_query = Requests.QueryRequest("SELECT schema_version FROM system.local")
   local local_res, err = request_handler.coordinator:send(local_query)
-  if err then
+  if local_res == nil or err then
     return nil, err
   end
 
   local peers_query = Requests.QueryRequest("SELECT schema_version FROM system.peers")
   local peers_res, err = request_handler.coordinator:send(peers_query)
-  if err then
+  if peers_res == nil or err then
     return nil, err
   end
 
-  local match = true
-  for _, peer_row in ipairs(peers_res) do
-    if peer_row.schema_version ~= local_res[1].schema_version then
-      match = false
-      break
+  local match = false
+  if #peers_res > 0 and #local_res > 0 then
+    match = true
+    for _, peer_row in ipairs(peers_res) do
+      if peer_row.schema_version ~= local_res[1].schema_version then
+        match = false
+        break
+      end
     end
   end
 

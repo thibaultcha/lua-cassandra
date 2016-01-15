@@ -117,9 +117,9 @@ describe("spawn_session()", function()
     end
   end)
   describe("execute()", function()
-    teardown(function()
+    after_each(function()
       -- drop keyspace in case tests failed
-      session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
+      session:execute("DROP KEYSPACE resty_cassandra_spec")
     end)
     it("should require argument #1 to be a string", function()
       assert.has_error(function()
@@ -129,42 +129,57 @@ describe("spawn_session()", function()
     it("should parse ROWS results", function()
       local rows, err = session:execute("SELECT key FROM system.local")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal("ROWS", rows.type)
       assert.equal(1, #rows)
       assert.equal("local", rows[1].key)
     end)
-    it("should parse SCHEMA_CHANGE/SET_KEYSPACE results and wait for schema consensus", function()
+    it("should parse SCHEMA_CHANGE -> CREATED result", function()
       local res, err = session:execute [[
-        CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec_parsing
+        CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec
         WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
       ]]
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal(0, #res)
       assert.equal("SCHEMA_CHANGE", res.type)
       assert.equal("CREATED", res.change)
       assert.equal("KEYSPACE", res.keyspace)
-      assert.equal("resty_cassandra_spec_parsing", res.table)
-
-      res, err = session:execute [[USE "resty_cassandra_spec_parsing"]]
+      assert.equal("resty_cassandra_spec", res.table)
+    end)
+    it("should parse SET_KEYSPACE results", function()
+      local res, err = session:execute [[
+        CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec
+        WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
+      ]]
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
+
+      res, err = session:execute [[USE "resty_cassandra_spec"]]
+      assert.falsy(err)
+      assert.is_table(res)
       assert.equal(0, #res)
       assert.equal("SET_KEYSPACE", res.type)
-      assert.equal("resty_cassandra_spec_parsing", res.keyspace)
+      assert.equal("resty_cassandra_spec", res.keyspace)
     end)
     it("should spawn a session in a given keyspace", function()
+      local res, err = session:execute [[
+        CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec
+        WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
+      ]]
+      assert.falsy(err)
+      assert.is_table(res)
+
       local session_in_keyspace, err = cassandra.spawn_session({
         shm = _shm,
-        keyspace = "resty_cassandra_spec_parsing"
+        keyspace = "resty_cassandra_spec"
       })
       assert.falsy(err)
-      assert.equal("resty_cassandra_spec_parsing", session_in_keyspace.options.keyspace)
-      assert.equal("resty_cassandra_spec_parsing", session_in_keyspace.hosts[1].options.keyspace)
+      assert.equal("resty_cassandra_spec", session_in_keyspace.options.keyspace)
+      assert.equal("resty_cassandra_spec", session_in_keyspace.hosts[1].options.keyspace)
 
       local _, err = session:execute [[
-        CREATE TABLE IF NOT EXISTS resty_cassandra_spec_parsing.users(
+        CREATE TABLE IF NOT EXISTS resty_cassandra_spec.users(
           id uuid PRIMARY KEY,
           name varchar,
           age int
@@ -174,15 +189,54 @@ describe("spawn_session()", function()
 
       local rows, err = session_in_keyspace:execute("SELECT * FROM users")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(0, #rows)
     end)
-    it("should parse SCHEMA_CHANGE bis", function()
-      local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec_parsing")
+    it("should parse SCHEMA_CHANGE -> DROPPED result", function()
+      local res, err = session:execute [[
+        CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec
+        WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
+      ]]
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
+
+      local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec")
+      assert.falsy(err)
+      assert.is_table(res)
       assert.equal(0, #res)
       assert.equal("DROPPED", res.change)
+    end)
+    describe("schema consensus", function()
+      it("should wait for schema consensus between multiple nodes on SCHEMA_CHANGE queries", function()
+        if #_hosts < 2 then
+          pending("Not testing schema consensus on single-node cluster")
+        end
+
+        local q = [[
+          CREATE KEYSPACE IF NOT EXISTS resty_cassandra_spec
+          WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': ]]..#_hosts..[[}
+        ]]
+
+        local _, err = session:execute(q)
+        assert.falsy(err)
+
+        _, err = session:execute [[
+          CREATE TABLE resty_cassandra_spec.fixture_table(
+            id uuid PRIMARY KEY,
+            value varchar
+          )
+        ]]
+        assert.falsy(err)
+
+        -- This ought not to fail if the schema consensus was properly propagated
+        -- and if we properly waited until then.
+        local res, err = session:execute [[
+          INSERT INTO resty_cassandra_spec.fixture_table(id, value)
+          VALUES(uuid(), 'text')
+        ]]
+        assert.falsy(err)
+        assert.is_table(res)
+      end)
     end)
   end)
 end)
@@ -228,6 +282,7 @@ describe("session", function()
 
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
+      assert.is_table(rows)
       assert.equal(0, #rows)
     end)
   end)
@@ -237,19 +292,19 @@ describe("session", function()
       local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(?, ?, ?)",
         {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 1})
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal("VOID", res.type)
 
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(1, #rows)
       assert.equal("Bob", rows[1].name)
     end)
     it("should return results with a `meta` property", function()
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.truthy(rows.meta)
       assert.falsy(rows.meta.columns)
       assert.falsy(rows.meta.columns_count)
@@ -259,19 +314,19 @@ describe("session", function()
       for i = 2, utils.n_inserts do
         local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {"Alice", i})
         assert.falsy(err)
-        assert.truthy(res)
+        assert.is_table(res)
       end
 
       local rows, err = session:execute("SELECT COUNT(*) FROM users")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(utils.n_inserts, rows[1].count)
     end)
     it("should have a default page_size (1000)", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n")
       assert.falsy(err)
-      assert.truthy(rows)
-      assert.truthy(rows.meta)
+      assert.is_table(rows)
+      assert.is_table(rows.meta)
       assert.True(rows.meta.has_more_pages)
       assert.truthy(rows.meta.paging_state)
       assert.equal(1000, #rows)
@@ -281,18 +336,18 @@ describe("session", function()
     it("should be possible to specify a per-query page_size option", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(100, #rows)
 
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(1000, #rows) -- back to the default
     end)
     it("should support passing a paging_state to retrieve next pages", function()
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(100, #rows)
       assert.equal(1, rows[1].n)
       assert.equal(100, rows[#rows].n)
@@ -301,7 +356,7 @@ describe("session", function()
 
       rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100, paging_state = paging_state})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       assert.equal(100, #rows)
       assert.equal(101, rows[1].n)
       assert.equal(200, rows[#rows].n)
@@ -313,6 +368,7 @@ describe("session", function()
           assert.falsy(err)
           page_tracker = page_tracker + 1
           assert.equal(page_tracker, page)
+          assert.is_table(rows)
           assert.equal(10, #rows)
         end
 
@@ -335,6 +391,7 @@ describe("session", function()
           assert.falsy(err)
           page_tracker = page_tracker + 1
           assert.equal(page_tracker, page)
+          assert.is_table(rows)
           assert.equal(utils.n_inserts, #rows)
         end
 
@@ -346,6 +403,7 @@ describe("session", function()
         local page_tracker = 0
         for rows, err, page in session:execute("SELECT * FROM users WHERE col = 500", nil, {auto_paging = true}) do
           assert.truthy(err) -- 'col' is not a valid column
+          assert.same({meta = {has_more_pages = false}}, rows)
           assert.equal(0, page)
           page_tracker = page_tracker + 1
         end
@@ -366,7 +424,7 @@ describe("session", function()
 
         local rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
         assert.falsy(err)
-        assert.truthy(rows)
+        assert.is_table(rows)
         assert.True(#rows > 0)
 
         assert.spy(cache.get_prepared_query_id).was.called()
@@ -377,7 +435,7 @@ describe("session", function()
         -- again, and this time the query_id should be in the cache already
         rows, err = session:execute("SELECT * FROM users", nil, {prepare = true})
         assert.falsy(err)
-        assert.truthy(rows)
+        assert.is_table(rows)
         assert.True(#rows > 0)
 
         assert.spy(cache.get_prepared_query_id).was.called()
@@ -387,7 +445,7 @@ describe("session", function()
         for i = 1, utils.n_inserts do
           local rows, err = session:execute("SELECT * FROM users", nil, {prepare = false, page_size = 10})
           assert.falsy(err)
-          assert.truthy(rows)
+          assert.is_table(rows)
           assert.True(#rows > 0)
         end
       end)
@@ -403,7 +461,7 @@ describe("session", function()
         local page_tracker = 1
         for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true, prepare = true}) do
           assert.falsy(err)
-          assert.truthy(rows)
+          assert.is_table(rows)
           assert.True(#rows > 0 and #rows <= 10)
           page_tracker = page
         end
@@ -435,12 +493,12 @@ describe("session", function()
         {"UPDATE users SET name = 'Alicia' WHERE id = ".._UUID.." AND n = 1"}
       })
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal("VOID", res.type)
 
       local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 1", {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia", row.name)
     end)
@@ -451,12 +509,12 @@ describe("session", function()
         {"UPDATE users SET name = ? WHERE id = ? AND n = 2", {"Alicia2", cassandra.uuid(_UUID)}}
       })
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal("VOID", res.type)
 
       local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 2", {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia2", row.name)
     end)
@@ -467,12 +525,12 @@ describe("session", function()
         {"UPDATE users SET name = ? WHERE id = ? AND n = 3", {"Alicia3", cassandra.uuid(_UUID)}}
       }, {logged = false})
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal("VOID", res.type)
 
       local rows, err = session:execute("SELECT * FROM users WHERE id = ? AND n = 3", {cassandra.uuid(_UUID)})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia3", row.name)
     end)
@@ -483,12 +541,12 @@ describe("session", function()
         {"UPDATE counter_test_table SET value = value + 1 WHERE key = ?", {"counter"}}
       }, {counter = true})
       assert.falsy(err)
-      assert.truthy(res)
+      assert.is_table(res)
       assert.equal("VOID", res.type)
 
       local rows, err = session:execute("SELECT value FROM counter_test_table WHERE key = 'counter'")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal(3, row.value)
     end)
@@ -497,7 +555,7 @@ describe("session", function()
         {"INSERT WHATEVER"},
         {"INSERT THING"}
       })
-      assert.truthy(err)
+      assert.is_table(err)
       assert.equal("ResponseError", err.type)
     end)
     it("should support protocol level timestamp", function()
@@ -510,7 +568,7 @@ describe("session", function()
 
       local rows, err = session:execute("SELECT name, writetime(name) FROM users WHERE id = ".._UUID.." AND n = 4")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia4", row.name)
       assert.equal(1428311323417123, row["writetime(name)"])
@@ -525,7 +583,7 @@ describe("session", function()
 
       local rows, err = session:execute("SELECT name, writetime(name) FROM users WHERE id = ".._UUID.." AND n = 5")
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia5", row.name)
     end)
@@ -555,7 +613,7 @@ describe("session", function()
 
       local rows, err = session:execute("SELECT name FROM users WHERE id = ? AND n = ?", {cassandra.uuid(_UUID), 6})
       assert.falsy(err)
-      assert.truthy(rows)
+      assert.is_table(rows)
       local row = rows[1]
       assert.equal("Alicia6", row.name)
     end)
@@ -567,7 +625,7 @@ describe("session", function()
       assert.True(session.terminated)
       assert.same({}, session.hosts)
       local rows, err = session:execute("SELECT * FROM users")
-      assert.truthy(err)
+      assert.is_table(err)
       assert.equal("NoHostAvailableError", err.type)
       assert.falsy(rows)
     end)

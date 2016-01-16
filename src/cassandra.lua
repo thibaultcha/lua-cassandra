@@ -583,7 +583,11 @@ function RequestHandler:wait_for_schema_consensus()
     match, err = check_schema_consensus(self)
   until match or err ~= nil or (time_utils.get_time() - start) < self.options.protocol_options.max_schema_consensus_wait
 
-  return err
+  if err ~= nil then
+    return err
+  elseif not match then
+    log.err("Waiting for schema consensus timed out")
+  end
 end
 
 function RequestHandler:send_on_next_coordinator(request)
@@ -757,7 +761,7 @@ local function prepare_query(request_handler, query)
     local prepared_key_lock = prepared_key.."_lock"
     local lock, lock_err, elapsed = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
     if lock_err then
-      return nil, lock_err
+      return nil, "Could not create lock for prepare request: "..lock_err
     end
 
     if elapsed and elapsed == 0 then
@@ -767,11 +771,13 @@ local function prepare_query(request_handler, query)
       local res, err = request_handler:send(prepare_request)
       if err then
         return nil, err
+      elseif res.query_id == nil then
+        return nil, "Could not retrieve query id from prepare request"
       end
       query_id = res.query_id
       local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
       if not ok then
-        return nil, cache_err
+        return nil, "Could not insert query id in cache for prepared query: "..cache_err
       end
       log.info("Query prepared for host "..request_handler.coordinator.address)
     else
@@ -779,14 +785,16 @@ local function prepare_query(request_handler, query)
       -- instantly succeed. We then skip the preparation part.
       query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
       if cache_err then
-        return nil, cache_err
+        return nil, "Could not get query id from cache for prepared query: "..cache_err
+      elseif query_id == nil then
+        return nil, "No query id found in cache for prepared query"
       end
     end
 
     -- UNLOCK MUTEX
     lock_err = unlock_mutex(lock)
     if lock_err then
-      return nil, "Error unlocking mutex for query preparation: "..lock_err
+      return nil, "Error unlocking mutex for query for prepare request: "..lock_err
     end
   end
 

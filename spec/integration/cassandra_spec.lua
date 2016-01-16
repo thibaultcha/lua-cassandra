@@ -200,7 +200,7 @@ describe("spawn_session()", function()
       assert.falsy(err)
       assert.is_table(res)
 
-      local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec")
+      res, err = session:execute("DROP KEYSPACE resty_cassandra_spec")
       assert.falsy(err)
       assert.is_table(res)
       assert.equal(0, #res)

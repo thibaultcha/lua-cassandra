@@ -28,7 +28,7 @@ local DEFAULTS = {
   },
   protocol_options = {
     default_port = 9042,
-    max_schema_consensus_wait = 5000
+    max_schema_consensus_wait = 10000
   },
   socket_options = {
     connect_timeout = 1000, -- ms

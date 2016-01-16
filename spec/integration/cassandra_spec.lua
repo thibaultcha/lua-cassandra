@@ -119,7 +119,7 @@ describe("spawn_session()", function()
   describe("execute()", function()
     after_each(function()
       -- drop keyspace in case tests failed
-      session:execute("DROP KEYSPACE resty_cassandra_spec")
+      utils.drop_keyspace(session, "resty_cassandra_spec")
     end)
     it("should require argument #1 to be a string", function()
       assert.has_error(function()
@@ -200,7 +200,7 @@ describe("spawn_session()", function()
       assert.falsy(err)
       assert.is_table(res)
 
-      local res, err = session:execute("DROP KEYSPACE resty_cassandra_spec")
+      res, err = session:execute("DROP KEYSPACE resty_cassandra_spec")
       assert.falsy(err)
       assert.is_table(res)
       assert.equal(0, #res)
@@ -221,7 +221,7 @@ describe("spawn_session()", function()
         assert.falsy(err)
 
         _, err = session:execute [[
-          CREATE TABLE resty_cassandra_spec.fixture_table(
+          CREATE TABLE IF NOT EXISTS resty_cassandra_spec.fixture_table(
             id uuid PRIMARY KEY,
             value varchar
           )

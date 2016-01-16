@@ -25,11 +25,7 @@ function _M.create_keyspace(session, keyspace)
 end
 
 function _M.drop_keyspace(session, keyspace)
-  local res, err = session:execute("DROP KEYSPACE "..keyspace)
-  if err then
-    error(err)
-  end
-  return res
+  session:execute("DROP KEYSPACE "..keyspace)
 end
 
 local delta = 0.0000001

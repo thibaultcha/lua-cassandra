@@ -575,18 +575,19 @@ end
 function RequestHandler:wait_for_schema_consensus()
   log.info("Waiting for schema consensus")
 
-  local match, err
+  local match, t_diff, err
   local start = time_utils.get_time()
 
   repeat
     time_utils.wait(0.5)
     match, err = check_schema_consensus(self)
-  until match or err ~= nil or (time_utils.get_time() - start) < self.options.protocol_options.max_schema_consensus_wait
+    t_diff = time_utils.get_time() - start
+  until match or err ~= nil or t_diff >= self.options.protocol_options.max_schema_consensus_wait
 
   if err ~= nil then
     return err
   elseif not match then
-    log.err("Waiting for schema consensus timed out")
+    log.err("Waiting for schema consensus timed out. "..t_diff.." > "..self.options.protocol_options.max_schema_consensus_wait)
   end
 end
 

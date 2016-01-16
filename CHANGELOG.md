@@ -1,5 +1,16 @@
 ### [Unreleased][unreleased]
 
+### [0.4.2] - 2016/01/16
+
+##### Fixed
+
+- Correct timeout check for schema consensus. Prior to this, schema consensus systematically timed out after 0.5s. [#24](https://github.com/thibaultCha/lua-cassandra/pull/24)
+
+##### Added
+
+- More documentation.
+- Stronger test suite and CI.
+
 ### [0.4.1] - 2015/12/18
 
 ##### Fixed
@@ -99,7 +110,8 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...HEAD
+[0.4.2]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.6...0.4.0
 [0.3.6]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.5...0.3.6

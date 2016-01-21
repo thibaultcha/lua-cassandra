@@ -5,10 +5,10 @@
 --
 -- @module cassandra
 -- @author thibaultcha
--- @release 0.4.1
+-- @release 0.4.2
 
 -- @TODO
--- flush dicts on shutdown?
+-- flush dicts on shutdown
 -- tracing
 
 local log = require "cassandra.log"

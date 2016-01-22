@@ -30,6 +30,13 @@ if status then
   resty_lock = res
 end
 
+local get_phase
+local get_socket
+if ngx ~= nil then
+  get_phase = ngx.get_phase
+  get_socket = ngx.socket.tcp
+end
+
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
@@ -85,13 +92,12 @@ Host.__index = Host
 local function new_socket(self)
   local tcp_sock, sock_type
 
-  if ngx and ngx.get_phase ~= nil and ngx.get_phase() ~= "init" then
+  if get_phase ~= nil and get_phase() ~= "init" then
     -- lua-nginx-module
-    tcp_sock = ngx.socket.tcp
     sock_type = "ngx"
+    tcp_sock = get_socket
   else
     -- fallback to luasocket
-    tcp_sock = require("socket").tcp
     sock_type = "luasocket"
     local status, res = pcall(require, "socket")
     if status then

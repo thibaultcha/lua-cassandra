@@ -19,7 +19,7 @@ env:
     - LUA_DIR=$HOME/lua
     - OPENRESTY_DIR=$HOME/openresty
     - "CASSANDRA_HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
-    - SMALL_LOAD=true
+    - CASSANDRA_LOAD=100
   matrix:
     - LUA=lua5.1
     - LUA=lua5.2

@@ -87,10 +87,8 @@ describe("spawn_cluster()", function()
 end)
 
 describe("spawn_session()", function()
-  local session
   it("should spawn a session", function()
-    local err
-    session, err = cassandra.spawn_session {shm = _shm}
+    local session, err = cassandra.spawn_session {shm = _shm}
     assert.falsy(err)
     assert.truthy(session)
     assert.truthy(session.hosts)
@@ -98,12 +96,12 @@ describe("spawn_session()", function()
   end)
   it("should spawn a session without having to spawn a cluster", function()
     local shm = "session_without_cluster"
-    local session, err = cassandra.spawn_session {
+    local t_session, err = cassandra.spawn_session {
       shm = shm,
       contact_points = _hosts
     }
     assert.falsy(err)
-    assert.truthy(session)
+    assert.truthy(t_session)
     -- Check cache
     local cache = require "cassandra.cache"
     local hosts, err = cache.get_hosts(shm)
@@ -117,6 +115,12 @@ describe("spawn_session()", function()
     end
   end)
   describe("execute()", function()
+    local session
+    setup(function()
+      local err
+      session, err = cassandra.spawn_session {shm = _shm}
+      assert.falsy(err)
+    end)
     after_each(function()
       -- drop keyspace in case tests failed
       utils.drop_keyspace(session, "resty_cassandra_spec")
@@ -288,14 +292,29 @@ describe("session", function()
   end)
 
   describe("execute()", function()
+    before_each(function()
+      for i = 1, utils.n_inserts do
+        local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {
+          "Alice",
+          i
+        })
+        assert.falsy(err)
+        assert.is_table(res)
+      end
+    end)
+
+    after_each(function()
+      session:execute("TRUNCATE users")
+    end)
+
     it("should accept values to bind", function()
       local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(?, ?, ?)",
-        {cassandra.uuid("2644bada-852c-11e3-89fb-e0b9a54a6d93"), "Bob", 1})
+        {cassandra.uuid("4444bada-852c-11e3-89fb-e0b9a54a6d94"), "Bob", 1})
       assert.falsy(err)
       assert.is_table(res)
       assert.equal("VOID", res.type)
 
-      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93")
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 4444bada-852c-11e3-89fb-e0b9a54a6d94")
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal(1, #rows)
@@ -305,24 +324,27 @@ describe("session", function()
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
       assert.is_table(rows)
-      assert.truthy(rows.meta)
+      assert.is_table(rows.meta)
       assert.falsy(rows.meta.columns)
       assert.falsy(rows.meta.columns_count)
-      assert.False(rows.meta.has_more_pages)
+      assert.is_boolean(rows.meta.has_more_pages)
     end)
     it("support somewhat heavier insertions", function()
-      for i = 2, utils.n_inserts do
-        local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {"Alice", i})
-        assert.falsy(err)
-        assert.is_table(res)
-      end
-
       local rows, err = session:execute("SELECT COUNT(*) FROM users")
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal(utils.n_inserts, rows[1].count)
     end)
     it("should have a default page_size (1000)", function()
+      for i = utils.n_inserts + 1, 1001 do
+        local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {
+          "Alice",
+          i
+        })
+        assert.falsy(err)
+        assert.is_table(res)
+      end
+
       local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n")
       assert.falsy(err)
       assert.is_table(rows)
@@ -334,10 +356,22 @@ describe("session", function()
       assert.equal(1000, rows[#rows].n)
     end)
     it("should be possible to specify a per-query page_size option", function()
-      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
+      for i = utils.n_inserts, 1000 do
+        local res, err = session:execute("INSERT INTO users(id, name, n) VALUES(2644bada-852c-11e3-89fb-e0b9a54a6d93, ?, ?)", {
+          "Alice",
+          i
+        })
+        assert.falsy(err)
+        assert.is_table(res)
+      end
+
+      local half = utils.n_inserts/2
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {
+        page_size = half
+      })
       assert.falsy(err)
       assert.is_table(rows)
-      assert.equal(100, #rows)
+      assert.equal(half, #rows)
 
       local rows, err = session:execute("SELECT * FROM users")
       assert.falsy(err)
@@ -345,34 +379,40 @@ describe("session", function()
       assert.equal(1000, #rows) -- back to the default
     end)
     it("should support passing a paging_state to retrieve next pages", function()
-      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100})
+      local half = utils.n_inserts/2
+      local rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {
+        page_size = half
+      })
       assert.falsy(err)
       assert.is_table(rows)
-      assert.equal(100, #rows)
+      assert.equal(half, #rows)
       assert.equal(1, rows[1].n)
-      assert.equal(100, rows[#rows].n)
+      assert.equal(half, rows[#rows].n)
 
       local paging_state = rows.meta.paging_state
 
-      rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {page_size = 100, paging_state = paging_state})
+      rows, err = session:execute("SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n", nil, {
+        page_size = half,
+        paging_state = paging_state
+      })
       assert.falsy(err)
       assert.is_table(rows)
-      assert.equal(100, #rows)
-      assert.equal(101, rows[1].n)
-      assert.equal(200, rows[#rows].n)
+      assert.equal(half, #rows)
+      assert.equal(half + 1, rows[1].n)
+      assert.equal(utils.n_inserts, rows[#rows].n)
     end)
     describe("auto_paging", function()
       it("should return an iterator if given an `auto_paging` option", function()
         local page_tracker = 0
-        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true}) do
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = utils.n_inserts/10, auto_paging = true}) do
           assert.falsy(err)
           page_tracker = page_tracker + 1
           assert.equal(page_tracker, page)
           assert.is_table(rows)
-          assert.equal(10, #rows)
+          assert.equal(utils.n_inserts/10, #rows)
         end
 
-        assert.equal(utils.n_inserts/10, page_tracker)
+        assert.equal(10, page_tracker)
       end)
       it("should return the latest page of a set", function()
         -- When the latest page contains only 1 element
@@ -443,7 +483,7 @@ describe("session", function()
       end)
       it("should support a heavier load of prepared queries", function()
         for i = 1, utils.n_inserts do
-          local rows, err = session:execute("SELECT * FROM users", nil, {prepare = false, page_size = 10})
+          local rows, err = session:execute("SELECT * FROM users", nil, {prepare = true, page_size = 10})
           assert.falsy(err)
           assert.is_table(rows)
           assert.True(#rows > 0)
@@ -459,14 +499,14 @@ describe("session", function()
         end)
 
         local page_tracker = 1
-        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = 10, auto_paging = true, prepare = true}) do
+        for rows, err, page in session:execute("SELECT * FROM users", nil, {page_size = utils.n_inserts/10, auto_paging = true, prepare = true}) do
           assert.falsy(err)
           assert.is_table(rows)
-          assert.True(#rows > 0 and #rows <= 10)
+          assert.True(#rows > 0 and #rows <= utils.n_inserts/10)
           page_tracker = page
         end
 
-        assert.equal(utils.n_inserts/10, page_tracker)
+        assert.equal(10, page_tracker)
         assert.spy(cache.get_prepared_query_id).was.called(page_tracker + 1)
         assert.spy(cache.set_prepared_query_id).was.called(0)
       end)
@@ -484,6 +524,10 @@ describe("session", function()
         )
       ]]
       assert.falsy(err)
+    end)
+
+    after_each(function()
+      session:execute("TRUNCATE counter_test_table")
     end)
 
     it("should execute logged batched queries with no params", function()

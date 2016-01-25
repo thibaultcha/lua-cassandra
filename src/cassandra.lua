@@ -1089,7 +1089,6 @@ function Cassandra.spawn_session(options)
 end
 
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
---local SELECT_LOCAL_QUERY = "SELECT * FROM system.local WHERE key='local'"
 
 -- Retrieve cluster informations from a connected contact_point
 function Cassandra.refresh_hosts(options)
@@ -1114,20 +1113,10 @@ function Cassandra.refresh_hosts(options)
       return nil, err
     end
 
-    --local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
     local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
     local hosts = {}
 
-    --local rows, err = coordinator:send(local_query)
-    --if err then
-    --  return nil, err
-    --end
-    --local row = rows[1]
     local local_host = {
-      --datacenter = row["data_center"],
-      --rack = row["rack"],
-      --cassandra_version = row["release_version"],
-      --protocol_versiom = row["native_protocol_version"],
       unhealthy_at = 0,
       reconnection_delay = 0
     }
@@ -1143,10 +1132,6 @@ function Cassandra.refresh_hosts(options)
       local address = options.policies.address_resolution(row["rpc_address"])
       log.info("Adding host "..address)
       hosts[address] = {
-        --datacenter = row["data_center"],
-        --rack = row["rack"],
-        --cassandra_version = row["release_version"],
-        --protocol_version = local_host.native_protocol_version,
         unhealthy_at = 0,
         reconnection_delay = 0
       }

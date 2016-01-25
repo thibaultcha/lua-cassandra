@@ -131,12 +131,12 @@ _M.cql_tuple_fixtures = {
   {type = {"text", "text"}, value = {"world", "hello"}}
 }
 
-local HOSTS = os.getenv("HOSTS")
+local HOSTS = os.getenv("CASSANDRA_HOSTS")
 HOSTS = HOSTS and string_utils.split(HOSTS, ",") or {"127.0.0.1"}
 
 local SMALL_LOAD = os.getenv("SMALL_LOAD") ~= nil
 
 _M.hosts = HOSTS
-_M.n_inserts = SMALL_LOAD and 1000 or 10000
+_M.n_inserts = SMALL_LOAD and 100 or 1000
 
 return _M

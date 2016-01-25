@@ -1,6 +1,6 @@
 #!/bin/bash
 
-arr=(${HOSTS//,/ })
+arr=(${CASSANDRA_HOSTS//,/ })
 
 pip install --user PyYAML six
 git clone https://github.com/pcmanus/ccm.git

@@ -14,13 +14,11 @@ addons:
 env:
   global:
     - CASSANDRA_VERSION=2.1.12
-    - LUAROCKS_VERSION=2.2.3
+    - LUAROCKS_VERSION=2.3.0
     - OPENRESTY_VERSION=1.9.7.1
     - LUA_DIR=$HOME/lua
-    - LUAJIT_DIR=$HOME/luajit
-    - LUAROCKS_DIR=$HOME/luarocks
     - OPENRESTY_DIR=$HOME/openresty
-    - "HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
+    - "CASSANDRA_HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
     - SMALL_LOAD=true
   matrix:
     - LUA=lua5.1
@@ -31,19 +29,16 @@ env:
     - OPENRESTY_TESTS: "yes"
       LUA: luajit-2.1
 before_install:
+  - source .ci/setenv_lua.sh
+  - source .ci/setenv_openresty.sh
   - bash .ci/setup_cassandra.sh
-  - bash .ci/setup_lua.sh
-  - bash .ci/setup_openresty.sh
-  - export PATH=$LUA_DIR/src:$LUAJIT_DIR/bin:$LUAROCKS_DIR/bin:$OPENRESTY_DIR/nginx/sbin:$PATH
-  - export LUA_PATH="./?.lua;$LUAROCKS_DIR/share/lua/5.1/?.lua;$LUAROCKS_DIR/share/lua/5.1/?/init.lua;$LUAROCKS_DIR/lib/lua/5.1/?.lua;$LUA_PATH"
-  - export LUA_CPATH="$LUAROCKS_DIR/lib/lua/5.1/?.so;$LUA_CPATH"
 install:
   - make dev
 script: .ci/run_tests.sh
 cache:
   cpan: true
   apt: true
+  pip: true
   directories:
     - $OPENRESTY_DIR
     - $HOME/.ccm/repository/
-    - $HOME/.cache/pip

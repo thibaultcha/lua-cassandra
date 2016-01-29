@@ -13,11 +13,9 @@ addons:
       - build-essential
 env:
   global:
-    - CASSANDRA_VERSION=2.1.12
-    - LUAROCKS_VERSION=2.3.0
-    - OPENRESTY_VERSION=1.9.7.1
-    - LUA_DIR=$HOME/lua
-    - OPENRESTY_DIR=$HOME/openresty
+    - CASSANDRA=2.1.12
+    - LUAROCKS=2.3.0
+    - OPENRESTY=1.9.7.1
     - "CASSANDRA_HOSTS=127.0.0.1,127.0.0.2,127.0.0.3"
     - CASSANDRA_LOAD=100
   matrix:
@@ -40,5 +38,7 @@ cache:
   apt: true
   pip: true
   directories:
+    - $LUA_DIR
+    - $LUAROCKS_DIR
     - $OPENRESTY_DIR
     - $HOME/.ccm/repository/

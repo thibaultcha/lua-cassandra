@@ -63,12 +63,12 @@ fi
 # Luarocks
 ##########
 
-LUAROCKS_BASE=luarocks-$LUAROCKS_VERSION
+LUAROCKS_BASE=luarocks-$LUAROCKS
 
 git clone https://github.com/keplerproject/luarocks.git $LUAROCKS_BASE
 pushd $LUAROCKS_BASE
 
-git checkout v$LUAROCKS_VERSION
+git checkout v$LUAROCKS
 
 if [ "$LUAJIT" == "yes" ]; then
   CONFIGURE_FLAGS="--with-lua-include=$LUA_DIR/include/$LUA"

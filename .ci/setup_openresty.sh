@@ -10,14 +10,14 @@ set -e
 mkdir -p $OPENRESTY_DIR
 
 if [ ! "$(ls -A $OPENRESTY_DIR)" ]; then
-  OPENRESTY_BASE=ngx_openresty-$OPENRESTY_VERSION
+  OPENRESTY_BASE=ngx_openresty-$OPENRESTY
 
   curl https://openresty.org/download/$OPENRESTY_BASE.tar.gz | tar xz
   pushd $OPENRESTY_BASE
 
   ./configure \
     --prefix=$OPENRESTY_DIR \
-    --with-luajit=$LUAJIT_DIR \
+    --with-luajit=$LUA_DIR \
     --without-http_coolkit_module \
     --without-lua_resty_dns \
     --without-lua_resty_lrucache \

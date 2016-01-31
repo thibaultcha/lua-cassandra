@@ -23,14 +23,12 @@ env:
     - LUA: lua5.3
     - LUA: luajit-2.0
     - LUA: luajit-2.1
-    - LUA: lua5.1
-      CASSANDRA_HOSTS: "127.0.0.1,127.0.0.2,127.0.0.3"
     - LUA: luajit-2.1
       OPENRESTY_TESTS: "yes"
 before_install:
   - source .ci/setenv_lua.sh
   - source .ci/setenv_openresty.sh
-  - bash .ci/setup_cassandra.sh
+  - bash .ci/setup_ccm.sh
   - luarocks install busted
   - luarocks install luacheck
   - luarocks install luacov-coveralls

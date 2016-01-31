@@ -162,7 +162,7 @@ The integration tests are located in another folder, and require [ccm] to be ins
 busted spec/02-integration
 ```
 
-Finally, the ngx_lua integration tests can be run after installing the [Test::Nginx::Socket](http://search.cpan.org/~agent/Test-Nginx-0.23/lib/Test/Nginx/Socket.pm) module and also require a Cassandra instance to run on `localhost`:
+Finally, the ngx_lua integration tests can be run after installing the [Test::Nginx::Socket](http://search.cpan.org/~agent/Test-Nginx-0.23/lib/Test/Nginx/Socket.pm) module and require a Cassandra instance to be running on `localhost`:
 
 ```shell
 $ prove t/

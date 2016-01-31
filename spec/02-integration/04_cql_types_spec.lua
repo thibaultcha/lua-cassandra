@@ -1,31 +1,25 @@
 local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 
-local _shm = "cql_types"
-local _hosts = utils.hosts
-local _keyspace = "resty_cassandra_cql_types_specs"
-
--- Define log level for tests
-cassandra.set_log_level("ERR")
-
 describe("CQL types integration", function()
   local session
 
   setup(function()
-    local err
+    local _, err
+    local hosts, shm = utils.ccm_start()
+
     session, err = cassandra.spawn_session {
-      shm = _shm,
-      contact_points = _hosts
+      shm = shm,
+      contact_points = hosts
     }
     assert.falsy(err)
 
-    utils.create_keyspace(session, _keyspace)
-
-    local _, err = session:set_keyspace(_keyspace)
+    utils.create_keyspace(session, shm)
+    _, err = session:set_keyspace(shm)
     assert.falsy(err)
 
     _, err = session:execute [[
-      CREATE TYPE address(
+      CREATE TYPE IF NOT EXISTS address(
         street text,
         city text,
         zip int,
@@ -64,7 +58,6 @@ describe("CQL types integration", function()
   end)
 
   teardown(function()
-    utils.drop_keyspace(session, _keyspace)
     session:shutdown()
   end)
 

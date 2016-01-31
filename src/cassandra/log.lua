@@ -19,7 +19,7 @@ local LEVELS = {
 }
 
 -- Default logging level when outside of ngx_lua.
-local cur_lvl = LEVELS.INFO
+local cur_lvl = LEVELS.QUIET
 local cur_fmt = "%s -- %s"
 
 local log = {}

@@ -1,7 +1,6 @@
 local say = require "say"
 local types = require "cassandra.types"
 local assert = require "luassert.assert"
-local string_utils = require "cassandra.utils.string"
 
 local unpack
 if _VERSION == "Lua 5.3" then
@@ -10,7 +9,61 @@ else
   unpack = _G.unpack
 end
 
+local function exec(cmd, ignore)
+  local ex_code = os.execute(cmd.. " >/dev/null")
+  if ex_code ~= 0 and not ignore then
+    os.exit(ex_code)
+  end
+  return ex_code
+end
+
 local _M = {}
+
+local LOAD = os.getenv("CASSANDRA_LOAD")
+
+_M.n_inserts = LOAD and tonumber(LOAD) or 1000
+_M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.12"
+
+--- CCM
+
+function _M.ccm_exists(c_name)
+  return exec("ccm list | grep "..c_name, true) == 0
+end
+
+function _M.is_current(c_name)
+  return exec("ccm list | grep '*"..c_name.."'", true) == 0
+end
+
+function _M.ccm_start(c_name, n_nodes, c_ver)
+  if not c_name then c_name = "default" end
+  if not n_nodes then n_nodes = 1 end
+  if not c_ver then c_ver = _M.CASSANDRA_VERSION end
+
+  c_name = "lua_cassandra_"..c_name.."_specs"
+
+  if not _M.is_current(c_name) then
+    exec("ccm stop", true)
+  end
+
+  -- create cluster if not exists
+  if not _M.ccm_exists(c_name) then
+    exec(string.format([[
+      ccm create %s -v binary:%s -n %s
+    ]], c_name, c_ver, n_nodes))
+  end
+
+  exec("ccm switch "..c_name)
+  exec("ccm start --wait-for-binary-proto --wait-other-notice")
+
+  local hosts = {}
+  for i = 1, n_nodes do
+    hosts[#hosts + 1] = "127.0.0."..i
+  end
+
+  return hosts, c_name
+end
+
+--- CQL
 
 function _M.create_keyspace(session, keyspace)
   local res, err = session:execute([[
@@ -130,11 +183,5 @@ _M.cql_tuple_fixtures = {
   {type = {"text", "text"}, value = {"hello", "world"}},
   {type = {"text", "text"}, value = {"world", "hello"}}
 }
-
-local HOSTS = os.getenv("CASSANDRA_HOSTS")
-local LOAD = os.getenv("CASSANDRA_LOAD")
-
-_M.hosts = HOSTS and string_utils.split(HOSTS, ",") or {"127.0.0.1"}
-_M.n_inserts = LOAD and tonumber(load) or 1000
 
 return _M

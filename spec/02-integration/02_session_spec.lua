@@ -5,7 +5,7 @@ describe("session", function()
   local session, err, _hosts, _shm
 
   setup(function()
-    _hosts, _shm = utils.ccm_start "session"
+    _hosts, _shm = utils.ccm_start()
   end)
 
   before_each(function()

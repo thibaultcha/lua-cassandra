@@ -6,7 +6,7 @@ describe("CQL types integration", function()
 
   setup(function()
     local _, err
-    local hosts, shm = utils.ccm_start("cql_types")
+    local hosts, shm = utils.ccm_start()
 
     session, err = cassandra.spawn_session {
       shm = shm,
@@ -19,7 +19,7 @@ describe("CQL types integration", function()
     assert.falsy(err)
 
     _, err = session:execute [[
-      CREATE TYPE address(
+      CREATE TYPE IF NOT EXISTS address(
         street text,
         city text,
         zip int,

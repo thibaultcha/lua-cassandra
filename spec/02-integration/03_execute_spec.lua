@@ -6,7 +6,7 @@ describe("execute()", function()
 
   setup(function()
     local err
-    local _hosts, _shm = utils.ccm_start "execute"
+    local _hosts, _shm = utils.ccm_start()
 
     session, err = cassandra.spawn_session {
       shm = _shm,

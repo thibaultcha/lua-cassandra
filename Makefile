@@ -16,13 +16,13 @@ dev: install
 	done;
 
 test:
-	@busted -v && prove
+	@busted -v -o gtest && prove
 
 clean:
 	@rm -f luacov.*
 
 coverage: clean
-	@busted --coverage
+	@busted -v --coverage
 	@luacov cassandra
 
 lint:

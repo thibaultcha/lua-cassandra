@@ -14,6 +14,7 @@ local function exec(cmd, ignore)
   if ex_code ~= 0 and not ignore then
     os.exit(ex_code)
   end
+  return ex_code
 end
 
 local _M = {}
@@ -25,20 +26,33 @@ _M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.12"
 
 --- CCM
 
+function _M.ccm_exists(c_name)
+  return exec("ccm list | grep "..c_name, true) == 0
+end
+
+function _M.is_current(c_name)
+  return exec("ccm list | grep '*"..c_name.."'", true) == 0
+end
+
 function _M.ccm_start(c_name, n_nodes, c_ver)
-  if not c_name then c_name = "" end
+  if not c_name then c_name = "default" end
   if not n_nodes then n_nodes = 1 end
   if not c_ver then c_ver = _M.CASSANDRA_VERSION end
 
   c_name = "lua_cassandra_"..c_name.."_specs"
 
-  exec("ccm stop "..c_name, true)
-  exec("ccm remove "..c_name, true)
+  if not _M.is_current(c_name) then
+    exec("ccm stop", true)
+  end
 
-  exec(string.format([[
-    ccm create %s -v binary:%s -n %s
-  ]], c_name, c_ver, n_nodes))
+  -- create cluster if not exists
+  if not _M.ccm_exists(c_name) then
+    exec(string.format([[
+      ccm create %s -v binary:%s -n %s
+    ]], c_name, c_ver, n_nodes))
+  end
 
+  exec("ccm switch "..c_name)
   exec("ccm start --wait-for-binary-proto --wait-other-notice")
 
   local hosts = {}

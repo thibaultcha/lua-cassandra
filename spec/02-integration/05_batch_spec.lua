@@ -6,7 +6,7 @@ describe("batch()", function()
 
   setup(function()
     local _, err
-    local hosts, shm = utils.ccm_start "batch"
+    local hosts, shm = utils.ccm_start()
 
     session, err = cassandra.spawn_session {
       shm = shm,

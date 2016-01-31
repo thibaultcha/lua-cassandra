@@ -5,7 +5,7 @@ describe("", function()
   local _hosts, _shm
 
   setup(function()
-    _hosts, _shm = utils.ccm_start("spawn")
+    _hosts, _shm = utils.ccm_start()
   end)
 
   describe("spawn_cluster()", function()

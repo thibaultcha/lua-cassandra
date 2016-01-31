@@ -15,8 +15,9 @@ env:
   global:
     - CASSANDRA=2.1.12
     - LUAROCKS=2.3.0
-    - OPENRESTY=1.9.7.1
+    - OPENRESTY=1.9.7.3
     - CASSANDRA_LOAD=100
+    - OPENRESTY_DIR=$HOME/openresty-$OPENRESTY
   matrix:
     - LUA: lua5.1
     - LUA: lua5.2
@@ -40,7 +41,5 @@ cache:
   apt: true
   pip: true
   directories:
-    - $LUA_DIR
-    - $LUAROCKS_DIR
     - $OPENRESTY_DIR
     - $HOME/.ccm/repository/

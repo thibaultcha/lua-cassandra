@@ -30,11 +30,6 @@ describe("error handling", function()
       assert.equal("shm must be a valid string", err)
     end)
     it("should return an error when no contact_point is valid", function()
-      cassandra.set_log_level("QUIET")
-      finally(function()
-        cassandra.set_log_level("ERR")
-      end)
-
       local contact_points = {"0.0.0.1", "0.0.0.2", "0.0.0.3"}
       local ok, err = cassandra.spawn_cluster {
         shm = "test",

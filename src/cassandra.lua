@@ -1214,23 +1214,6 @@ function Cassandra.spawn_cluster(options)
   return true
 end
 
---- Set the logging level when outside of ngx_lua.
--- When used outside of ngx_lua, logs are produced to `stdout`, and have different levels, just like
--- `ngx.log()`. This is similar to the level section of the `error_log` directive in Nginx, and the
--- same logging levels are defined.
--- @param[type=string] lvl Logging level. Can be one of `"QUIET"`, `"ERR"`, `"WARN"`, `"INFO"` or `"DEBUG"`.
-function Cassandra.set_log_level(lvl)
-  log.set_lvl(lvl)
-end
-
---- Set the output format when logging outside of ngx_lua.
--- In the future this function should be able to receive a handler to allow
--- logging to other destinations than `stdout`.
--- @param[type=string] fmt A string describing the output format. It accepts two placeholders: the level of the log, and the log itself. Default is: `"%s -- %s"`.
-function Cassandra.set_log_format(fmt)
-  log.set_format(fmt)
-end
-
 --- Type serializer shorthands.
 -- When binding parameters to a query from `execute`, some
 -- types cannot be infered automatically and will require manual

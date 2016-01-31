@@ -147,19 +147,19 @@ Documentation:
 This library relies on three test suites:
 
 - Unit tests, with busted
-- Integration tests, with busted and a running Cassandra cluster
-- ngx_lua integration tests with Test::Nginx::Socket and a running Cassandra cluster too
+- Integration tests, with busted and [ccm]
+- ngx_lua integration tests with Test::Nginx::Socket and a running Cassandra cluster
 
-The first can simply be run after installing [busted](http://olivinelabs.com/busted/) and running:
+The first can simply be run after installing [busted] and running:
 
 ```shell
-$ busted spec/unit
+$ busted spec/01-unit
 ```
 
-The integration tests are located in another folder, and require a Cassandra instance (currently 2.1+) to be running. Your cluster's hosts (not just the contact points, but all of them) should be declared in the `HOSTS` environment variable:
+The integration tests are located in another folder, and require [ccm] to be installed.
 
 ```shell
-$ HOSTS=127.0.0.1,127.0.0.2,127.0.0.3 busted spec/integration
+busted spec/02-integration
 ```
 
 Finally, the ngx_lua integration tests can be run after installing the [Test::Nginx::Socket](http://search.cpan.org/~agent/Test-Nginx-0.23/lib/Test/Nginx/Socket.pm) module and also require a Cassandra instance to run on `localhost`:
@@ -199,10 +199,12 @@ $ ldoc -c doc/config.ld src
 $ make doc
 ```
 
-[ngx_lua]: https://github.com/openresty/lua-nginx-module
-[OpenResty]: https://openresty.org
-
 [Luarocks]: https://luarocks.org
+[OpenResty]: https://openresty.org
+[ccm]: https://github.com/pcmanus/ccm
+[busted]: http://olivinelabs.com/busted
+[ngx_lua]: https://github.com/openresty/lua-nginx-module
+
 [documentation]: http://thibaultcha.github.io/lua-cassandra/
 [manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
 [examples]: http://thibaultcha.github.io/lua-cassandra/examples/basic.lua.html

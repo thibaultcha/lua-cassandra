@@ -30,6 +30,7 @@ before_install:
   - source .ci/setenv_lua.sh
   - source .ci/setenv_openresty.sh
   - bash .ci/setup_ccm.sh
+  - luarocks install luasec
   - luarocks install busted
   - luarocks install luacheck
   - luarocks install luacov-coveralls

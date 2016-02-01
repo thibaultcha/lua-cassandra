@@ -1,7 +1,3 @@
-local say = require "say"
-local types = require "cassandra.types"
-local assert = require "luassert.assert"
-
 local unpack
 if _VERSION == "Lua 5.3" then
   unpack = table.unpack
@@ -10,31 +6,44 @@ else
 end
 
 local function exec(cmd, ignore)
-  local ex_code = os.execute(cmd.. " >/dev/null")
-  if ex_code ~= 0 and not ignore then
-    os.exit(ex_code)
+  cmd = cmd.." >/dev/null"
+  local ok
+  if _VERSION == "Lua 5.1" then
+    ok = select(1, os.execute(cmd)) == 0
+  else
+    ok = select(3, os.execute(cmd)) == 0
   end
-  return ex_code
+
+  if not ok and not ignore then
+    os.exit(1)
+  end
+
+  return ok
 end
 
 local _M = {}
 
 local LOAD = os.getenv("CASSANDRA_LOAD")
+local SSL_PATH = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 
 _M.n_inserts = LOAD and tonumber(LOAD) or 1000
 _M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.12"
 
 --- CCM
 
+function _M.ssl_path()
+  return SSL_PATH
+end
+
 function _M.ccm_exists(c_name)
-  return exec("ccm list | grep "..c_name, true) == 0
+  return exec("ccm list | grep "..c_name, true)
 end
 
 function _M.is_current(c_name)
-  return exec("ccm list | grep '*"..c_name.."'", true) == 0
+  return exec("ccm list | grep '*"..c_name.."'", true)
 end
 
-function _M.ccm_start(c_name, n_nodes, c_ver)
+function _M.ccm_start(c_name, n_nodes, c_ver, opts)
   if not c_name then c_name = "default" end
   if not n_nodes then n_nodes = 1 end
   if not c_ver then c_ver = _M.CASSANDRA_VERSION end
@@ -47,13 +56,21 @@ function _M.ccm_start(c_name, n_nodes, c_ver)
 
   -- create cluster if not exists
   if not _M.ccm_exists(c_name) then
-    exec(string.format([[
-      ccm create %s -v binary:%s -n %s
-    ]], c_name, c_ver, n_nodes))
+    local cmd = string.format("ccm create %s -v binary:%s -n %s", c_name, c_ver, n_nodes)
+
+    if opts and opts.ssl then
+      cmd = cmd.." --ssl='".._M.ssl_path().."'"
+    end
+
+    if opts and opts.require_client_auth then
+      cmd = cmd.." --require_client_auth"
+    end
+
+    exec(cmd)
   end
 
   exec("ccm switch "..c_name)
-  exec("ccm start --wait-for-binary-proto --wait-other-notice")
+  exec("ccm start --wait-for-binary-proto")
 
   local hosts = {}
   for i = 1, n_nodes do
@@ -80,6 +97,11 @@ end
 function _M.drop_keyspace(session, keyspace)
   session:execute("DROP KEYSPACE "..keyspace)
 end
+
+--- Assertions
+
+local say = require "say"
+local assert = require "luassert.assert"
 
 local delta = 0.0000001
 local function validFixture(state, arguments)
@@ -122,11 +144,25 @@ end
 
 say:set("assertion.sameSet.positive", "Fixture and decoded value do not match")
 say:set("assertion.sameSet.negative", "Fixture and decoded value do not match")
-assert:register("assertion", "sameSet", sameSet, "assertion.sameSet.positive", "assertion.sameSet.negative")
+assert:register("assertion",
+                "sameSet",
+                sameSet,
+                "assertion.sameSet.positive",
+                "assertion.sameSet.negative")
 
-say:set("assertion.validFixture.positive", "Expected fixture and decoded value to match.\nPassed in:\n%s\nExpected:\n%s")
-say:set("assertion.validFixture.negative", "Expected fixture and decoded value to not match.\nPassed in:\n%s\nExpected:\n%s")
-assert:register("assertion", "validFixture", validFixture, "assertion.validFixture.positive", "assertion.validFixture.negative")
+say:set("assertion.validFixture.positive",
+        "Expected fixture and decoded value to match.\nPassed in:\n%s\nExpected:\n%s")
+say:set("assertion.validFixture.negative",
+        "Expected fixture and decoded value to not match.\nPassed in:\n%s\nExpected:\n%s")
+assert:register("assertion",
+                "validFixture",
+                validFixture,
+                "assertion.validFixture.positive",
+                "assertion.validFixture.negative")
+
+--- Fixtures
+
+local types = require "cassandra.types"
 
 _M.cql_fixtures = {
   -- custom

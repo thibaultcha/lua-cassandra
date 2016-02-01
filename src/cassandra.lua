@@ -210,7 +210,10 @@ local function do_ssl_handshake(self)
     local ok, res = pcall(require, "ssl")
     if not ok and string_find(res, "module 'ssl' not found", nil, true) then
       error("LuaSec not found. Please install LuaSec to use SSL with LuaSocket.")
+    elseif not ok then
+      error(res)
     end
+
     local ssl = res
     local params = {
       mode = "client",
@@ -266,7 +269,6 @@ function Host:connect()
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    --log.err("Could not connect to "..self.address..". Reason: "..err)
     return false, Errors.SocketError(self.address, err), true
   end
 

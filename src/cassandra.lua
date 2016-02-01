@@ -506,9 +506,13 @@ end
 function RequestHandler.get_first_coordinator(hosts)
   local errors = {}
   for _, host in ipairs(hosts) do
-    local connected, err = host:connect()
+    local connected, err, maybe_down = host:connect()
     if not connected then
-      errors[host.address] = err
+      if maybe_down then
+        errors[host.address] = err
+      else
+        return nil, err
+      end
     else
       return host
     end
@@ -530,16 +534,16 @@ function RequestHandler:get_next_coordinator()
       if connected then
         self.coordinator = host
         return host
-      else
-        if maybe_down then
-          -- only on socket connect error
-          -- might be a bad host, setting DOWN
-          local cache_err = host:set_down()
-          if cache_err then
-            return nil, cache_err
-          end
+      elseif maybe_down then
+        -- only on socket connect error
+        -- might be a bad host, setting DOWN
+        local cache_err = host:set_down()
+        if cache_err then
+          return nil, cache_err
         end
         errors[host.address] = err
+      else
+        return nil, err
       end
     else
       errors[host.address] = "Host considered DOWN"

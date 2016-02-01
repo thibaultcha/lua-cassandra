@@ -210,7 +210,10 @@ local function do_ssl_handshake(self)
     local ok, res = pcall(require, "ssl")
     if not ok and string_find(res, "module 'ssl' not found", nil, true) then
       error("LuaSec not found. Please install LuaSec to use SSL with LuaSocket.")
+    elseif not ok then
+      error(res)
     end
+
     local ssl = res
     local params = {
       mode = "client",
@@ -266,7 +269,6 @@ function Host:connect()
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    --log.err("Could not connect to "..self.address..". Reason: "..err)
     return false, Errors.SocketError(self.address, err), true
   end
 
@@ -504,9 +506,13 @@ end
 function RequestHandler.get_first_coordinator(hosts)
   local errors = {}
   for _, host in ipairs(hosts) do
-    local connected, err = host:connect()
+    local connected, err, maybe_down = host:connect()
     if not connected then
-      errors[host.address] = err
+      if maybe_down then
+        errors[host.address] = err
+      else
+        return nil, err
+      end
     else
       return host
     end
@@ -528,16 +534,16 @@ function RequestHandler:get_next_coordinator()
       if connected then
         self.coordinator = host
         return host
-      else
-        if maybe_down then
-          -- only on socket connect error
-          -- might be a bad host, setting DOWN
-          local cache_err = host:set_down()
-          if cache_err then
-            return nil, cache_err
-          end
+      elseif maybe_down then
+        -- only on socket connect error
+        -- might be a bad host, setting DOWN
+        local cache_err = host:set_down()
+        if cache_err then
+          return nil, cache_err
         end
         errors[host.address] = err
+      else
+        return nil, err
       end
     else
       errors[host.address] = "Host considered DOWN"

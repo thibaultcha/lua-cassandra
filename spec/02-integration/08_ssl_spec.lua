@@ -13,7 +13,7 @@ if _VERSION == "Lua 5.3" then
 end
 
 desc("SSL", function()
-  local _hosts, _shm = {"127.0.0.1"}, "ssl"
+  local _hosts, _shm
 
   setup(function()
     _hosts, _shm = utils.ccm_start("ssl", 1, nil, {ssl = true})

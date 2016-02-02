@@ -2,7 +2,7 @@
 
 pip install --user PyYAML six
 
-git clone https://github.com/pcmanus/ccm.git
+git clone --branch develop https://github.com/thibaultCha/ccm.git
 pushd ccm
 ./setup.py install --user
 popd

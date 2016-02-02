@@ -66,6 +66,10 @@ function _M.ccm_start(c_name, n_nodes, c_ver, opts)
       cmd = cmd.." --require_client_auth"
     end
 
+    if opts and opts.pwd_auth then
+      cmd = cmd.." --pwd-auth"
+    end
+
     exec(cmd)
   end
 
@@ -75,6 +79,11 @@ function _M.ccm_start(c_name, n_nodes, c_ver, opts)
   local hosts = {}
   for i = 1, n_nodes do
     hosts[#hosts + 1] = "127.0.0."..i
+  end
+
+  if opts and opts.pwd_auth then
+    -- the cassandra superuser takes some time to be created
+    os.execute("sleep 10")
   end
 
   return hosts, c_name

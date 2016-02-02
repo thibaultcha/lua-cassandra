@@ -1,5 +1,3 @@
-local setmetatable = setmetatable
-local getmetatable = getmetatable
 local table_remove = table.remove
 local tostring = tostring
 local ipairs = ipairs
@@ -26,14 +24,13 @@ function _M.extend_table(...)
   return values
 end
 
-function _M.deep_copy(orig)
+function _M.copy_args(orig)
   local copy
   if type(orig) == "table" then
     copy = {}
-    for orig_key, orig_value in next, orig, nil do
-      copy[_M.deep_copy(orig_key)] = _M.deep_copy(orig_value)
+    for orig_key, orig_value in pairs(orig) do
+      copy[_M.copy_args(orig_key)] = _M.copy_args(orig_value)
     end
-    setmetatable(copy, _M.deep_copy(getmetatable(orig)))
   else
     copy = orig
   end

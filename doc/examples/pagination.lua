@@ -47,4 +47,3 @@ for rows, err, page in session:execute("SELECT * FROM users", nil, {auto_paging 
   -- err: not nil if any fetch returns an error, this will be the last iteration
   -- page: will be 1 on the first iteration, 2 on the second, etc.
 end
-

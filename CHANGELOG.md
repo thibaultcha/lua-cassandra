@@ -1,5 +1,36 @@
 ### [Unreleased][unreleased]
 
+### [0.5.0] - 2016/02/02
+
+##### Changed
+
+- Following Datastax's model and allowing better flexibility with various C* providers, authentication now happens with an AuthProvider table that must be instanciated and passed to a session's options. Example:
+    ```lua
+    local session, err = cassandra.spawn_session {
+      shm = "...",
+      contact_points = {...},
+      username = "username",
+      password = "password"
+    }
+    ```
+
+    Becomes:
+    ```lua
+    local session, err = cassandra.spawn_session {
+      shm = "...",
+      contact_points = {...},
+      auth = cassandra.auth.PlainTextProvider("username", "password")
+    }
+    ```
+
+    The `cassandra` module contains AuthProviders in `cassandra.auth`. Only `PlainTextProvider` is currently implemented.
+
+- Remove the `set_log_lvl()` function from the `cassandra` module.
+
+##### Added
+
+- Stronger test suite and new specs for SSL and Authentication.
+
 ### [0.4.2] - 2016/01/16
 
 ##### Fixed
@@ -110,7 +141,8 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...0.5.0
 [0.4.2]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.3.6...0.4.0

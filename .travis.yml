@@ -1,5 +1,5 @@
 language: perl
-perl: "5.18"
+perl: 5.18
 sudo: false
 notifications:
   email: false

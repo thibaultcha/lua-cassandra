@@ -79,7 +79,6 @@ http {
           ngx.exit(500)
         end
 
-
         local rows, err = session:execute("SELECT * FROM users")
         if err then
           -- ...

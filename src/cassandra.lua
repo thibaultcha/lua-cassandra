@@ -173,11 +173,9 @@ end
 function Host:send(request)
   request:set_version(self.protocol_version)
 
-  self:set_timeout(self.options.socket_options.read_timeout)
-
   local frame_reader, err = send_and_receive(self, request)
   if err then
-    if err == "timeout" then
+    if err == "timeout" or err == "wantread" then -- cosocket/luasocket or LuaSec timeout
       return nil, Errors.TimeoutError(self.address)
     else
       return nil, Errors.SocketError(self.address, err)
@@ -271,10 +269,12 @@ function Host:connect()
     return false, Errors.SocketError(self.address, err), true
   end
 
+  self:set_timeout(self.options.socket_options.read_timeout)
+
   if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
     if not ok then
-      return false, Errors.SocketError(self.address, err)
+      return false, Errors.SSLError(self.address, err)
     end
   end
 
@@ -314,7 +314,7 @@ function Host:connect()
 
     local ok, err = send_auth(self, self.options.auth)
     if err then
-      return nil, Errors.AuthenticationError(err)
+      return false, Errors.AuthenticationError(err)
     elseif ok then
       ready = true
     end
@@ -382,7 +382,7 @@ function Host:set_keep_alive()
     return true
   end
 
-  if self.socket_type == "ngx" then
+  if self:can_keep_alive() then
     -- tcpsock:setkeepalive() does not accept nil values, so this is a quick workaround
     -- see https://github.com/openresty/lua-nginx-module/pull/625
     local ok, err
@@ -624,7 +624,7 @@ function RequestHandler:send(request)
     return self:handle_error(request, err)
   end
 
-  -- Success! Make sure to re-up node in case it was marked as DOWN
+  -- Success! Make sure to re-up the node in case it was marked as DOWN
   local ok, cache_err = self.coordinator:set_up()
   if not ok then
     return nil, cache_err
@@ -685,6 +685,7 @@ function RequestHandler:handle_error(request, err)
 end
 
 function RequestHandler:retry(request)
+  self.coordinator:close()
   self.n_retries = self.n_retries + 1
   log.info("Retrying request on next coordinator")
   return self:send_on_next_coordinator(request)

@@ -80,7 +80,7 @@ desc("SSL", function()
         }
       }
       assert.truthy(err)
-      assert.equal("SocketError", err.type)
+      assert.equal("SSLError", err.type)
       assert.falsy(session)
     end)
 

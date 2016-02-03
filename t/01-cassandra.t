@@ -216,7 +216,7 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[error\].*?NoHostAvailableError: Cannot reuse a session that has been shut down./
+qr/\[error\].*?Cannot reuse a session that has been shut down./
 
 
 

@@ -158,5 +158,24 @@ describe("options parsing", function()
       assert.falsy(err)
       assert.equal("prepared_test", options.prepared_shm)
     end)
+    it("should validate auth provider option", function()
+      local options, err = parse_session {
+        shm = "test",
+        auth = "hello"
+      }
+      assert.truthy(err)
+      assert.equal("auth provider must be a table", err)
+      assert.falsy(options)
+
+      options, err = parse_session {
+        shm = "test",
+        auth = {
+          initial_response = ""
+        }
+      }
+      assert.truthy(err)
+      assert.equal("auth provider must implement initial_response()", err)
+      assert.falsy(options)
+    end)
   end)
 end)

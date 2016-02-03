@@ -69,7 +69,7 @@ local _error_mt = {}
 _error_mt.__index = _error_mt
 
 function _error_mt:__tostring()
-  return tostring(string_format("%s: %s", self.type, self.message))
+  return tostring(self.message)
 end
 
 function _error_mt.__concat(a, b)

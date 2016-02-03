@@ -13,7 +13,6 @@
 
 local log = require "cassandra.log"
 local opts = require "cassandra.options"
-local auth = require "cassandra.auth"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
 local Errors = require "cassandra.errors"
@@ -243,8 +242,8 @@ local function do_ssl_handshake(self)
   return true
 end
 
-local function send_auth(self, authenticator)
-  local token = authenticator:initial_response()
+local function send_auth(self, provider)
+  local token = provider:initial_response()
   local auth_request = Requests.AuthResponse(token)
   local res, err = self:send(auth_request)
   if err then
@@ -308,11 +307,12 @@ function Host:connect()
     return false, err, true
   elseif res.must_authenticate then
     log.info("Host at "..self.address.." required authentication")
-    local authenticator, err = auth.new_authenticator(res.class_name, self.options)
-    if err then
-      return nil, Errors.AuthenticationError(err)
+    if self.options.auth == nil then
+      return nil, Errors.AuthenticationError("Host at "..self.address..
+        " required authentication but no auth provider was configured for session")
     end
-    local ok, err = send_auth(self, authenticator)
+
+    local ok, err = send_auth(self, self.options.auth)
     if err then
       return nil, Errors.AuthenticationError(err)
     elseif ok then
@@ -911,7 +911,7 @@ function Session:execute(query, args, query_options)
     error("argument #1 must be a string", 2)
   end
 
-  local options = table_utils.deep_copy(self.options)
+  local options = table_utils.copy_args(self.options)
   options.query_options = table_utils.extend_table(options.query_options, query_options)
 
   local request_handler = RequestHandler:new(self.hosts, options)
@@ -964,7 +964,7 @@ end
 -- @treturn table `result`: A table describing the result. Batch results are always `VOID` results. If an error occurred, this value will be `nil` and a second value describing the error is returned.
 -- @treturn table `error`: A table describing the error that occurred.
 function Session:batch(queries, query_options)
-  local options = table_utils.deep_copy(self.options)
+  local options = table_utils.copy_args(self.options)
   options.query_options = table_utils.extend_table({logged = true}, options.query_options, query_options)
 
   local request_handler = RequestHandler:new(self.hosts, options)
@@ -1365,5 +1365,22 @@ Cassandra.consistencies = types.consistencies
 -- @table cql_errors
 
 Cassandra.cql_errors = types.ERRORS
+
+local DEFAULT_AUTH_PROVIDERS = {
+  PlainTextProvider = require "cassandra.auth.plain_text_provider"
+}
+
+for k, v in pairs(DEFAULT_AUTH_PROVIDERS ) do
+  DEFAULT_AUTH_PROVIDERS[k] = setmetatable({}, {
+    __call = function(self, ...)
+      v.__index = v
+      local provider = setmetatable({}, v)
+      provider:new(...)
+      return provider
+    end
+  })
+end
+
+Cassandra.auth = DEFAULT_AUTH_PROVIDERS
 
 return Cassandra

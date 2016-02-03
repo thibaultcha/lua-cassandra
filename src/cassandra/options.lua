@@ -36,15 +36,14 @@ local DEFAULTS = {
     -- pool_timeout = nil,
     -- pool_size = nil
   },
-  -- username = nil,
-  -- password = nil,
   ssl_options = {
     enabled = false
   -- key = nil,
   -- certificate = nil,
   -- ca = nil, -- stub
   -- verify = false
-  }
+  },
+  -- auth = nil
 }
 
 local function parse_session(options, lvl)
@@ -135,6 +134,16 @@ local function parse_session(options, lvl)
 
   if type(options.ssl_options.enabled) ~= "boolean" then
     return nil, "ssl_options.enabled must be a boolean"
+  end
+
+  -- auth provider
+
+  if options.auth then
+    if type(options.auth) ~= "table" then
+      return nil, "auth provider must be a table"
+    elseif type(options.auth.initial_response) ~= "function" then
+      return nil, "auth provider must implement initial_response()"
+    end
   end
 
   return options

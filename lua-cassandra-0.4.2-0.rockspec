@@ -32,8 +32,7 @@ build = {
     ["cassandra.policies.load_balancing"] = "src/cassandra/policies/load_balancing.lua",
     ["cassandra.policies.address_resolution"] = "src/cassandra/policies/address_resolution.lua",
 
-    ["cassandra.auth"] = "src/cassandra/auth/init.lua",
-    ["cassandra.auth.plain_text_password"] = "src/cassandra/auth/plain_text_password.lua",
+    ["cassandra.auth.plain_text_provider"] = "src/cassandra/auth/plain_text_provider.lua",
 
     ["cassandra.utils.bit"] = "src/cassandra/utils/bit.lua",
     ["cassandra.utils.time"] = "src/cassandra/utils/time.lua",

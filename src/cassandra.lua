@@ -5,7 +5,7 @@
 --
 -- @module cassandra
 -- @author thibaultcha
--- @release 0.4.2
+-- @release 0.5.0
 
 -- @TODO
 -- flush dicts on shutdown
@@ -76,7 +76,7 @@ local DEFAULT_PROTOCOL_VERSION = 3
 --- Cassandra
 
 local Cassandra = {
-  _VERSION = "0.4.2",
+  _VERSION = "0.5.0",
   DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
   MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
 }
@@ -1381,6 +1381,11 @@ for k, v in pairs(DEFAULT_AUTH_PROVIDERS ) do
   })
 end
 
+---
+-- Authentication providers that can be instanciated and given to a `session`'s options.
+-- @field PlainTextProvider provider for plain text password authentication challenge (like `PasswordAuthenticator`).
+--     cassandra.auth.PlainTextProvider("username", "password")
+-- @table auth
 Cassandra.auth = DEFAULT_AUTH_PROVIDERS
 
 return Cassandra

@@ -25,7 +25,7 @@ It is implemented following the example of the official Datastax drivers, and tr
 - Client authentication
 - Highly configurable options per session/query
 - Support Cassandra 2.0+
-- Compatible with Lua 5.1, 5.2, 5.3, LuaJIT 2.x, and optimized for OpenResty/ngx_lua.
+- Compatible with Lua 5.1, 5.2, 5.3, LuaJIT 2.x, and optimized for OpenResty/ngx_lua
 
 ## Usage
 
@@ -64,7 +64,7 @@ http {
           -- ...
         end
 
-        local rows, err = session:execute("SELECT * FROM users")
+        local rows, err = session:execute "SELECT * FROM users"
         if err then
           -- ...
         end
@@ -96,7 +96,7 @@ local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, 
 })
 assert(err == nil)
 
-local rows, err = session:execute("SELECT * FROM users")
+local rows, err = session:execute "SELECT * FROM users"
 assert(err == nil)
 
 print("rows retrieved: ", #rows)

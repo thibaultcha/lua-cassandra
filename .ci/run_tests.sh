@@ -8,6 +8,6 @@ if [ "$OPENRESTY_TESTS" != "yes" ]; then
   luacov-coveralls -i src/cassandra -e bit.lua
 else
   ccm create resty_tests -v binary:$CASSANDRA -n 1
-  ccm start --wait-for-binary-proto --wait-other-notice
+  ccm start --wait-for-binary-proto
   prove -l t
 fi

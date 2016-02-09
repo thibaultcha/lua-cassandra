@@ -82,5 +82,6 @@ GET /t
 --- response_body
 Alicia
 1
+--- timeout: 5s
 --- no_error_log
 [error]

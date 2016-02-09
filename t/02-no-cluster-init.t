@@ -21,7 +21,7 @@ __DATA__
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session, err = cassandra.spawn_session {
                 shm = "cassandra",
@@ -43,7 +43,7 @@ __DATA__
                     ngx.say(row["key"])
                 end
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -66,7 +66,7 @@ local
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session, err = cassandra.spawn_session {
                 shm = "cassandra"
@@ -74,7 +74,7 @@ local
             if err then
                 ngx.log(ngx.ERR, tostring(err))
             end
-        ';
+        }
     }
 --- request
 GET /t

@@ -14,7 +14,7 @@ _EOC_
 our $SpawnCluster = <<_EOC_;
     lua_shared_dict cassandra 1m;
     lua_shared_dict cassandra_prepared 1m;
-    init_by_lua '
+    init_by_lua_block {
         local cassandra = require "cassandra"
         local cluster, err = cassandra.spawn_cluster {
             shm = "cassandra",
@@ -23,7 +23,7 @@ our $SpawnCluster = <<_EOC_;
         if err then
             ngx.log(ngx.ERR, tostring(err))
         end
-    ';
+    }
 _EOC_
 
 run_tests();
@@ -53,10 +53,10 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra"}
-        ';
+        }
     }
 --- request
 GET /t
@@ -73,7 +73,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute("SELECT key FROM system.local")
@@ -87,7 +87,7 @@ GET /t
                     ngx.say(row["key"])
                 end
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -106,7 +106,7 @@ local
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute("SELECT key FROM system.local")
@@ -120,7 +120,7 @@ local
                     ngx.say(row["key"])
                 end
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -139,7 +139,7 @@ local
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {
                 shm = "cassandra",
@@ -150,7 +150,7 @@ local
             }
             local res, err = session:execute [[
                 CREATE KEYSPACE IF NOT EXISTS resty_t_keyspace
-                WITH REPLICATION = {\'class\': \'SimpleStrategy\', \'replication_factor\': 1}
+                WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
             ]]
             if err then
                 ngx.log(ngx.ERR, tostring(err))
@@ -173,7 +173,7 @@ local
                 ngx.log(ngx.ERR, tostring(err))
                 ngx.exit(500)
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -191,7 +191,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute("SELECT key FROM system.local")
@@ -209,7 +209,7 @@ GET /t
             end
 
             ngx.exit(500)
-        ';
+        }
     }
 --- request
 GET /t
@@ -226,7 +226,7 @@ qr/\[error\].*?Cannot reuse a session that has been shut down./
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute("SELECT key FROM system.local")
@@ -244,7 +244,7 @@ qr/\[error\].*?Cannot reuse a session that has been shut down./
             end
 
             ngx.exit(200)
-        ';
+        }
     }
 --- request
 GET /t
@@ -261,7 +261,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {
                 shm = "cassandra",
@@ -284,7 +284,7 @@ GET /t
             end
 
             ngx.exit(200)
-        ';
+        }
     }
 --- request
 GET /t
@@ -301,7 +301,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             -- It should ignore it since ngx_lua cannot accept
             -- a nil arg #1
@@ -326,7 +326,7 @@ GET /t
             end
 
             ngx.exit(200)
-        ';
+        }
     }
 --- request
 GET /t
@@ -343,7 +343,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             -- It should ignore it since ngx_lua cannot accept
             -- a nil arg #1
@@ -369,7 +369,7 @@ GET /t
             end
 
             ngx.exit(200)
-        ';
+        }
     }
 --- request
 GET /t
@@ -386,7 +386,7 @@ GET /t
  $::SpawnCluster"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local cassandra = require "cassandra"
             local session = cassandra.spawn_session {shm = "cassandra", prepared_shm = "cassandra_prepared"}
 
@@ -398,7 +398,7 @@ GET /t
                 end
                 ngx.say(rows[1].key)
             end
-        ';
+        }
     }
 --- request
 GET /t

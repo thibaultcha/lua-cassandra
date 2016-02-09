@@ -21,7 +21,7 @@ __DATA__
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -29,7 +29,7 @@ __DATA__
             for _, host in iter(shm, hosts) do
                 ngx.say(host)
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -47,7 +47,7 @@ GET /t
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -67,7 +67,7 @@ GET /t
             ngx.say(select(2, iter3()))
             ngx.say(select(2, iter2()))
             ngx.say(select(2, iter3()))
-        ';
+        }
     }
 --- request
 GET /t
@@ -91,7 +91,7 @@ GET /t
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -104,7 +104,7 @@ GET /t
 
             iter1 = iter(shm, hosts)
             ngx.say(select(2, iter1()))
-        ';
+        }
     }
 --- request
 GET /t
@@ -121,7 +121,7 @@ GET /t
 "$::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -138,7 +138,7 @@ GET /t
 
             iter1 = iter(shm, hosts)
             ngx.say(select(2, iter1()))
-        ';
+        }
     }
 --- request
 GET /t

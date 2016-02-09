@@ -1,11 +1,9 @@
-#!/bin/bash
+set -e
 
 if [ "$OPENRESTY_TESTS" != "yes" ]; then
   echo "Exiting, no openresty tests"
   exit
 fi
-
-set -e
 
 mkdir -p $OPENRESTY_DIR
 
@@ -17,7 +15,6 @@ if [ ! "$(ls -A $OPENRESTY_DIR)" ]; then
 
   ./configure \
     --prefix=$OPENRESTY_DIR \
-    --with-luajit=$LUA_DIR \
     --without-http_coolkit_module \
     --without-lua_resty_dns \
     --without-lua_resty_lrucache \

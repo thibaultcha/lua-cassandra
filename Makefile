@@ -16,10 +16,10 @@ dev: install
 	done;
 
 test:
-	@busted -v -o gtest && t/reindex t/* && prove
+	@busted -v -o gtest && prove
 
 prove:
-	@t/reindex t/* && prove
+	@util/reindex t/* && prove
 
 clean:
 	@rm -f luacov.*

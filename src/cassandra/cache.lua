@@ -176,6 +176,10 @@ local function key_for_prepared_query(keyspace, query)
 end
 
 local function set_prepared_query_id(options, query, query_id)
+  if options.prepared_shm == options.shm then
+    log.warn("Same shm used for cluster infos and prepared statements. Consider using different ones.")
+  end
+
   local shm = options.prepared_shm
   local dict = get_dict(shm)
   local prepared_key = key_for_prepared_query(options.keyspace, query)

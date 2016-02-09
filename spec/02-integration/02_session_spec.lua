@@ -23,7 +23,7 @@ describe("session", function()
       assert.True(ok)
       assert.equal("system", session.options.keyspace)
 
-      local rows, err = session:execute("SELECT * FROM local")
+      local rows, err = session:execute "SELECT * FROM local"
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal(1, #rows)
@@ -36,7 +36,7 @@ describe("session", function()
       assert.True(session.terminated)
       assert.same({}, session.hosts)
 
-      local rows, err = session:execute("SELECT * FROM system.local")
+      local rows, err = session:execute "SELECT * FROM system.local"
       assert.is_table(err)
       assert.equal("NoHostAvailableError", err.type)
       assert.falsy(rows)
@@ -45,7 +45,7 @@ describe("session", function()
 
   describe("set_keep_alive()", function()
     it("should fallback to shutdown() when outside of ngx_lua", function()
-      local rows, err = session:execute("SELECT * FROM system.local")
+      local rows, err = session:execute "SELECT * FROM system.local"
       assert.falsy(err)
       assert.equal(1, #rows)
 
@@ -54,7 +54,7 @@ describe("session", function()
       end)
 
       -- However, it does not terminate the session
-      rows, err = session:execute("SELECT * FROM system.local")
+      rows, err = session:execute "SELECT * FROM system.local"
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal(1, #rows)

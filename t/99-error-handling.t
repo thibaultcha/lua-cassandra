@@ -1,30 +1,9 @@
 use Test::Nginx::Socket::Lua;
-use Cwd qw(cwd);
+use t::Utils;
 
 repeat_each(2);
 
-plan tests => repeat_each() * blocks() * 5;
-
-my $pwd = cwd();
-
-our $HttpConfig = <<_EOC_;
-    lua_package_path "$pwd/src/?.lua;$pwd/src/?/init.lua;;";
-_EOC_
-
-our $SpawnCluster = <<_EOC_;
-    lua_shared_dict cassandra 1m;
-    lua_shared_dict cassandra_prepared 1m;
-    init_by_lua_block {
-        local cassandra = require "cassandra"
-        local cluster, err = cassandra.spawn_cluster {
-            shm = "cassandra",
-            contact_points = {"127.0.0.1"}
-        }
-        if err then
-            ngx.log(ngx.ERR, tostring(err))
-        end
-    }
-_EOC_
+plan tests => repeat_each() * blocks() * 3 + 4;
 
 run_tests();
 
@@ -32,8 +11,8 @@ __DATA__
 
 === TEST 1: shm cluster info disapeared
 --- http_config eval
-"$::HttpConfig
- $::SpawnCluster"
+"$t::Utils::HttpConfig
+ $t::Utils::SpawnCluster"
 --- config
     location /t {
       content_by_lua_block {
@@ -74,7 +53,7 @@ __DATA__
         end
 
         -- attempt query
-        local rows, err = session:execute("SELECT * FROM system.local")
+        local rows, err = session:execute "SELECT * FROM system.local"
         if err then
             ngx.log(ngx.ERR, tostring(err))
             ngx.exit(500)
@@ -96,3 +75,30 @@ local
     qr/\[warn\].*?No cluster infos in shared dict/,
     qr/\[info\].*?Cluster infos retrieved in shared dict cassandra/
 ]
+
+
+
+=== TEST 2: session:execute() invalid query
+--- http_config eval
+"$t::Utils::HttpConfig
+ $t::Utils::SpawnCluster"
+--- config
+    location /t {
+        content_by_lua_block {
+            local cassandra = require "cassandra"
+            local session = cassandra.spawn_session {shm = "cassandra"}
+
+            local rows, err = session:execute "CAN I HAZ CQL"
+            if err then
+                ngx.log(ngx.ERR, tostring(err))
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+
+--- no_error_log
+
+--- error_log eval
+qr/\[error\].*?\[Syntax error\] line 1:0 no viable alternative at input 'CAN'/

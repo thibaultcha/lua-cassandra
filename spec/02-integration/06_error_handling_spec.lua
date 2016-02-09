@@ -81,12 +81,12 @@ describe("error handling", function()
       session:shutdown()
     end)
     it("should handle CQL errors", function()
-      local res, err = session:execute("CAN I HAZ CQL")
+      local res, err = session:execute "CAN I HAZ CQL"
       assert.falsy(res)
       assert.is_table(err)
       assert.equal("ResponseError", err.type)
 
-      res, err = session:execute("SELECT * FROM system.local WHERE key = ?")
+      res, err = session:execute "SELECT * FROM system.local WHERE key = ?"
       assert.falsy(res)
       assert.is_table(err)
       assert.equal("ResponseError", err.type)
@@ -120,7 +120,7 @@ describe("error handling", function()
       assert.falsy(err)
 
       -- attempt query
-      local rows, err = session:execute("SELECT * FROM system.local")
+      local rows, err = session:execute "SELECT * FROM system.local"
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal(1, #rows)

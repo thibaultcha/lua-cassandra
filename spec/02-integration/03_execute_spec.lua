@@ -93,10 +93,10 @@ describe("execute()", function()
 
   describe("", function()
     setup(function()
-      utils.create_keyspace(session, "execute")
+      utils.create_keyspace(session, "session_execute")
 
       local res, err = session:execute [[
-        CREATE TABLE IF NOT EXISTS execute.users(
+        CREATE TABLE IF NOT EXISTS session_execute.users(
           id uuid,
           name varchar,
           n int,
@@ -106,7 +106,7 @@ describe("execute()", function()
       assert.falsy(err)
       assert.truthy(res)
 
-      res, err = session:set_keyspace "execute"
+      res, err = session:set_keyspace "session_execute"
       assert.falsy(err)
       assert.True(res)
     end)
@@ -209,14 +209,14 @@ describe("execute()", function()
         assert.is_table(rows)
         assert.equal(1000, #rows) -- back to the default
       end)
-      it("should support passing a paging_state to retrieve next pages", function()
+      it("should support paging_state to retrieve next pages", function()
         local half = utils.n_inserts/2
         local rows, err = session:execute([[
           SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n
         ]], nil, {page_size = half})
-
         assert.falsy(err)
         assert.is_table(rows)
+        assert.True(rows.meta.has_more_pages)
         assert.equal(half, #rows)
         assert.equal(1, rows[1].n)
         assert.equal(half, rows[#rows].n)
@@ -229,9 +229,49 @@ describe("execute()", function()
           page_size = half,
           paging_state = paging_state
         })
-
         assert.falsy(err)
         assert.is_table(rows)
+        assert.True(rows.meta.has_more_pages) -- still true
+        assert.equal(half, #rows)
+        assert.equal(half + 1, rows[1].n)
+        assert.equal(utils.n_inserts, rows[#rows].n)
+
+        local paging_state = rows.meta.paging_state
+
+        rows, err = session:execute([[
+          SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n
+        ]], nil, {
+          page_size = half,
+          paging_state = paging_state
+        })
+        assert.falsy(err)
+        assert.is_table(rows)
+        assert.False(rows.meta.has_more_pages)
+        assert.equal(0, #rows)
+      end)
+      it("support paging_state bis", function()
+        local half = utils.n_inserts/2
+        local rows, err = session:execute([[
+          SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n
+        ]], nil, {page_size = half})
+        assert.falsy(err)
+        assert.is_table(rows)
+        assert.True(rows.meta.has_more_pages)
+        assert.equal(half, #rows)
+        assert.equal(1, rows[1].n)
+        assert.equal(half, rows[#rows].n)
+
+        local paging_state = rows.meta.paging_state
+
+        rows, err = session:execute([[
+          SELECT * FROM users WHERE id = 2644bada-852c-11e3-89fb-e0b9a54a6d93 ORDER BY n
+        ]], nil, {
+          page_size = half + 1, -- this triggers the has_more_pages = false
+          paging_state = paging_state
+        })
+        assert.falsy(err)
+        assert.is_table(rows)
+        assert.False(rows.meta.has_more_pages)
         assert.equal(half, #rows)
         assert.equal(half + 1, rows[1].n)
         assert.equal(utils.n_inserts, rows[#rows].n)

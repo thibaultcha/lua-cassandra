@@ -1,16 +1,9 @@
 use Test::Nginx::Socket::Lua;
-use Cwd qw(cwd);
+use t::Utils;
 
 repeat_each(1);
 
 plan tests => repeat_each() * blocks() * 3;
-
-my $pwd = cwd();
-
-our $HttpConfig = <<_EOC_;
-    lua_package_path "$pwd/src/?.lua;$pwd/src/?/init.lua;;";
-    lua_shared_dict cassandra 1m;
-_EOC_
 
 run_tests();
 
@@ -18,10 +11,10 @@ __DATA__
 
 === TEST 1: shared round robin
 --- http_config eval
-"$::HttpConfig"
+"$t::Utils::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -29,7 +22,7 @@ __DATA__
             for _, host in iter(shm, hosts) do
                 ngx.say(host)
             end
-        ';
+        }
     }
 --- request
 GET /t
@@ -44,10 +37,10 @@ GET /t
 
 === TEST 2: multiple shared round robin
 --- http_config eval
-"$::HttpConfig"
+"$t::Utils::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -67,7 +60,7 @@ GET /t
             ngx.say(select(2, iter3()))
             ngx.say(select(2, iter2()))
             ngx.say(select(2, iter3()))
-        ';
+        }
     }
 --- request
 GET /t
@@ -88,10 +81,10 @@ GET /t
 
 === TEST 3: handling missing index in shm
 --- http_config eval
-"$::HttpConfig"
+"$t::Utils::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -104,7 +97,7 @@ GET /t
 
             iter1 = iter(shm, hosts)
             ngx.say(select(2, iter1()))
-        ';
+        }
     }
 --- request
 GET /t
@@ -118,10 +111,10 @@ GET /t
 
 === TEST 4: handling invalid index in shm
 --- http_config eval
-"$::HttpConfig"
+"$t::Utils::HttpConfig"
 --- config
     location /t {
-        content_by_lua '
+        content_by_lua_block {
             local iter = require("cassandra.policies.load_balancing").SharedRoundRobin
             local shm = "cassandra"
             local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}
@@ -138,7 +131,7 @@ GET /t
 
             iter1 = iter(shm, hosts)
             ngx.say(select(2, iter1()))
-        ';
+        }
     }
 --- request
 GET /t

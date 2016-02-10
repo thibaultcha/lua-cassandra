@@ -60,28 +60,36 @@ if not has_cosocket() then
     error("Error during fallback to LuaSocket: "..res)
   end
 
-  local sock_proxy_mt = {
-    __index = function(self, key)
-      local orig = self.sock[key]
-      if type(orig) == "function" then
-        local f = function(_, ...)
-          return orig(self.sock, ...)
-        end
-        self[key] = f
-        return f
-      elseif orig ~= nil then
-        return orig
-      else
-        return rawget(self, key)
-      end
+  local sock_proxy_mt = {}
+  function sock_proxy_mt.__index(self, key)
+    local override = rawget(sock_proxy_mt, key)
+    if override then
+      return override
     end
-  }
+
+    local orig = self.sock[key]
+    if type(orig) == "function" then
+      local f = function(_, ...)
+        return orig(self.sock, ...)
+      end
+      self[key] = f
+      return f
+    elseif orig ~= nil then
+      return orig
+    end
+  end
+  function sock_proxy_mt.getreusedtimes()
+    return 0
+  end
+  function sock_proxy_mt.settimeout(self, t)
+    self.sock:settimeout(t/1000)
+  end
 
   luasocket = {
     tcp = function(...)
-      local sock = res.tcp(...)
       return setmetatable({
-        sock = sock
+        sock = res.tcp(...),
+        fallback = true
       }, sock_proxy_mt)
     end
   }
@@ -133,13 +141,10 @@ local Host = {}
 Host.__index = Host
 
 local function new_socket(self)
-  local socket, sock_type
-
+  local socket
   if has_cosocket() then
-    sock_type = "ngx"
     socket = ngx_socket
   else
-    sock_type = "luasocket"
     socket = luasocket
   end
 
@@ -149,7 +154,6 @@ local function new_socket(self)
   end
 
   self.socket = tcp_sock
-  self.socket_type = sock_type
 end
 
 function Host:new(address, options)
@@ -240,7 +244,7 @@ end
 local function do_ssl_handshake(self)
   local ssl_options = self.options.ssl_options
 
-  if self.socket_type == "luasocket" then
+  if self.socket.fallback then
     local ok, res = pcall(require, "ssl")
     if not ok and string_find(res, "module 'ssl' not found", nil, true) then
       error("LuaSec not found. Please install LuaSec to use SSL with LuaSocket.")
@@ -299,14 +303,14 @@ function Host:connect()
 
   log.debug("Connecting to "..self.address)
 
-  self:set_timeout(self.options.socket_options.connect_timeout)
+  self.socket:settimeout(self.options.socket_options.connect_timeout)
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
     return false, Errors.SocketError(self.address, err), true
   end
 
-  self:set_timeout(self.options.socket_options.read_timeout)
+  self.socket:settimeout(self.options.socket_options.read_timeout)
 
   if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
@@ -387,30 +391,16 @@ function Host:change_keyspace(keyspace)
   end
 end
 
-function Host:set_timeout(t)
-  if self.socket_type == "luasocket" then
-    -- value is in seconds
-    t = t / 1000
-  end
-
-  return self.socket:settimeout(t)
-end
-
 function Host:get_reused_times()
-  if self.socket_type == "ngx" then
-    local count, err = self.socket:getreusedtimes()
-    if err then
-      log.err("Could not get reused times for socket to "..self.address..". "..err)
-    end
-    return count
+  local count, err = self.socket:getreusedtimes()
+  if err then
+    log.err("Could not get reused times for socket to "..self.address..". "..err)
   end
-
-  -- luasocket
-  return 0
+  return count
 end
 
 function Host:can_keep_alive()
-  return self.socket_type == "ngx"
+  return not self.socket.fallback
 end
 
 function Host:set_keep_alive()

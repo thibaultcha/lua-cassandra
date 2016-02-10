@@ -23,6 +23,7 @@ prove:
 
 clean:
 	@rm -f luacov.*
+	@util/clean_ccm.sh
 
 coverage: clean
 	@busted -v --coverage

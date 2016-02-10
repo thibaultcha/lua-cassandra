@@ -23,19 +23,6 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
-local resty_lock
-local status, res = pcall(require, "resty.lock")
-if status then
-  resty_lock = res
-end
-
-local get_phase
-local get_socket
-if ngx ~= nil then
-  get_phase = ngx.get_phase
-  get_socket = ngx.socket.tcp
-end
-
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
@@ -44,6 +31,63 @@ local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
 local pcall = pcall
+
+--- Plain Lua compatibility
+
+local resty_lock
+local get_phase, ngx_socket, has_cosocket
+if ngx ~= nil then
+  resty_lock = require "resty.lock"
+  get_phase = ngx.get_phase
+  ngx_socket = ngx.socket
+  has_cosocket = function()
+    local phase = get_phase()
+    return phase == "rewrite" or phase == "access"
+        or phase == "content" or phase == "timer"
+  end
+else
+  get_phase = function()end
+  has_cosocket = function()end
+end
+
+--- LuaSocket fallback
+
+local luasocket
+
+if not has_cosocket() then
+  local ok, res = pcall(require, "socket")
+  if not ok then
+    error("Error during fallback to LuaSocket: "..res)
+  end
+
+  local sock_proxy_mt = {
+    __index = function(self, key)
+      local orig = self.sock[key]
+      if type(orig) == "function" then
+        local f = function(_, ...)
+          return orig(self.sock, ...)
+        end
+        self[key] = f
+        return f
+      elseif orig ~= nil then
+        return orig
+      else
+        return rawget(self, key)
+      end
+    end
+  }
+
+  luasocket = {
+    tcp = function(...)
+      local sock = res.tcp(...)
+      return setmetatable({
+        sock = sock
+      }, sock_proxy_mt)
+    end
+  }
+end
+
+--- Locks with plain Lua compat
 
 local function lock_mutex(shm, key)
   if resty_lock then
@@ -89,29 +133,22 @@ local Host = {}
 Host.__index = Host
 
 local function new_socket(self)
-  local tcp_sock, sock_type
+  local socket, sock_type
 
-  if get_phase ~= nil and get_phase() ~= "init" then
-    -- lua-nginx-module
+  if has_cosocket() then
     sock_type = "ngx"
-    tcp_sock = get_socket
+    socket = ngx_socket
   else
-    -- fallback to luasocket
     sock_type = "luasocket"
-    local status, res = pcall(require, "socket")
-    if status then
-      tcp_sock = res.tcp
-    else
-      error("Error requiring LuaSocket while outside of ngx_lua: "..res)
-    end
+    socket = luasocket
   end
 
-  local socket, err = tcp_sock()
-  if not socket then
+  local tcp_sock, err = socket.tcp()
+  if not tcp_sock then
     error("Could not create socket: "..err)
   end
 
-  self.socket = socket
+  self.socket = tcp_sock
   self.socket_type = sock_type
 end
 

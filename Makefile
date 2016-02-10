@@ -1,22 +1,22 @@
-DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
+DEV_ROCKS=busted luacov luasec luacov-coveralls luacheck ldoc
 
-.PHONY: install dev clean test prove clean coverage lint doc
+.PHONY: install dev test prove clean coverage lint doc
 
 install:
 	@luarocks make lua-cassandra-*.rockspec
 
 dev: install
-	@for rock in $(DEV_ROCKS) ; do \
-		if ! command -v $$rock > /dev/null ; then \
-			echo $$rock not found, installing via luarocks... ; \
-			luarocks install $$rock ; \
-		else \
-			echo $$rock already installed, skipping ; \
-		fi \
+	@for rock in $(DEV_ROCKS); do\
+		if ! command -v $$rock > /dev/null; then\
+			echo $$rock not found, installing via luarocks...;\
+			luarocks install $$rock;\
+		else\
+			echo $$rock already installed, skipping;\
+		fi\
 	done;
 
 test:
-	@busted -v -o gtest && prove
+	@busted -v -o gtest
 
 prove:
 	@util/reindex t/* && prove

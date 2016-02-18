@@ -20,6 +20,7 @@ build = {
     ["cassandra.log"] = "src/cassandra/log.lua",
     ["cassandra.cache"] = "src/cassandra/cache.lua",
     ["cassandra.errors"] = "src/cassandra/errors.lua",
+    ["cassandra.socket"] = "src/cassandra/socket.lua",
     ["cassandra.options"] = "src/cassandra/options.lua",
     ["cassandra.requests"] = "src/cassandra/requests.lua",
     ["cassandra.frame_reader"] = "src/cassandra/frame_reader.lua",

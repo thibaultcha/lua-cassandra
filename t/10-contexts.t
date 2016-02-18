@@ -1,6 +1,8 @@
 use Test::Nginx::Socket::Lua;
 use t::Utils;
 
+log_level('error');
+
 repeat_each(3);
 
 plan tests => repeat_each() * blocks() * 3;
@@ -22,9 +24,6 @@ init_by_lua_block {
     }
 
     local rows = session:execute 'SELECT key FROM system.local'
-    local socket = session.hosts[1].socket
-
-    dict:set('cosocket', socket.setkeepalive ~= nil)
     dict:set('type', rows.type)
     dict:set('length', #rows)
     dict:set('key', rows[1].key)
@@ -37,7 +36,6 @@ init_by_lua_block {
             ngx.say(dict:get("type"))
             ngx.say(dict:get("length"))
             ngx.say(dict:get("key"))
-            ngx.say(dict:get("cosocket"))
         }
     }
 --- request
@@ -46,13 +44,12 @@ GET /t
 ROWS
 1
 local
-false
 --- no_error_log
 [error]
 
 
 
-=== TEST 2: suppoer in init_worker
+=== TEST 2: support in init_worker
 --- http_config eval
 "$t::Utils::HttpConfig
 lua_shared_dict test 128k;
@@ -65,9 +62,6 @@ init_worker_by_lua_block {
     }
 
     local rows = session:execute 'SELECT key FROM system.local'
-    local socket = session.hosts[1].socket
-
-    dict:set('cosocket', socket.setkeepalive ~= nil)
     dict:set('type', rows.type)
     dict:set('length', #rows)
     dict:set('key', rows[1].key)
@@ -79,7 +73,6 @@ init_worker_by_lua_block {
             ngx.say(dict:get("type"))
             ngx.say(dict:get("length"))
             ngx.say(dict:get("key"))
-            ngx.say(dict:get("cosocket"))
         }
     }
 --- request
@@ -88,13 +81,12 @@ GET /t
 ROWS
 1
 local
-false
 --- no_error_log
 [error]
 
 
 
-=== TEST 3: suppoer in set
+=== TEST 3: support in set
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -106,9 +98,6 @@ false
                 contact_points = {"127.0.0.1"}
             }
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
-            ngx.log(ngx.DEBUG, "set "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
             return rows[1].key
         }
 
@@ -118,12 +107,12 @@ false
 GET /t
 --- response_body
 local
---- error_log eval
-qr/\[debug\].*?set local false/
+--- no_error_log
+[error]
 
 
 
-=== TEST 4: suppoer in rewrite
+=== TEST 4: support in rewrite
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -136,10 +125,7 @@ qr/\[debug\].*?set local false/
                 contact_points = {"127.0.0.1"}
             }
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
             ngx.var.res = rows[1].key
-            ngx.log(ngx.DEBUG, "rewrite "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
         }
 
         echo $res;
@@ -148,12 +134,12 @@ qr/\[debug\].*?set local false/
 GET /t
 --- response_body
 local
---- error_log eval
-qr/\[debug\].*?rewrite local true/
+--- no_error_log
+[error]
 
 
 
-=== TEST 5: suppoer in access
+=== TEST 5: support in access
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -166,22 +152,19 @@ qr/\[debug\].*?rewrite local true/
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
             ngx.say(rows[1].key)
-            ngx.log(ngx.DEBUG, "access "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
         }
     }
 --- request
 GET /t
 --- response_body
 local
---- error_log eval
-qr/\[debug\].*?access local true/
+--- no_error_log
+[error]
 
 
 
-=== TEST 6: suppoer in content
+=== TEST 6: support in content
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -194,21 +177,19 @@ qr/\[debug\].*?access local true/
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
-            ngx.log(ngx.DEBUG, "content "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
+            ngx.say(rows[1].key)
         }
     }
 --- request
 GET /t
 --- response_body
+local
+--- no_error_log
+[error]
 
---- error_log eval
-qr/\[debug\].*?content local true/
 
 
-
-=== TEST 7: suppoer in header_filter
+=== TEST 7: support in header_filter
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -223,9 +204,7 @@ qr/\[debug\].*?content local true/
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
-            ngx.log(ngx.DEBUG, "header_filter "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
+            ngx.log(ngx.ERR, "header_filter "..rows[1].key)
         }
     }
 --- request
@@ -233,11 +212,12 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[debug\].*?header_filter local false/
+qr/\[error\].*?header_filter local/
 
 
 
-=== TEST 8: suppoer in body_filter
+=== TEST 8: support in body_filter
+--- log_level: debug
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -252,9 +232,7 @@ qr/\[debug\].*?header_filter local false/
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
-            ngx.log(ngx.DEBUG, "body_filter "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
+            ngx.log(ngx.DEBUG, "body_filter "..rows[1].key)
         }
     }
 --- request
@@ -262,11 +240,11 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[debug\].*?body_filter local false/
+qr/\[debug\].*?body_filter local/
 
 
 
-=== TEST 9: suppoer in log
+=== TEST 9: support in log
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -281,9 +259,7 @@ qr/\[debug\].*?body_filter local false/
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
-
-            ngx.log(ngx.DEBUG, "log "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
+            ngx.log(ngx.ERR, "log "..rows[1].key)
         }
     }
 --- request
@@ -291,11 +267,11 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[debug\].*?log local false/
+qr/\[error\].*?log local/
 
 
 
-=== TEST 10: suppoer in timer
+=== TEST 10: support in timer
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -311,9 +287,7 @@ qr/\[debug\].*?log local false/
                 }
 
                 local rows = session:execute "SELECT key FROM system.local"
-                local socket = session.hosts[1].socket
-
-                ngx.log(ngx.DEBUG, "timer "..rows[1].key.." "..tostring(socket.setkeepalive ~= nil))
+                ngx.log(ngx.ERR, "timer "..rows[1].key)
             end)
         }
     }
@@ -322,7 +296,7 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[debug\].*?timer local true/
+qr/\[error\].*?timer local/
 
 
 
@@ -333,20 +307,22 @@ lua_shared_dict test 128k;
 init_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
+    local socket = require 'cassandra.socket'
     local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
 
     local rows = session:execute 'SELECT key FROM system.local'
-    local socket = session.hosts[1].socket
-    dict:set('cosocket', socket.setkeepalive ~= nil)
+    local sock = session.hosts[1].socket
+    dict:set('cosocket', getmetatable(sock) ~= socket.luasocket_mt)
 }
 "
 --- config
     location /t {
         content_by_lua_block {
             local cassandra = require 'cassandra'
+            local socket = require 'cassandra.socket'
             local dict = ngx.shared.test
 
             local session = cassandra.spawn_session {
@@ -354,10 +330,10 @@ init_by_lua_block {
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
+            local sock = session.hosts[1].socket
 
             ngx.say(dict:get("cosocket"))
-            ngx.say(socket.setkeepalive ~= nil)
+            ngx.say(getmetatable(sock) ~= socket.luasocket_mt)
         }
     }
 --- request
@@ -377,20 +353,22 @@ lua_shared_dict test 128k;
 init_worker_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
+    local socket = require 'cassandra.socket'
     local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
 
     local rows = session:execute 'SELECT key FROM system.local'
-    local socket = session.hosts[1].socket
-    dict:set('cosocket', socket.setkeepalive ~= nil)
+    local sock = session.hosts[1].socket
+    dict:set('cosocket', getmetatable(sock) ~= socket.luasocket_mt)
 }
 "
 --- config
     location /t {
         access_by_lua_block {
             local cassandra = require 'cassandra'
+            local socket = require 'cassandra.socket'
             local dict = ngx.shared.test
 
             local session = cassandra.spawn_session {
@@ -398,10 +376,10 @@ init_worker_by_lua_block {
             }
 
             local rows = session:execute "SELECT key FROM system.local"
-            local socket = session.hosts[1].socket
+            local sock = session.hosts[1].socket
 
             ngx.say(dict:get("cosocket"))
-            ngx.say(socket.setkeepalive ~= nil)
+            ngx.say(getmetatable(sock) ~= socket.luasocket_mt)
         }
     }
 --- request

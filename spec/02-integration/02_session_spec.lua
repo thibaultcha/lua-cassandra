@@ -20,37 +20,6 @@ describe("session", function()
     session:execute "SELECT * FROM system.local"
   end)
 
-  describe("luasocket fallback", function()
-    it("should fallback on proxy socket", function()
-      local socket = session.hosts[1].socket
-      assert.True(socket.fallback)
-    end)
-    it("should proxy settimeout()", function()
-      local socket = session.hosts[1].socket
-      local mt = getmetatable(socket)
-      assert.truthy(mt)
-
-      spy.on(mt, "settimeout")
-
-      local session_t = cassandra.spawn_session {
-        shm = _shm,
-        socket_options = {
-          connect_timeout = 1000,
-          read_timeout = 1000
-        }
-      }
-
-      -- force connect
-      session_t:execute "SELECT * FROM system.local"
-
-      assert.spy(mt.settimeout).was.called(2) -- connect + read timeout
-    end)
-    it("should proxy getreusedtimes()", function()
-      local socket = session.hosts[1].socket
-      assert.equal(0, socket:getreusedtimes())
-    end)
-  end)
-
   describe("set_keyspace()", function()
     it("should set a session's 'keyspace' option", function()
       local ok, err = session:set_keyspace "system"

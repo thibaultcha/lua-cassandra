@@ -3,7 +3,7 @@ use t::Utils;
 
 repeat_each(2);
 
-plan tests => repeat_each() * blocks() * 3 + 4;
+plan tests => repeat_each() * (blocks() * 3 + 2);
 
 run_tests();
 
@@ -31,7 +31,7 @@ __DATA__
         end
 
         -- erase hosts from the cache
-        dict:delete("hosts")
+        dict:delete "hosts"
 
         local hosts, err = cache.get_hosts(shm)
         if err then

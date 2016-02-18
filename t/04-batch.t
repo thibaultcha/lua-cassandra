@@ -1,6 +1,8 @@
 use Test::Nginx::Socket::Lua;
 use t::Utils;
 
+log_level('error');
+
 repeat_each(2);
 
 plan tests => repeat_each() * blocks() * 3;

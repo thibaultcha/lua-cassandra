@@ -1,6 +1,8 @@
 use Test::Nginx::Socket::Lua;
 use t::Utils;
 
+log_level('error');
+
 plan tests => repeat_each() * blocks() * 3 + (repeat_each() * 2);
 
 run_tests();
@@ -164,6 +166,7 @@ local
 
 
 === TEST 6: spawn session without cluster with contact_points
+--- log_level: info
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config

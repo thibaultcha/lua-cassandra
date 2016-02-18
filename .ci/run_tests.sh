@@ -5,9 +5,7 @@ set -e
 if [ "$OPENRESTY_TESTS" != "yes" ]; then
   make lint
   busted -v --coverage -o gtest --repeat 1
-  luacov-coveralls -i src/cassandra -e bit.lua
+  luacov-coveralls -i src/cassandra -e bit.lua -e socket.lua
 else
-  ccm create resty_tests -v binary:$CASSANDRA -n 1
-  ccm start --wait-for-binary-proto
-  prove -l t
+  make prove
 fi

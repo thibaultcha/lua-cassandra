@@ -15,6 +15,7 @@ local log = require "cassandra.log"
 local opts = require "cassandra.options"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
+local socket = require "cassandra.socket"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
@@ -23,19 +24,6 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
-local resty_lock
-local status, res = pcall(require, "resty.lock")
-if status then
-  resty_lock = res
-end
-
-local get_phase
-local get_socket
-if ngx ~= nil then
-  get_phase = ngx.get_phase
-  get_socket = ngx.socket.tcp
-end
-
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
@@ -43,7 +31,13 @@ local string_format = string.format
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
-local pcall = pcall
+
+--- Locks with plain Lua compat
+
+local resty_lock
+if ngx ~= nil then
+  resty_lock = require "resty.lock"
+end
 
 local function lock_mutex(shm, key)
   if resty_lock then
@@ -87,33 +81,6 @@ local Cassandra = {
 
 local Host = {}
 Host.__index = Host
-
-local function new_socket(self)
-  local tcp_sock, sock_type
-
-  if get_phase ~= nil and get_phase() ~= "init" then
-    -- lua-nginx-module
-    sock_type = "ngx"
-    tcp_sock = get_socket
-  else
-    -- fallback to luasocket
-    sock_type = "luasocket"
-    local status, res = pcall(require, "socket")
-    if status then
-      tcp_sock = res.tcp
-    else
-      error("Error requiring LuaSocket while outside of ngx_lua: "..res)
-    end
-  end
-
-  local socket, err = tcp_sock()
-  if not socket then
-    error("Could not create socket: "..err)
-  end
-
-  self.socket = socket
-  self.socket_type = sock_type
-end
 
 function Host:new(address, options)
   local host, port = string_utils.split_by_colon(address)
@@ -203,41 +170,14 @@ end
 local function do_ssl_handshake(self)
   local ssl_options = self.options.ssl_options
 
-  if self.socket_type == "luasocket" then
-    local ok, res = pcall(require, "ssl")
-    if not ok and string_find(res, "module 'ssl' not found", nil, true) then
-      error("LuaSec not found. Please install LuaSec to use SSL with LuaSocket.")
-    elseif not ok then
-      error(res)
-    end
+  local luasec_opts = {
+    ca = ssl_options.ca,
+    key = ssl_options.key,
+    certificate = ssl_options.certificate
+  }
 
-    local ssl = res
-    local params = {
-      mode = "client",
-      protocol = "tlsv1",
-      key = ssl_options.key,
-      certificate = ssl_options.certificate,
-      cafile = ssl_options.ca,
-      verify = ssl_options.verify and "peer" or "none",
-      options = "all"
-    }
-
-    local err
-    self.socket, err = ssl.wrap(self.socket, params)
-    if err then
-      return false, err
-    end
-
-    local _, err = self.socket:dohandshake()
-    if err then
-      return false, err
-    end
-  else
-    -- returns a boolean since `reused_session` is false.
-    return self.socket:sslhandshake(false, nil, self.options.ssl_options.verify)
-  end
-
-  return true
+  -- returns a boolean since `reused_session` is false.
+  return self.socket:sslhandshake(false, nil, ssl_options.verify, luasec_opts)
 end
 
 local function send_auth(self, provider)
@@ -258,18 +198,23 @@ end
 function Host:connect()
   if self.connected then return true end
 
-  new_socket(self)
+  local sock, err = socket.tcp()
+  if not sock then
+    error("Could not create socket: "..err)
+  end
+
+  self.socket = sock
 
   log.debug("Connecting to "..self.address)
 
-  self:set_timeout(self.options.socket_options.connect_timeout)
+  self.socket:settimeout(self.options.socket_options.connect_timeout)
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
     return false, Errors.SocketError(self.address, err), true
   end
 
-  self:set_timeout(self.options.socket_options.read_timeout)
+  self.socket:settimeout(self.options.socket_options.read_timeout)
 
   if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
@@ -351,29 +296,15 @@ function Host:change_keyspace(keyspace)
 end
 
 function Host:set_timeout(t)
-  if self.socket_type == "luasocket" then
-    -- value is in seconds
-    t = t / 1000
-  end
-
   return self.socket:settimeout(t)
 end
 
 function Host:get_reused_times()
-  if self.socket_type == "ngx" then
-    local count, err = self.socket:getreusedtimes()
-    if err then
-      log.err("Could not get reused times for socket to "..self.address..". "..err)
-    end
-    return count
+  local count, err = self.socket:getreusedtimes()
+  if err then
+    log.err("Could not get reused times for socket to "..self.address..". "..err)
   end
-
-  -- luasocket
-  return 0
-end
-
-function Host:can_keep_alive()
-  return self.socket_type == "ngx"
+  return count
 end
 
 function Host:set_keep_alive()
@@ -382,26 +313,26 @@ function Host:set_keep_alive()
     return true
   end
 
-  if self:can_keep_alive() then
-    -- tcpsock:setkeepalive() does not accept nil values, so this is a quick workaround
-    -- see https://github.com/openresty/lua-nginx-module/pull/625
-    local ok, err
-    if self.options.socket_options.pool_timeout ~= nil then
-      if self.options.socket_options.pool_size ~= nil then
-        ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout, self.options.socket_options.pool_size)
-      else
-        ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout)
-      end
+  -- tcpsock:setkeepalive() does not accept nil values, so this is a quick workaround
+  -- see https://github.com/openresty/lua-nginx-module/pull/625
+  local ok, err
+  if self.options.socket_options.pool_timeout ~= nil then
+    if self.options.socket_options.pool_size ~= nil then
+      ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout, self.options.socket_options.pool_size)
     else
-      ok, err = self.socket:setkeepalive()
+      ok, err = self.socket:setkeepalive(self.options.socket_options.pool_timeout)
     end
-    if err then
-      log.err("Could not set keepalive socket to "..self.address..". "..err)
-      return ok, Errors.SocketError(self.address, err)
-    end
+  else
+    ok, err = self.socket:setkeepalive()
   end
 
   self.connected = false
+
+  if err then
+    log.err("Could not set keepalive socket to "..self.address..". "..err)
+    return ok, Errors.SocketError(self.address, err)
+  end
+
   return true
 end
 
@@ -413,11 +344,14 @@ function Host:close()
 
   log.info("Closing connection to "..self.address..".")
   local _, err = self.socket:close()
+
+  self.connected = false
+
   if err then
     log.err("Could not close socket to "..self.address..". "..err)
     return false, Errors.SocketError(self.address, err)
   end
-  self.connected = false
+
   return true
 end
 
@@ -1037,11 +971,7 @@ end
 -- session:set_keep_alive()
 function Session:set_keep_alive()
   for _, host in ipairs(self.hosts) do
-    if host:can_keep_alive() then
-      host:set_keep_alive()
-    else
-      host:close()
-    end
+    host:set_keep_alive()
   end
 end
 

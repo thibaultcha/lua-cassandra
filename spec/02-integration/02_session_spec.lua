@@ -2,18 +2,22 @@ local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 
 describe("session", function()
-  local session, err, _hosts, _shm
+  local session, _hosts, _shm
 
   setup(function()
     _hosts, _shm = utils.ccm_start()
   end)
 
   before_each(function()
+    local err
     session, err = cassandra.spawn_session {
       shm = _shm,
       contact_points = _hosts
     }
     assert.falsy(err)
+
+    -- force connect
+    session:execute "SELECT * FROM system.local"
   end)
 
   describe("set_keyspace()", function()

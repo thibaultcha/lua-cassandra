@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 CASSANDRA=${1:-2.2.4}
-echo $CASSANDRA
+
 ccm stop
-ccm create resty_tests -v binary:$CASSANDRA -n 1
+ccm create lua_cassandra_prove -v binary:$CASSANDRA -n 1
+ccm switch lua_cassandra_prove
 ccm start --wait-for-binary-proto

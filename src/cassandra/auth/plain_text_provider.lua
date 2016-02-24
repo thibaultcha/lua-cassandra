@@ -15,4 +15,3 @@ return {
     return fmt("\0%s\0%s", self.username, self.password)
   end
 }
-

@@ -9,7 +9,7 @@ local _ERRORS = {
       buf[#buf + 1] = string.format("%s: %s.", address, err)
     end
 
-    return "All hosts tried for query failed. "..table.concat(buf, " ")
+    return "all hosts tried for query failed. "..table.concat(buf, " ")
   end,
   socket = function(peer, err)
     return "socket with peer '"..peer.."' encountered error: "..err

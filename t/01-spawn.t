@@ -96,7 +96,7 @@ GET /t
 
 --- timeout: 1.5
 --- error_log eval
-qr/\[error\].*?All hosts tried for query failed\. 127\.0\.0\.1:9043/
+qr/\[error\].*?all hosts tried for query failed\. 127\.0\.0\.1:9043/
 
 
 
@@ -205,8 +205,8 @@ local
 [error]
 --- error_log eval
 [
-    qr/\[warn\].*?No cluster infos in shared dict/,
-    qr/\[debug\].*?Cluster infos retrieved in shared dict cassandra/
+    qr/\[warn\].*?no cluster infos in shared dict/,
+    qr/\[debug\].*?cluster infos retrieved in shared dict cassandra/
 ]
 
 

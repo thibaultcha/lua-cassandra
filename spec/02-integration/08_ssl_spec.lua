@@ -25,7 +25,7 @@ desc("SSL", function()
       contact_points = _hosts
     }
     assert.truthy(err)
-    assert.equal("All hosts tried for query failed. 127.0.0.1:9042: closed.", err)
+    assert.equal("all hosts tried for query failed. 127.0.0.1:9042: closed.", err)
     assert.False(ok)
   end)
   it("should connect with SSL without verifying server certificate", function()

@@ -36,7 +36,7 @@ describe("error handling", function()
         contact_points = contact_points
       }
       assert.False(ok)
-      assert.truthy(string.match(err, "All hosts tried for query failed"))
+      assert.truthy(string.match(err, "all hosts tried for query failed"))
     end)
   end)
 

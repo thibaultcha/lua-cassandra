@@ -185,7 +185,7 @@ end
 
 local function set_prepared_query_id(options, query, query_id)
   if options.prepared_shm == options.shm then
-    log.warn("Same shm used for cluster infos and prepared statements. Consider using different ones.")
+    log.warn "same shm used for cluster infos and prepared statements, consider using different ones"
   end
 
   local shm = options.prepared_shm
@@ -196,7 +196,7 @@ local function set_prepared_query_id(options, query, query_id)
   if not ok then
     return false, Errors.shm(shm, "cannot store prepared query id ("..err..")")
   elseif forcible then
-    log.warn("shm for prepared queries '"..shm.."' is running out of memory. Consider increasing its size.")
+    log.warn("shm for prepared queries '"..shm.."' is running out of memory, consider increasing its size")
     dict:flush_expired(1) -- flush oldest query
   end
   return true

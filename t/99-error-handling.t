@@ -26,7 +26,6 @@ __DATA__
             ngx.log(ngx.ERR, err)
         elseif hosts == nil or #hosts < 1 then
             ngx.log(ngx.ERR, "no hosts set in shm")
-            ngx.exit(500)
         end
 
         -- erase hosts from the cache
@@ -67,8 +66,8 @@ local
 [error]
 --- error_log eval
 [
-    qr/\[warn\].*?No cluster infos in shared dict/,
-    qr/\[debug\].*?Cluster infos retrieved in shared dict cassandra/
+    qr/\[warn\].*?no cluster infos in shared dict/,
+    qr/\[debug\].*?cluster infos retrieved in shared dict cassandra/
 ]
 
 

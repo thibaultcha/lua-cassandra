@@ -281,4 +281,4 @@ local
 local
 local
 --- error_log eval
-qr/\[warn\].*?Same shm used for cluster infos and prepared statements\. Consider using different ones/
+qr/\[warn\].*?same shm used for cluster infos and prepared statements, consider using different ones/

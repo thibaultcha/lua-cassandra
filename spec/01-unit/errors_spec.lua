@@ -15,7 +15,7 @@ describe("Errors", function()
     it("accepts a table", function()
       local err = Errors.no_host {["abc"] = "DOWN", ["def"] = "DOWN"}
       -- can't be sure in which order will the table be iterated over
-      assert.truthy(string.match(err, "All hosts tried for query failed%. %l%l%l: DOWN%. %l%l%l: DOWN%."))
+      assert.truthy(string.match(err, "all hosts tried for query failed%. %l%l%l: DOWN%. %l%l%l: DOWN%."))
     end)
   end)
 

@@ -27,10 +27,10 @@ local FrameReader = require "cassandra.frame_reader"
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
-local string_format = string.format
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
+local fmt = string.format
 
 --- Locks with plain Lua compat
 
@@ -89,7 +89,7 @@ function Host:new(address, options)
   local h = {
     host = host,
     port = port,
-    address = address,
+    address = host..":"..port,
     protocol_version = DEFAULT_PROTOCOL_VERSION,
     options = options,
     reconnection_policy = options.policies.reconnection
@@ -143,13 +143,13 @@ function Host:send(request)
   local frame_reader, err = send_and_receive(self, request)
   if err then
     if err == "timeout" or err == "wantread" then -- cosocket/luasocket or LuaSec timeout
-      return nil, Errors.TimeoutError(self.address)
+      return nil, err, Errors.t_timeout
     else
-      return nil, Errors.SocketError(self.address, err)
+      return nil, err, Errors.t_socket
     end
   end
 
-  -- result, cql_error
+  -- result, err, err_code, "cql"
   return frame_reader:parse()
 end
 
@@ -211,7 +211,7 @@ function Host:connect()
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    return false, Errors.SocketError(self.address, err), true
+    return false, err, true
   end
 
   self.socket:settimeout(self.options.socket_options.read_timeout)
@@ -219,7 +219,7 @@ function Host:connect()
   if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
     if not ok then
-      return false, Errors.SSLError(self.address, err)
+      return false, "could not perform SSL handshake ("..err..")"
     end
   end
 
@@ -234,7 +234,7 @@ function Host:connect()
   local ready = false
   local res, err = startup(self)
   if err then
-    log.info("Startup request failed. "..err)
+    log.err("Startup request failed. "..err)
     -- Check for incorrect protocol version
     if err and err.code == CQL_Errors.PROTOCOL then
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
@@ -243,7 +243,7 @@ function Host:connect()
         if self.protocol_version < MIN_PROTOCOL_VERSION then
           log.err("Connection could not find a supported protocol version.")
         else
-          log.info("Decreasing protocol version to v"..self.protocol_version)
+          log.debug("Decreasing protocol version to v"..self.protocol_version)
           return self:connect()
         end
       end
@@ -251,16 +251,17 @@ function Host:connect()
 
     return false, err, true
   elseif res.must_authenticate then
-    log.info("Host at "..self.address.." required authentication")
+    log.debug("Host at "..self.address.." asked for authentication")
     if self.options.auth == nil then
-      return nil, Errors.AuthenticationError("Host at "..self.address..
-        " required authentication but no auth provider was configured for session")
+      return nil, "Host at "..self.address..
+        " required authentication but no auth provider was configured for session"
     end
 
     local ok, err = send_auth(self, self.options.auth)
     if err then
-      return false, Errors.AuthenticationError(err)
+      return false, err
     elseif ok then
+      log.debug("Authenticated to host at "..self.address)
       ready = true
     end
   elseif res.ready then
@@ -328,9 +329,8 @@ function Host:set_keep_alive()
 
   self.connected = false
 
-  if err then
-    log.err("Could not set keepalive socket to "..self.address..". "..err)
-    return ok, Errors.SocketError(self.address, err)
+  if not ok then
+    return false, Errors.socket(self.address, err)
   end
 
   return true
@@ -342,14 +342,13 @@ function Host:close()
     return true
   end
 
-  log.info("Closing connection to "..self.address..".")
+  log.debug("Closing connection to "..self.address..".")
   local _, err = self.socket:close()
 
   self.connected = false
 
   if err then
-    log.err("Could not close socket to "..self.address..". "..err)
-    return false, Errors.SocketError(self.address, err)
+    return false, Errors.socket(self.address, err)
   end
 
   return true
@@ -400,24 +399,13 @@ function Host:set_up()
   return true
 end
 
-function Host:is_up()
-  local host_infos, err = cache.get_host(self.options.shm, self.address)
-  if err then
-    return nil, err
-  end
-
-  return host_infos.unhealthy_at == 0
-end
-
 function Host:can_be_considered_up()
   local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
     return nil, err
   end
-  local is_up, err = self:is_up()
-  if err then
-    return nil, err
-  end
+
+  local is_up = host_infos.unhealthy_at == 0
 
   return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
 end
@@ -452,7 +440,7 @@ function RequestHandler.get_first_coordinator(hosts)
     end
   end
 
-  return nil, Errors.NoHostAvailableError(errors)
+  return nil, Errors.no_host(errors)
 end
 
 function RequestHandler:get_next_coordinator()
@@ -484,7 +472,7 @@ function RequestHandler:get_next_coordinator()
     end
   end
 
-  return nil, Errors.NoHostAvailableError(errors)
+  return nil, Errors.no_host(errors)
 end
 
 local function check_schema_consensus(request_handler)
@@ -519,7 +507,7 @@ local function check_schema_consensus(request_handler)
 end
 
 function RequestHandler:wait_for_schema_consensus()
-  log.info("Waiting for schema consensus")
+  log.debug("Waiting for schema consensus")
 
   local match, t_diff, err
   local start = time_utils.get_time()
@@ -553,9 +541,9 @@ function RequestHandler:send(request)
     return self:send_on_next_coordinator(request)
   end
 
-  local result, err = self.coordinator:send(request)
+  local result, err, err_type, cql_err_code = self.coordinator:send(request)
   if err then
-    return self:handle_error(request, err)
+    return self:handle_error(request, err, err_type, cql_err_code)
   end
 
   -- Success! Make sure to re-up the node in case it was marked as DOWN
@@ -574,11 +562,8 @@ function RequestHandler:send(request)
   return result
 end
 
-function RequestHandler:handle_error(request, err)
-  local retry_policy = self.options.policies.retry
-  local decision = retry_policy.decisions.throw
-
-  if err.type == "SocketError" then
+function RequestHandler:handle_error(request, err, err_type, cql_err_code)
+  if err_type == Errors.t_socket then
     -- host seems unhealthy
     local cache_err = self.coordinator:set_down()
     if cache_err then
@@ -586,32 +571,37 @@ function RequestHandler:handle_error(request, err)
     end
     -- always retry, another node will be picked
     return self:retry(request)
-  elseif err.type == "TimeoutError" then
+  elseif err_type == Errors.t_timeout then
     if self.options.query_options.retry_on_timeout then
       return self:retry(request)
     end
-  elseif err.type == "ResponseError" then
+  elseif err_type == Errors.t_cql then
+    local retry_policy = self.options.policies.retry
+    local decision = retry_policy.decisions.throw
+
     local request_infos = {
       handler = self,
       request = request,
       n_retries = self.n_retries
     }
-    if err.code == CQL_Errors.OVERLOADED or err.code == CQL_Errors.IS_BOOTSTRAPPING or err.code == CQL_Errors.TRUNCATE_ERROR then
+    if cql_err_code == CQL_Errors.OVERLOADED
+       or cql_err_code == CQL_Errors.IS_BOOTSTRAPPING
+       or cql_err_code == CQL_Errors.TRUNCATE_ERROR then
       -- always retry, we will hit another node
       return self:retry(request)
-    elseif err.code == CQL_Errors.UNAVAILABLE_EXCEPTION then
+    elseif cql_err_code == CQL_Errors.UNAVAILABLE_EXCEPTION then
       decision = retry_policy.on_unavailable(request_infos)
-    elseif err.code == CQL_Errors.READ_TIMEOUT then
+    elseif cql_err_code == CQL_Errors.READ_TIMEOUT then
       decision = retry_policy.on_read_timeout(request_infos)
-    elseif err.code == CQL_Errors.WRITE_TIMEOUT then
+    elseif cql_err_code == CQL_Errors.WRITE_TIMEOUT then
       decision = retry_policy.on_write_timeout(request_infos)
-    elseif err.code == CQL_Errors.UNPREPARED then
+    elseif cql_err_code == CQL_Errors.UNPREPARED then
       return self:prepare_and_retry(request)
     end
-  end
 
-  if decision == retry_policy.decisions.retry then
-    return self:retry(request)
+    if decision == retry_policy.decisions.retry then
+      return self:retry(request)
+    end
   end
 
   -- this error needs to be reported to the session
@@ -621,14 +611,13 @@ end
 function RequestHandler:retry(request)
   self.coordinator:close()
   self.n_retries = self.n_retries + 1
-  log.info("Retrying request on next coordinator")
+  log.debug("Retrying request on next coordinator")
   return self:send_on_next_coordinator(request)
 end
 
 function RequestHandler:prepare_and_retry(request)
-  local preparing_lock_key = string_format("0x%s_host_%s", request.query_id, self.coordinator.address)
-
   -- MUTEX
+  local preparing_lock_key = fmt("0x%s_host_%s", request.query_id, self.coordinator.address)
   local lock, lock_err, elapsed = lock_mutex(self.options.prepared_shm, preparing_lock_key)
   if lock_err then
     return nil, lock_err
@@ -636,16 +625,16 @@ function RequestHandler:prepare_and_retry(request)
 
   if elapsed and elapsed == 0 then
     -- prepare on this host
-    log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
+    log.debug("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
     local prepare_request = Requests.PrepareRequest(request.query)
     local res, err = self:send(prepare_request)
     if err then
       return nil, err
     end
-    log.info("Prepared query for host "..self.coordinator.address)
+    log.debug("Prepared query for host "..self.coordinator.address)
 
     if request.query_id ~= res.query_id then
-      log.warn(string_format("Unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request.query_id, res.query_id))
+      log.warn(fmt("Unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request.query_id, res.query_id))
       request.query_id = res.query_id
     end
   end
@@ -686,7 +675,7 @@ function Session:new(options)
         return nil, err
       end
     else
-      return nil, Errors.DriverError("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.")
+      return nil, Errors.options "options must contain contact_points to spawn session or cluster"
     end
   end
 
@@ -709,40 +698,40 @@ local function prepare_query(request_handler, query)
     local prepared_key_lock = prepared_key.."_lock"
     local lock, lock_err, elapsed = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
     if lock_err then
-      return nil, "Could not create lock for prepare request: "..lock_err
+      return nil, "could not create lock for prepare request: "..lock_err
     end
 
     if elapsed and elapsed == 0 then
       -- prepare query in the mutex
-      log.info("Query not prepared in cluster yet. Preparing.")
+      log.debug("Query not prepared in cluster yet. Preparing.")
       local prepare_request = Requests.PrepareRequest(query)
       local res, err = request_handler:send(prepare_request)
       if err then
         return nil, err
       elseif res.query_id == nil then
-        return nil, "Could not retrieve query id from prepare request"
+        return nil, "could not retrieve query id from prepare request"
       end
       query_id = res.query_id
       local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
       if not ok then
-        return nil, "Could not insert query id in cache for prepared query: "..cache_err
+        return nil, "could not insert query id in cache for prepared query: "..cache_err
       end
-      log.info("Query prepared for host "..request_handler.coordinator.address)
+      log.debug("Query prepared for host "..request_handler.coordinator.address)
     else
       -- once the lock is resolved, all other workers can retry to get the query, and should
       -- instantly succeed. We then skip the preparation part.
       query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
       if cache_err then
-        return nil, "Could not get query id from cache for prepared query: "..cache_err
+        return nil, "could not get query id from cache for prepared query: "..cache_err
       elseif query_id == nil then
-        return nil, "No query id found in cache for prepared query"
+        return nil, "no query id found in cache for prepared query"
       end
     end
 
     -- UNLOCK MUTEX
     lock_err = unlock_mutex(lock)
     if lock_err then
-      return nil, "Error unlocking mutex for query for prepare request: "..lock_err
+      return nil, "error unlocking mutex for query for prepare request: "..lock_err
     end
   end
 
@@ -841,7 +830,7 @@ end
 -- @treturn table `error`: A table describing the error that occurred.
 function Session:execute(query, args, query_options)
   if self.terminated then
-    return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
+    return nil, "cannot reuse a session that has been shut down"
   elseif type(query) ~= "string" then
     error("argument #1 must be a string", 2)
   end
@@ -1037,7 +1026,7 @@ function Cassandra.refresh_hosts(options)
   end
 
   if elapsed and elapsed == 0 then
-    log.info("Refreshing local and peers info")
+    log.debug("Refreshing local and peers infos")
 
     local contact_points_hosts = {}
     for _, contact_point in ipairs(options.contact_points) do
@@ -1058,7 +1047,7 @@ function Cassandra.refresh_hosts(options)
       reconnection_delay = 0
     }
     hosts[coordinator.address] = local_host
-    log.info("Local info retrieved")
+    log.debug("Local info retrieved")
 
     local rows, err = coordinator:send(peers_query)
     if err then
@@ -1066,18 +1055,18 @@ function Cassandra.refresh_hosts(options)
     end
 
     for _, row in ipairs(rows) do
-      local address = options.policies.address_resolution(row["rpc_address"])
-      log.info("Adding host "..address)
+      local address = options.policies.address_resolution(row["rpc_address"], options.protocol_options.default_port)
+      log.debug("Adding host "..address)
       hosts[address] = {
         unhealthy_at = 0,
         reconnection_delay = 0
       }
     end
-    log.info("Peers info retrieved")
-    log.info(string_format("Cluster infos retrieved in shared dict %s", options.shm))
+    log.debug("Peers info retrieved")
 
     coordinator:close()
 
+    log.debug("Cluster infos retrieved in shared dict "..options.shm)
     -- Store cluster mapping for future sessions
     for addr, host in pairs(hosts) do
       table_insert(addresses, addr)

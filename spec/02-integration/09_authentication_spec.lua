@@ -25,9 +25,7 @@ describe("PasswordAuthenticator", function()
         ca = ca_path
       }
     }
-    assert.truthy(err)
-    assert.equal("AuthenticationError", err.type)
-    assert.equal("Host at 127.0.0.1 required authentication but no auth provider was configured for session", err.message)
+    assert.equal("Host at 127.0.0.1:9042 required authentication but no auth provider was configured for session", err)
     assert.falsy(session)
   end)
   it("should be refused if credentials are invalid", function()
@@ -41,9 +39,7 @@ describe("PasswordAuthenticator", function()
       },
       auth = cassandra.auth.PlainTextProvider("cassandra", "invalid")
     }
-    assert.truthy(err)
-    assert.equal("AuthenticationError", err.type)
-    assert.equal("[Bad credentials] Username and/or password are incorrect", tostring(err))
+    assert.equal("[Bad credentials] Username and/or password are incorrect", err)
     assert.falsy(session)
   end)
   it("should authenticate with valid credentials", function()

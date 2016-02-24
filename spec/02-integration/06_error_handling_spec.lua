@@ -35,9 +35,8 @@ describe("error handling", function()
         shm = "test",
         contact_points = contact_points
       }
-      assert.is_table(err)
       assert.False(ok)
-      assert.equal("NoHostAvailableError", err.type)
+      assert.truthy(string.match(err, "All hosts tried for query failed"))
     end)
   end)
 
@@ -59,10 +58,8 @@ describe("error handling", function()
       local session, err = cassandra.spawn_session {
         shm = shm
       }
-      assert.is_table(err)
       assert.falsy(session)
-      assert.equal("DriverError", err.type)
-      assert.equal("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.", err.message)
+      assert.equal("option error: options must contain contact_points to spawn session or cluster", err)
     end)
   end)
 
@@ -83,13 +80,11 @@ describe("error handling", function()
     it("should handle CQL errors", function()
       local res, err = session:execute "CAN I HAZ CQL"
       assert.falsy(res)
-      assert.is_table(err)
-      assert.equal("ResponseError", err.type)
+      assert.equal("[Syntax error] line 1:0 no viable alternative at input 'CAN' ([CAN]...)", err)
 
       res, err = session:execute "SELECT * FROM system.local WHERE key = ?"
       assert.falsy(res)
-      assert.is_table(err)
-      assert.equal("ResponseError", err.type)
+      assert.equal("[Invalid] Invalid amount of bind variables", err)
     end)
   end)
 

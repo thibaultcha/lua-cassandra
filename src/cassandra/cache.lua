@@ -37,6 +37,14 @@ function SharedDict:set(key, value)
   return true, nil, false
 end
 
+function SharedDict:get_keys()
+  local keys = {}
+  for k in pairs(self.data) do
+    keys[#keys + 1] = k
+  end
+  return keys
+end
+
 SharedDict.safe_set = SharedDict.set
 
 function SharedDict:add(key, value)
@@ -125,7 +133,7 @@ local function set_hosts(shm, hosts)
   local dict = get_dict(shm)
   local ok, err = dict:safe_set(_HOSTS_KEY, table_concat(hosts, _SEP))
   if not ok then
-    return false, Errors.SharedDictError("Cannot store hosts for cluster under shm "..shm..": "..err, shm)
+    return false, Errors.shm(shm, "cannot store hosts ("..err..")")
   end
   return true
 end
@@ -134,7 +142,7 @@ local function get_hosts(shm)
   local dict = get_dict(shm)
   local host_addresses, err = dict:get(_HOSTS_KEY)
   if err then
-    return nil, Errors.SharedDictError(err, "Cannot retrieve hosts for cluster under shm "..shm..": "..err, shm)
+    return nil, Errors.shm(shm, "cannot retrieve hosts ("..err..")")
   elseif host_addresses ~= nil then
     return string_utils.split(host_addresses, _SEP)
   end
@@ -147,7 +155,7 @@ local function set_host(shm, host_addr, host)
   local dict = get_dict(shm)
   local ok, err = dict:safe_set(host_addr, host.unhealthy_at.._SEP..host.reconnection_delay)
   if not ok then
-    return false, Errors.SharedDictError("Cannot store host details for cluster "..shm..": "..err, shm)
+    return false, Errors.shm(shm, "cannot store host details ("..err..")")
   end
   return true
 end
@@ -156,9 +164,9 @@ local function get_host(shm, host_addr)
   local dict = get_dict(shm)
   local value, err = dict:get(host_addr)
   if err then
-    return nil, Errors.SharedDictError("Cannot retrieve host details for cluster under shm "..shm..": "..err, shm)
+    return nil, Errors.shm(shm, "cannot retrieve host details ("..err..")")
   elseif value == nil then
-    return nil, Errors.DriverError("No details for host "..host_addr.." under shm "..shm)
+    return nil, Errors.internal_driver("no details for host "..host_addr.." under shm "..shm)
   end
 
   local h = string_utils.split(value, _SEP)
@@ -186,7 +194,7 @@ local function set_prepared_query_id(options, query, query_id)
 
   local ok, err, forcible = dict:set(prepared_key, query_id)
   if not ok then
-    return false, Errors.SharedDictError("Cannot store prepared query id in shm "..shm..": "..err, shm)
+    return false, Errors.shm(shm, "cannot store prepared query id ("..err..")")
   elseif forcible then
     log.warn("shm for prepared queries '"..shm.."' is running out of memory. Consider increasing its size.")
     dict:flush_expired(1) -- flush oldest query
@@ -201,7 +209,7 @@ local function get_prepared_query_id(options, query)
 
   local value, err = dict:get(prepared_key)
   if err then
-    return nil, Errors.SharedDictError("Cannot retrieve prepared query id in shm "..shm..": "..err, shm)
+    return nil, Errors.shm(shm, "cannot retrieve prepared query id ("..err..")")
   end
   return value, nil, prepared_key
 end

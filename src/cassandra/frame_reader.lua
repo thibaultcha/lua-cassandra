@@ -2,7 +2,7 @@ local bit = require "cassandra.utils.bit"
 local types = require "cassandra.types"
 local Object = require "cassandra.utils.classic"
 local Buffer = require "cassandra.buffer"
-local errors = require "cassandra.errors"
+local Errors = require "cassandra.errors"
 local OP_CODES = types.OP_CODES
 
 --- CONST
@@ -136,7 +136,7 @@ local function parse_error(frame_body)
   local code = frame_body:read_int()
   local message = frame_body:read_string()
   local code_translation = types.ERRORS_TRANSLATIONS[code]
-  return errors.ResponseError(code, code_translation, message)
+  return "["..code_translation.."] "..message, Errors.t_cql, code
 end
 
 local function parse_ready()

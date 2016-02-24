@@ -23,8 +23,7 @@ __DATA__
         local dict = ngx.shared[shm]
         local hosts, err = cache.get_hosts(shm)
         if err then
-            ngx.log(ngx.ERR, tostring(err))
-            ngx.exit(500)
+            ngx.log(ngx.ERR, err)
         elseif hosts == nil or #hosts < 1 then
             ngx.log(ngx.ERR, "no hosts set in shm")
             ngx.exit(500)
@@ -35,11 +34,9 @@ __DATA__
 
         local hosts, err = cache.get_hosts(shm)
         if err then
-            ngx.log(ngx.ERR, tostring(err))
-            ngx.exit(500)
+            ngx.log(ngx.ERR, err)
         elseif hosts ~= nil then
             ngx.log(ngx.ERR, "hosts set in shm after delete")
-            ngx.exit(500)
         end
 
         -- attempt to create session
@@ -48,15 +45,13 @@ __DATA__
             contact_points = {"127.0.0.1"} -- safe contact point just in case
         }
         if err then
-            ngx.log(ngx.ERR, tostring(err))
-            ngx.exit(500)
+            ngx.log(ngx.ERR, err)
         end
 
         -- attempt query
         local rows, err = session:execute "SELECT * FROM system.local"
         if err then
-            ngx.log(ngx.ERR, tostring(err))
-            ngx.exit(500)
+            ngx.log(ngx.ERR, err)
         end
 
         ngx.say(#rows)
@@ -73,7 +68,7 @@ local
 --- error_log eval
 [
     qr/\[warn\].*?No cluster infos in shared dict/,
-    qr/\[info\].*?Cluster infos retrieved in shared dict cassandra/
+    qr/\[debug\].*?Cluster infos retrieved in shared dict cassandra/
 ]
 
 
@@ -90,7 +85,7 @@ local
 
             local rows, err = session:execute "CAN I HAZ CQL"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
             end
         }
     }

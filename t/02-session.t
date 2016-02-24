@@ -21,14 +21,12 @@ __DATA__
 
             local ok, err = session:set_keyspace "system"
             if not ok then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local rows, err = session:execute "SELECT key FROM local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.say("type: "..rows.type)
@@ -60,7 +58,7 @@ local
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
 
@@ -68,7 +66,7 @@ local
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 return ngx.exit(200)
             end
 
@@ -80,7 +78,7 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[error\].*?Cannot reuse a session that has been shut down/
+qr/\[error\].*?cannot reuse a session that has been shut down/
 
 
 
@@ -95,16 +93,14 @@ qr/\[error\].*?Cannot reuse a session that has been shut down/
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             session:set_keep_alive()
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.exit(200)
@@ -135,16 +131,14 @@ GET /t
             }
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             session:set_keep_alive()
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.exit(200)
@@ -177,16 +171,14 @@ GET /t
             }
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             session:set_keep_alive()
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.exit(200)
@@ -220,16 +212,14 @@ GET /t
             }
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             session:set_keep_alive()
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.exit(200)

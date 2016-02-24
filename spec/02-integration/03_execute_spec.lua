@@ -31,7 +31,7 @@ describe("execute()", function()
     end)
 
     it("should parse ROWS results", function()
-      local rows, err = session:execute "SELECT key FROM system.local"
+      local rows, err = session:execute "SELECT * FROM system.local"
       assert.falsy(err)
       assert.is_table(rows)
       assert.equal("ROWS", rows.type)
@@ -39,7 +39,7 @@ describe("execute()", function()
       assert.equal("local", rows[1].key)
     end)
     it("should return ROWS results with a `meta` property", function()
-      local rows, err = session:execute("SELECT * FROM system.local")
+      local rows, err = session:execute "SELECT * FROM system.local"
       assert.falsy(err)
       assert.is_table(rows)
       assert.is_table(rows.meta)

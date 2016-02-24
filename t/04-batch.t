@@ -31,8 +31,7 @@ __DATA__
                 WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             res, err = session:execute [[
@@ -44,8 +43,7 @@ __DATA__
                 )
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
@@ -55,16 +53,14 @@ __DATA__
               {"UPDATE resty_t_keyspace.users SET name = 'Alicia' WHERE id = ".._UUID.." AND n = 1"}
             })
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local rows, err = session:execute([[
                 SELECT * FROM resty_t_keyspace.users WHERE id = ? AND n = 1
             ]], {cassandra.uuid(_UUID)})
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             for _, row in ipairs(rows) do
@@ -74,8 +70,7 @@ __DATA__
 
             res, err = session:execute "DROP KEYSPACE resty_t_keyspace"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
         }
     }

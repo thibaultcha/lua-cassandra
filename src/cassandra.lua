@@ -27,10 +27,10 @@ local FrameReader = require "cassandra.frame_reader"
 local CQL_Errors = types.ERRORS
 local string_find = string.find
 local table_insert = table.insert
-local string_format = string.format
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
+local fmt = string.format
 
 --- Locks with plain Lua compat
 
@@ -39,26 +39,25 @@ if ngx ~= nil then
   resty_lock = require "resty.lock"
 end
 
-local function lock_mutex(shm, key)
+local function lock(shm, key)
   if resty_lock then
     local lock = resty_lock:new(shm)
     local elapsed, err = lock:lock(key)
-    if err then
-      err = "Error locking mutex: "..err
+    if not elapsed then
+      log.err("could not acquire lock ("..err..")")
     end
-    return lock, err, elapsed
+    return lock, elapsed == 0
   else
-    return nil, nil, 0
+    return nil, true
   end
 end
 
-local function unlock_mutex(lock)
+local function unlock(lock)
   if resty_lock then
     local ok, err = lock:unlock()
     if not ok then
-      err = "Error unlocking mutex: "..err
+      log.err("could not release lock ("..err..")")
     end
-    return err
   end
 end
 
@@ -80,7 +79,6 @@ local Cassandra = {
 -- Not cluster aware, only maintain a socket to its peer.
 
 local Host = {}
-Host.__index = Host
 
 function Host:new(address, options)
   local host, port = string_utils.split_by_colon(address)
@@ -89,13 +87,13 @@ function Host:new(address, options)
   local h = {
     host = host,
     port = port,
-    address = address,
+    address = host..":"..port,
     protocol_version = DEFAULT_PROTOCOL_VERSION,
     options = options,
     reconnection_policy = options.policies.reconnection
   }
 
-  return setmetatable(h, Host)
+  return setmetatable(h, {__index = self})
 end
 
 function Host:decrease_version()
@@ -143,25 +141,25 @@ function Host:send(request)
   local frame_reader, err = send_and_receive(self, request)
   if err then
     if err == "timeout" or err == "wantread" then -- cosocket/luasocket or LuaSec timeout
-      return nil, Errors.TimeoutError(self.address)
+      return nil, err, Errors.t_timeout
     else
-      return nil, Errors.SocketError(self.address, err)
+      return nil, err, Errors.t_socket
     end
   end
 
-  -- result, cql_error
+  -- result, err, err_code, "cql"
   return frame_reader:parse()
 end
 
 local function startup(self)
-  log.debug("Startup request. Trying to use protocol v"..self.protocol_version)
+  log.debug("startup request with protocol v"..self.protocol_version)
 
   local startup_req = Requests.StartupRequest()
   return self:send(startup_req)
 end
 
 local function change_keyspace(self, keyspace)
-  log.debug("Keyspace request. Using keyspace: "..keyspace)
+  log.debug("keyspace request switching to "..keyspace)
 
   local keyspace_req = Requests.KeyspaceRequest(keyspace)
   return self:send(keyspace_req)
@@ -185,7 +183,7 @@ local function send_auth(self, provider)
   local auth_request = Requests.AuthResponse(token)
   local res, err = self:send(auth_request)
   if err then
-    return nil, err
+    return false, err
   elseif res and res.authenticated then
     return true
   end
@@ -200,18 +198,18 @@ function Host:connect()
 
   local sock, err = socket.tcp()
   if not sock then
-    error("Could not create socket: "..err)
+    error("could not create socket: "..err)
   end
 
   self.socket = sock
 
-  log.debug("Connecting to "..self.address)
+  log.debug("connecting to "..self.address)
 
   self.socket:settimeout(self.options.socket_options.connect_timeout)
 
   local ok, err = self.socket:connect(self.host, self.port)
   if ok ~= 1 then
-    return false, Errors.SocketError(self.address, err), true
+    return false, err, true
   end
 
   self.socket:settimeout(self.options.socket_options.read_timeout)
@@ -219,11 +217,11 @@ function Host:connect()
   if self.options.ssl_options.enabled then
     ok, err = do_ssl_handshake(self)
     if not ok then
-      return false, Errors.SSLError(self.address, err)
+      return false, "could not perform SSL handshake ("..err..")"
     end
   end
 
-  log.debug("Session connected to "..self.address)
+  log.debug("session connected to "..self.address)
 
   if self:get_reused_times() > 0 then
     -- No need for startup request
@@ -234,7 +232,7 @@ function Host:connect()
   local ready = false
   local res, err = startup(self)
   if err then
-    log.info("Startup request failed. "..err)
+    log.err("Startup request failed. "..err)
     -- Check for incorrect protocol version
     if err and err.code == CQL_Errors.PROTOCOL then
       if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
@@ -243,7 +241,7 @@ function Host:connect()
         if self.protocol_version < MIN_PROTOCOL_VERSION then
           log.err("Connection could not find a supported protocol version.")
         else
-          log.info("Decreasing protocol version to v"..self.protocol_version)
+          log.debug("Decreasing protocol version to v"..self.protocol_version)
           return self:connect()
         end
       end
@@ -251,16 +249,17 @@ function Host:connect()
 
     return false, err, true
   elseif res.must_authenticate then
-    log.info("Host at "..self.address.." required authentication")
+    log.debug("host at "..self.address.." asked for authentication")
     if self.options.auth == nil then
-      return nil, Errors.AuthenticationError("Host at "..self.address..
-        " required authentication but no auth provider was configured for session")
+      return false, "Host at "..self.address..
+        " required authentication but no auth provider was configured for session"
     end
 
     local ok, err = send_auth(self, self.options.auth)
-    if err then
-      return false, Errors.AuthenticationError(err)
-    elseif ok then
+    if not ok then
+      return false, err
+    else
+      log.debug("successfully authenticated to host at "..self.address)
       ready = true
     end
   elseif res.ready then
@@ -268,12 +267,11 @@ function Host:connect()
   end
 
   if ready then
-    log.debug("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
+    log.debug("host at "..self.address.." is ready with protocol v"..self.protocol_version)
 
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
       if err then
-        log.err("Could not set keyspace. "..err)
         return false, err
       end
     end
@@ -287,11 +285,7 @@ function Host:change_keyspace(keyspace)
   if self.connected then
     self.options.keyspace = keyspace
 
-    local res, err = change_keyspace(self, keyspace)
-    if err then
-      log.err("Could not change keyspace for host "..self.address)
-    end
-    return res, err
+    return change_keyspace(self, keyspace)
   end
 end
 
@@ -302,7 +296,7 @@ end
 function Host:get_reused_times()
   local count, err = self.socket:getreusedtimes()
   if err then
-    log.err("Could not get reused times for socket to "..self.address..". "..err)
+    log.err("could not get reused times for socket to "..self.address.."("..err..")")
   end
   return count
 end
@@ -328,9 +322,8 @@ function Host:set_keep_alive()
 
   self.connected = false
 
-  if err then
-    log.err("Could not set keepalive socket to "..self.address..". "..err)
-    return ok, Errors.SocketError(self.address, err)
+  if not ok then
+    return false, Errors.socket(self.address, err)
   end
 
   return true
@@ -342,33 +335,28 @@ function Host:close()
     return true
   end
 
-  log.info("Closing connection to "..self.address..".")
+  log.debug("closing connection to "..self.address)
   local _, err = self.socket:close()
 
   self.connected = false
 
   if err then
-    log.err("Could not close socket to "..self.address..". "..err)
-    return false, Errors.SocketError(self.address, err)
+    return false, Errors.socket(self.address, err)
   end
 
   return true
 end
 
 function Host:set_down()
-  local lock, lock_err, elapsed = lock_mutex(self.options.shm, "downing_"..self.address)
-  if lock_err then
-    return lock_err
-  end
-
-  if elapsed and elapsed == 0 then
+  local lock, locked = lock(self.options.shm, "downing_"..self.address)
+  if locked then
     local host_infos, err = cache.get_host(self.options.shm, self.address)
     if err then
       return err
     end
     host_infos.unhealthy_at = time_utils.get_time()
     host_infos.reconnection_delay = self.reconnection_policy.next(self)
-    log.warn("Setting host "..self.address.." as DOWN. Next retry in: "..host_infos.reconnection_delay.."ms.")
+    log.warn("setting host "..self.address.." as DOWN, next retry in: "..host_infos.reconnection_delay.."ms")
     self:close()
     local ok, err = cache.set_host(self.options.shm, self.address, host_infos)
     if not ok then
@@ -376,10 +364,7 @@ function Host:set_down()
     end
   end
 
-  lock_err = unlock_mutex(lock)
-  if lock_err then
-    return lock_err
-  end
+  unlock(lock)
 end
 
 function Host:set_up()
@@ -390,7 +375,7 @@ function Host:set_up()
 
   -- host was previously marked as DOWN (+ a safe delay)
   if host_infos.unhealthy_at ~= 0 and time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay then
-    log.warn("Setting host "..self.address.." as UP")
+    log.warn("setting host "..self.address.." as UP")
     host_infos.unhealthy_at = 0
     -- reset schedule for reconnection delay
     self.reconnection_policy.new_schedule(self)
@@ -400,24 +385,13 @@ function Host:set_up()
   return true
 end
 
-function Host:is_up()
-  local host_infos, err = cache.get_host(self.options.shm, self.address)
-  if err then
-    return nil, err
-  end
-
-  return host_infos.unhealthy_at == 0
-end
-
 function Host:can_be_considered_up()
   local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
     return nil, err
   end
-  local is_up, err = self:is_up()
-  if err then
-    return nil, err
-  end
+
+  local is_up = host_infos.unhealthy_at == 0
 
   return is_up or (time_utils.get_time() - host_infos.unhealthy_at >= host_infos.reconnection_delay)
 end
@@ -425,7 +399,6 @@ end
 --- Request Handler
 
 local RequestHandler = {}
-RequestHandler.__index = RequestHandler
 
 function RequestHandler:new(hosts, options)
   local o = {
@@ -434,7 +407,7 @@ function RequestHandler:new(hosts, options)
     n_retries = 0
   }
 
-  return setmetatable(o, RequestHandler)
+  return setmetatable(o, {__index = self})
 end
 
 function RequestHandler.get_first_coordinator(hosts)
@@ -452,7 +425,7 @@ function RequestHandler.get_first_coordinator(hosts)
     end
   end
 
-  return nil, Errors.NoHostAvailableError(errors)
+  return nil, Errors.no_host(errors)
 end
 
 function RequestHandler:get_next_coordinator()
@@ -460,9 +433,9 @@ function RequestHandler:get_next_coordinator()
   local iter = self.options.policies.load_balancing
 
   for i, host in iter(self.options.shm, self.hosts) do
-    local can_host_be_considered_up, cache_err = host:can_be_considered_up()
-    if cache_err then
-      return nil, cache_err
+    local can_host_be_considered_up, err = host:can_be_considered_up()
+    if err then
+      return nil, err
     elseif can_host_be_considered_up then
       local connected, err, maybe_down = host:connect()
       if connected then
@@ -471,20 +444,20 @@ function RequestHandler:get_next_coordinator()
       elseif maybe_down then
         -- only on socket connect error
         -- might be a bad host, setting DOWN
-        local cache_err = host:set_down()
-        if cache_err then
-          return nil, cache_err
+        err = host:set_down()
+        if err then
+          return nil, err
         end
         errors[host.address] = err
       else
         return nil, err
       end
     else
-      errors[host.address] = "Host considered DOWN"
+      errors[host.address] = "host considered DOWN"
     end
   end
 
-  return nil, Errors.NoHostAvailableError(errors)
+  return nil, Errors.no_host(errors)
 end
 
 local function check_schema_consensus(request_handler)
@@ -492,16 +465,16 @@ local function check_schema_consensus(request_handler)
     return true
   end
 
-  local local_query = Requests.QueryRequest("SELECT schema_version FROM system.local")
+  local local_query = Requests.QueryRequest "SELECT schema_version FROM system.local"
   local local_res, err = request_handler.coordinator:send(local_query)
   if local_res == nil or err then
-    return nil, err
+    return false, err
   end
 
-  local peers_query = Requests.QueryRequest("SELECT schema_version FROM system.peers")
+  local peers_query = Requests.QueryRequest "SELECT schema_version FROM system.peers"
   local peers_res, err = request_handler.coordinator:send(peers_query)
   if peers_res == nil or err then
-    return nil, err
+    return false, err
   end
 
   local match = false
@@ -519,7 +492,7 @@ local function check_schema_consensus(request_handler)
 end
 
 function RequestHandler:wait_for_schema_consensus()
-  log.info("Waiting for schema consensus")
+  log.debug("Waiting for schema consensus")
 
   local match, t_diff, err
   local start = time_utils.get_time()
@@ -528,12 +501,12 @@ function RequestHandler:wait_for_schema_consensus()
     time_utils.wait(0.5)
     match, err = check_schema_consensus(self)
     t_diff = time_utils.get_time() - start
-  until match or err ~= nil or t_diff >= self.options.protocol_options.max_schema_consensus_wait
+  until match or err or t_diff >= self.options.protocol_options.max_schema_consensus_wait
 
-  if err ~= nil then
+  if err then
     return err
   elseif not match then
-    log.err("Waiting for schema consensus timed out. "..t_diff.." > "..self.options.protocol_options.max_schema_consensus_wait)
+    log.err("waiting for schema consensus timed out. "..t_diff.." > "..self.options.protocol_options.max_schema_consensus_wait)
   end
 end
 
@@ -543,7 +516,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.debug("Load balancing policy proposed to try host at: "..coordinator.address)
+  log.debug("load balancing policy proposed to try host at: "..coordinator.address)
 
   return self:send(request)
 end
@@ -553,15 +526,15 @@ function RequestHandler:send(request)
     return self:send_on_next_coordinator(request)
   end
 
-  local result, err = self.coordinator:send(request)
+  local result, err, err_type, cql_err_code = self.coordinator:send(request)
   if err then
-    return self:handle_error(request, err)
+    return self:handle_error(request, err, err_type, cql_err_code)
   end
 
   -- Success! Make sure to re-up the node in case it was marked as DOWN
-  local ok, cache_err = self.coordinator:set_up()
+  local ok, err = self.coordinator:set_up()
   if not ok then
-    return nil, cache_err
+    return nil, err
   end
 
   if result.type == "SCHEMA_CHANGE" then
@@ -574,44 +547,46 @@ function RequestHandler:send(request)
   return result
 end
 
-function RequestHandler:handle_error(request, err)
-  local retry_policy = self.options.policies.retry
-  local decision = retry_policy.decisions.throw
-
-  if err.type == "SocketError" then
+function RequestHandler:handle_error(request, err, err_type, cql_err_code)
+  if err_type == Errors.t_socket then
     -- host seems unhealthy
-    local cache_err = self.coordinator:set_down()
-    if cache_err then
-      return nil, cache_err
+    local err = self.coordinator:set_down()
+    if err then
+      return nil, err
     end
     -- always retry, another node will be picked
     return self:retry(request)
-  elseif err.type == "TimeoutError" then
+  elseif err_type == Errors.t_timeout then
     if self.options.query_options.retry_on_timeout then
       return self:retry(request)
     end
-  elseif err.type == "ResponseError" then
+  elseif err_type == Errors.t_cql then
+    local retry_policy = self.options.policies.retry
+    local decision = retry_policy.decisions.throw
+
     local request_infos = {
       handler = self,
       request = request,
       n_retries = self.n_retries
     }
-    if err.code == CQL_Errors.OVERLOADED or err.code == CQL_Errors.IS_BOOTSTRAPPING or err.code == CQL_Errors.TRUNCATE_ERROR then
+    if cql_err_code == CQL_Errors.OVERLOADED
+       or cql_err_code == CQL_Errors.IS_BOOTSTRAPPING
+       or cql_err_code == CQL_Errors.TRUNCATE_ERROR then
       -- always retry, we will hit another node
       return self:retry(request)
-    elseif err.code == CQL_Errors.UNAVAILABLE_EXCEPTION then
+    elseif cql_err_code == CQL_Errors.UNAVAILABLE_EXCEPTION then
       decision = retry_policy.on_unavailable(request_infos)
-    elseif err.code == CQL_Errors.READ_TIMEOUT then
+    elseif cql_err_code == CQL_Errors.READ_TIMEOUT then
       decision = retry_policy.on_read_timeout(request_infos)
-    elseif err.code == CQL_Errors.WRITE_TIMEOUT then
+    elseif cql_err_code == CQL_Errors.WRITE_TIMEOUT then
       decision = retry_policy.on_write_timeout(request_infos)
-    elseif err.code == CQL_Errors.UNPREPARED then
+    elseif cql_err_code == CQL_Errors.UNPREPARED then
       return self:prepare_and_retry(request)
     end
-  end
 
-  if decision == retry_policy.decisions.retry then
-    return self:retry(request)
+    if decision == retry_policy.decisions.retry then
+      return self:retry(request)
+    end
   end
 
   -- this error needs to be reported to the session
@@ -621,39 +596,28 @@ end
 function RequestHandler:retry(request)
   self.coordinator:close()
   self.n_retries = self.n_retries + 1
-  log.info("Retrying request on next coordinator")
+  log.debug "retrying request on next coordinator"
   return self:send_on_next_coordinator(request)
 end
 
 function RequestHandler:prepare_and_retry(request)
-  local preparing_lock_key = string_format("0x%s_host_%s", request.query_id, self.coordinator.address)
-
   -- MUTEX
-  local lock, lock_err, elapsed = lock_mutex(self.options.prepared_shm, preparing_lock_key)
-  if lock_err then
-    return nil, lock_err
-  end
-
-  if elapsed and elapsed == 0 then
+  local preparing_lock_key = fmt("0x%s_host_%s", request.query_id, self.coordinator.address)
+  local lock, ok = lock(self.options.prepared_shm, preparing_lock_key)
+  if ok then
     -- prepare on this host
-    log.info("Query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..". Preparing and retrying.")
+    log.debug("query 0x"..request:hex_query_id().." not prepared on host "..self.coordinator.address..", preparing and retrying.")
     local prepare_request = Requests.PrepareRequest(request.query)
     local res, err = self:send(prepare_request)
     if err then
       return nil, err
-    end
-    log.info("Prepared query for host "..self.coordinator.address)
-
-    if request.query_id ~= res.query_id then
-      log.warn(string_format("Unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request.query_id, res.query_id))
+    elseif request.query_id ~= res.query_id then
+      log.warn(fmt("unexpected difference between prepared query ids for query %s (%s ~= %s)", request.query, request, res.query_id))
       request.query_id = res.query_id
     end
   end
 
-  lock_err = unlock_mutex(lock)
-  if lock_err then
-    return nil, "Error unlocking mutex for query preparation: "..lock_err
-  end
+  unlock(lock)
 
   -- Send on the same coordinator as the one it was just prepared on
   return self:send(request)
@@ -675,18 +639,18 @@ function Session:new(options)
     hosts = {}
   }
 
-  local host_addresses, cache_err = cache.get_hosts(session_options.shm)
-  if cache_err then
-    return nil, cache_err
+  local host_addresses, err = cache.get_hosts(session_options.shm)
+  if err then
+    return nil, err
   elseif host_addresses == nil then
-    log.warn("No cluster infos in shared dict "..session_options.shm)
+    log.warn("no cluster infos in shared dict "..session_options.shm)
     if session_options.contact_points ~= nil then
       host_addresses, err = Cassandra.refresh_hosts(session_options)
-      if host_addresses == nil then
+      if not host_addresses then
         return nil, err
       end
     else
-      return nil, Errors.DriverError("Options must contain contact_points to spawn session, or spawn a cluster in the init phase.")
+      return nil, Errors.options "options must contain contact_points to spawn session or cluster"
     end
   end
 
@@ -701,49 +665,40 @@ local function prepare_query(request_handler, query)
   -- If the query is found in the cache, all workers can access it.
   -- If it is not found, we might be in a cold-cache scenario. In that case,
   -- only one worker needs to
-  local query_id, cache_err, prepared_key = cache.get_prepared_query_id(request_handler.options, query)
-  if cache_err then
-    return nil, cache_err
+  local query_id, err, prepared_key = cache.get_prepared_query_id(request_handler.options, query)
+  if err then
+    return nil, err
   elseif query_id == nil then
-    -- MUTEX
     local prepared_key_lock = prepared_key.."_lock"
-    local lock, lock_err, elapsed = lock_mutex(request_handler.options.prepared_shm, prepared_key_lock)
-    if lock_err then
-      return nil, "Could not create lock for prepare request: "..lock_err
-    end
-
-    if elapsed and elapsed == 0 then
+    local lock, ok = lock(request_handler.options.prepared_shm, prepared_key_lock)
+    if ok then
       -- prepare query in the mutex
-      log.info("Query not prepared in cluster yet. Preparing.")
+      log.debug "query not prepared in cluster yet, preparing"
       local prepare_request = Requests.PrepareRequest(query)
       local res, err = request_handler:send(prepare_request)
       if err then
         return nil, err
       elseif res.query_id == nil then
-        return nil, "Could not retrieve query id from prepare request"
+        return nil, "could not retrieve query id from prepare request"
       end
       query_id = res.query_id
-      local ok, cache_err = cache.set_prepared_query_id(request_handler.options, query, query_id)
+      local ok, err = cache.set_prepared_query_id(request_handler.options, query, query_id)
       if not ok then
-        return nil, "Could not insert query id in cache for prepared query: "..cache_err
+        return nil, "could not insert query id in cache for prepared query: "..err
       end
-      log.info("Query prepared for host "..request_handler.coordinator.address)
+      log.debug("query prepared for host "..request_handler.coordinator.address..", preparing")
     else
       -- once the lock is resolved, all other workers can retry to get the query, and should
       -- instantly succeed. We then skip the preparation part.
-      query_id, cache_err = cache.get_prepared_query_id(request_handler.options, query)
-      if cache_err then
-        return nil, "Could not get query id from cache for prepared query: "..cache_err
+      query_id, err = cache.get_prepared_query_id(request_handler.options, query)
+      if err then
+        return nil, "could not get query id from cache for prepared query: "..err
       elseif query_id == nil then
-        return nil, "No query id found in cache for prepared query"
+        return nil, "no query id found in cache for prepared query"
       end
     end
 
-    -- UNLOCK MUTEX
-    lock_err = unlock_mutex(lock)
-    if lock_err then
-      return nil, "Error unlocking mutex for query for prepare request: "..lock_err
-    end
+    unlock(lock)
   end
 
   return query_id
@@ -838,10 +793,10 @@ end
 -- @param[type=table] args *Optional* A list of parameters to be binded to the query's placeholders.
 -- @param[type=table] query_options *Optional* Override the session`s `options.query_options` with the given values, for this request only.
 -- @treturn table `result/rows`: A table describing the result. The content of this table depends on the type of the query. If an error occurred, this value will be `nil` and a second value describing the error is returned.
--- @treturn table `error`: A table describing the error that occurred.
+-- @treturn string `err`: A string describing the error that occurred.
 function Session:execute(query, args, query_options)
   if self.terminated then
-    return nil, Errors.NoHostAvailableError("Cannot reuse a session that has been shut down.")
+    return nil, "cannot reuse a session that has been shut down"
   elseif type(query) ~= "string" then
     error("argument #1 must be a string", 2)
   end
@@ -897,7 +852,7 @@ end
 -- @param[type=table] queries A list of CQL queries that constitutes the batch. Each value can contain either a string, or a table containing the query and its binded parameters.
 -- @param[type=table] query_options *Optional* Override the session's `options.query_options` with the given values, for this batch only. Can also be used to specify other batch types.
 -- @treturn table `result`: A table describing the result. Batch results are always `VOID` results. If an error occurred, this value will be `nil` and a second value describing the error is returned.
--- @treturn table `error`: A table describing the error that occurred.
+-- @treturn string `err`: A string describing the error that occurred.
 function Session:batch(queries, query_options)
   local options = table_utils.copy_args(self.options)
   options.query_options = table_utils.extend_table({logged = true}, options.query_options, query_options)
@@ -933,19 +888,12 @@ end
 --
 -- @param[type=string] keyspace The name of the keyspace to switch to.
 -- @treturn boolean `ok`: True if successful, false otherwise. If false, a second value describing the error is returned.
--- @treturn table `error`: A table describing the error that occurred.
+-- @treturn string `err`: A string describing the error that occurred.
 function Session:set_keyspace(keyspace)
-  local errors = {}
   self.options.keyspace = keyspace
-  for _, host in ipairs(self.hosts) do
-    local _, err = host:change_keyspace(keyspace)
-    if err then
-      table_insert(errors, err)
-    end
-  end
 
-  if #errors > 0 then
-    return false, errors
+  for _, host in ipairs(self.hosts) do
+    host:change_keyspace(keyspace)
   end
 
   return true
@@ -973,6 +921,8 @@ function Session:set_keep_alive()
   for _, host in ipairs(self.hosts) do
     host:set_keep_alive()
   end
+
+  return true
 end
 
 --- Terminate a session.
@@ -1020,7 +970,7 @@ end
 --
 -- @param[type=table] options The session's options, including the shared dict name and **optionally* the contact points
 -- @treturn table `session`: A instanciated session, ready to be used. If an error occurred, this value will be `nil` and a second value is returned describing the error.
--- @treturn table `error`: A table describing the error that occurred.
+-- @treturn string `err`: A string describing the error that occurred.
 function Cassandra.spawn_session(options)
   return Session:new(options)
 end
@@ -1031,14 +981,9 @@ local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_ver
 function Cassandra.refresh_hosts(options)
   local addresses = {}
 
-  local lock, lock_err, elapsed = lock_mutex(options.shm, "refresh_hosts")
-  if lock_err then
-    return nil, lock_err
-  end
-
-  if elapsed and elapsed == 0 then
-    log.info("Refreshing local and peers info")
-
+  local lock, ok = lock(options.shm, "refresh_hosts")
+  if ok then
+    log.debug "refreshing local and peers infos"
     local contact_points_hosts = {}
     for _, contact_point in ipairs(options.contact_points) do
       local address = options.policies.address_resolution(contact_point)
@@ -1058,7 +1003,7 @@ function Cassandra.refresh_hosts(options)
       reconnection_delay = 0
     }
     hosts[coordinator.address] = local_host
-    log.info("Local info retrieved")
+    log.debug "local info retrieved"
 
     local rows, err = coordinator:send(peers_query)
     if err then
@@ -1066,18 +1011,18 @@ function Cassandra.refresh_hosts(options)
     end
 
     for _, row in ipairs(rows) do
-      local address = options.policies.address_resolution(row["rpc_address"])
-      log.info("Adding host "..address)
+      local address = options.policies.address_resolution(row["rpc_address"], options.protocol_options.default_port)
+      log.debug("Adding host "..address)
       hosts[address] = {
         unhealthy_at = 0,
         reconnection_delay = 0
       }
     end
-    log.info("Peers info retrieved")
-    log.info(string_format("Cluster infos retrieved in shared dict %s", options.shm))
+    log.debug "peers info retrieved"
 
     coordinator:close()
 
+    log.debug("cluster infos retrieved in shared dict "..options.shm)
     -- Store cluster mapping for future sessions
     for addr, host in pairs(hosts) do
       table_insert(addresses, addr)
@@ -1099,10 +1044,7 @@ function Cassandra.refresh_hosts(options)
     end
   end
 
-  lock_err = unlock_mutex(lock)
-  if lock_err then
-    return nil, lock_err
-  end
+  unlock(lock)
 
   return addresses
 end
@@ -1136,7 +1078,7 @@ end
 --
 -- @param[type=table] options The cluster's options, including the shared dict name and the contact points.
 -- @treturn boolean `ok`: Success of the cluster topology retrieval. If false, a second value will be returned describing the error.
--- @treturn table `error`: An error in case the operation did not succeed.
+-- @treturn string `err`: A string describing the error that occurred.
 function Cassandra.spawn_cluster(options)
   local cluster_options, err = opts.parse_cluster(options)
   if err then
@@ -1144,7 +1086,7 @@ function Cassandra.spawn_cluster(options)
   end
 
   local addresses, err = Cassandra.refresh_hosts(cluster_options)
-  if addresses == nil then
+  if not addresses then
     return false, err
   end
 

@@ -19,7 +19,7 @@ init_by_lua_block {
         contact_points = {'127.0.0.1'}
     }
     if err then
-        ngx.log(ngx.ERR, tostring(err))
+        ngx.log(ngx.ERR, err)
     end
 }"
 --- config
@@ -27,13 +27,13 @@ init_by_lua_block {
         content_by_lua_block {
             local dict = ngx.shared.cassandra
             ngx.say(dict:get("hosts"))
-            ngx.say(dict:get("127.0.0.1"))
+            ngx.say(dict:get("127.0.0.1:9042"))
         }
     }
 --- request
 GET /t
 --- response_body
-127.0.0.1
+127.0.0.1:9042
 0;0
 --- no_error_log
 [error]
@@ -50,7 +50,7 @@ init_by_lua_block {
         contact_points = {'0.0.0.1', '0.0.0.2', '0.0.0.3', '127.0.0.1'}
     }
     if err then
-        ngx.log(ngx.ERR, tostring(err))
+        ngx.log(ngx.ERR, err)
     end
 }"
 --- config
@@ -58,13 +58,13 @@ init_by_lua_block {
         content_by_lua_block {
             local dict = ngx.shared.cassandra
             ngx.say(dict:get("hosts"))
-            ngx.say(dict:get("127.0.0.1"))
+            ngx.say(dict:get("127.0.0.1:9042"))
         }
     }
 --- request
 GET /t
 --- response_body
-127.0.0.1
+127.0.0.1:9042
 0;0
 --- no_error_log
 [error]
@@ -86,7 +86,7 @@ GET /t
                 }
             }
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
             end
         }
     }
@@ -96,7 +96,7 @@ GET /t
 
 --- timeout: 1.5
 --- error_log eval
-qr/\[error\].*?All hosts tried for query failed\. 127\.0\.0\.1:9043/
+qr/\[error\].*?all hosts tried for query failed\. 127\.0\.0\.1:9043/
 
 
 
@@ -110,7 +110,7 @@ qr/\[error\].*?All hosts tried for query failed\. 127\.0\.0\.1:9043/
             local cassandra = require "cassandra"
             local session, err = cassandra.spawn_session {shm = "cassandra"}
             if err or session == nil then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
         }
@@ -137,13 +137,13 @@ GET /t
                 keyspace = "system"
             }
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
 
             local rows, err = session:execute "SELECT * FROM local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
 
@@ -166,7 +166,7 @@ local
 
 
 === TEST 6: spawn session without cluster with contact_points
---- log_level: info
+--- log_level: debug
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -178,13 +178,13 @@ local
                 contact_points = {"127.0.0.1"}
             }
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
 
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
                 ngx.exit(500)
             end
 
@@ -205,8 +205,8 @@ local
 [error]
 --- error_log eval
 [
-    qr/\[warn\].*?No cluster infos in shared dict/,
-    qr/\[info\].*?Cluster infos retrieved in shared dict cassandra/
+    qr/\[warn\].*?no cluster infos in shared dict/,
+    qr/\[debug\].*?cluster infos retrieved in shared dict cassandra/
 ]
 
 
@@ -222,7 +222,7 @@ local
                 shm = "cassandra"
             }
             if err then
-                ngx.log(ngx.ERR, tostring(err))
+                ngx.log(ngx.ERR, err)
             end
         }
     }
@@ -230,4 +230,4 @@ local
 GET /t
 --- response_body
 
---- error_log: Options must contain contact_points to spawn session, or spawn a cluster in the init phase.
+--- error_log: option error: options must contain contact_points to spawn session or cluster

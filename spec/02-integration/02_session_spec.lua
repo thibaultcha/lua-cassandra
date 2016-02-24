@@ -41,8 +41,7 @@ describe("session", function()
       assert.same({}, session.hosts)
 
       local rows, err = session:execute "SELECT * FROM system.local"
-      assert.is_table(err)
-      assert.equal("NoHostAvailableError", err.type)
+      assert.equal("cannot reuse a session that has been shut down", err)
       assert.falsy(rows)
     end)
   end)

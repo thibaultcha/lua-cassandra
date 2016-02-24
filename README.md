@@ -51,7 +51,7 @@ http {
           contact_points = {"127.0.0.1", "127.0.0.2"}
         }
         if err then
-          ngx.log(ngx.ERR, "Could not spawn session: ", tostring(err))
+          ngx.log(ngx.ERR, "could not spawn session: ", err)
           return ngx.exit(500)
         end
 

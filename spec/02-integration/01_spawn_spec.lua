@@ -51,7 +51,7 @@ describe("", function()
       }
       assert.truthy(err)
       assert.False(ok)
-      assert.equal("NoHostAvailableError", err.type)
+      assert.equal("all hosts tried for query failed. 127.0.0.1:9043: connection refused.", err)
     end)
     it("should accept a custom port through an option", function()
       local ok, err = cassandra.spawn_cluster({
@@ -61,7 +61,7 @@ describe("", function()
       })
       assert.truthy(err)
       assert.False(ok)
-      assert.equal("NoHostAvailableError", err.type)
+      assert.equal("all hosts tried for query failed. 127.0.0.1:9043: connection refused.", err)
     end)
   end)
 

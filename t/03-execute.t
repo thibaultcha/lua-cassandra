@@ -20,8 +20,7 @@ __DATA__
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute "SELECT key FROM system.local"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.say("type: "..rows.type)
@@ -53,8 +52,7 @@ local
             local session = cassandra.spawn_session {shm = "cassandra"}
             local rows, err = session:execute("SELECT * FROM system.local WHERE key = ?", {"local"})
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.say("type: "..rows.type)
@@ -95,8 +93,7 @@ local
                 WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             res, err = session:execute [[
@@ -106,20 +103,17 @@ local
                 )
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             res, err = session:execute "INSERT INTO resty_t_keyspace.users(id, name) VALUES(uuid(), 'john')"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local rows, err = session:execute "SELECT * FROM resty_t_keyspace.users"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.say("#rows: "..#rows)
@@ -127,8 +121,7 @@ local
 
             res, err = session:execute "DROP KEYSPACE resty_t_keyspace"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
         }
     }
@@ -163,8 +156,7 @@ john
                 WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             res, err = session:execute [[
@@ -174,8 +166,7 @@ john
                 )
             ]]
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
@@ -183,16 +174,14 @@ john
                 INSERT INTO resty_t_keyspace.users(id, name) VALUES(?, 'john')
             ]], {cassandra.uuid(_UUID)})
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             local rows, err = session:execute([[
                 SELECT * FROM resty_t_keyspace.users WHERE id = ?
             ]], {cassandra.uuid(_UUID)})
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
 
             ngx.say("#rows: "..#rows)
@@ -200,8 +189,7 @@ john
 
             res, err = session:execute "DROP KEYSPACE resty_t_keyspace"
             if err then
-                ngx.log(ngx.ERR, tostring(err))
-                ngx.exit(500)
+                ngx.log(ngx.ERR, err)
             end
         }
     }
@@ -232,8 +220,7 @@ john
             for i = 1, 10 do
                 local rows, err = session:execute("SELECT key FROM system.local WHERE key = ?", {"local"}, {prepare = true})
                 if err then
-                    ngx.log(ngx.ERR, tostring(err))
-                    ngx.exit(500)
+                    ngx.log(ngx.ERR, err)
                 end
                 ngx.say(rows[1].key)
             end
@@ -273,7 +260,7 @@ local
             for i = 1, 10 do
                 local rows, err = session:execute("SELECT key FROM system.local WHERE key = ?", {"local"}, {prepare = true})
                 if err then
-                    ngx.log(ngx.ERR, tostring(err))
+                    ngx.log(ngx.ERR, err)
                     ngx.exit(500)
                 end
                 ngx.say(rows[1].key)
@@ -294,4 +281,4 @@ local
 local
 local
 --- error_log eval
-qr/\[warn\].*?Same shm used for cluster infos and prepared statements\. Consider using different ones/
+qr/\[warn\].*?same shm used for cluster infos and prepared statements, consider using different ones/

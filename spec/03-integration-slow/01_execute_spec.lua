@@ -8,11 +8,15 @@ describe("execute()", function()
     local err
     local _hosts, _shm = utils.ccm_start()
 
-    session, err = cassandra.spawn_session {
+    session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts
     }
     assert.falsy(err)
+  end)
+
+  teardown(function()
+    session:shutdown()
   end)
 
   it("should require argument #1 to be a string", function()
@@ -91,7 +95,7 @@ describe("execute()", function()
     end)
   end)
 
-  describe("", function()
+  describe(function()
     setup(function()
       utils.create_keyspace(session, "session_execute")
 
@@ -393,6 +397,29 @@ describe("execute()", function()
         assert.spy(cache.get_prepared_query_id).was.called(page_tracker + 1)
         assert.spy(cache.set_prepared_query_id).was.called(0)
       end)
+    end)
+  end)
+
+  describe("errors", function()
+    it("returns CQL errors", function()
+      local res, err = session:execute "CAN I HAZ CQL"
+      assert.falsy(res)
+      assert.equal("[Syntax error] line 1:0 no viable alternative at input 'CAN' ([CAN]...)", err)
+
+      res, err = session:execute "SELECT * FROM system.local WHERE key = ?"
+      assert.falsy(res)
+      assert.equal("[Invalid] Invalid amount of bind variables", err)
+    end)
+    it("returns the CQL error code", function()
+      local res, err, cql_code = session:execute "CAN I HAZ CQL"
+      assert.falsy(res)
+      assert.truthy(err)
+      assert.equal(cassandra.cql_errors.SYNTAX_ERROR, cql_code)
+
+      res, err, cql_code = session:execute "SELECT * FROM system.local WHERE key = ?"
+      assert.falsy(res)
+      assert.truthy(err)
+      assert.equal(cassandra.cql_errors.INVALID, cql_code)
     end)
   end)
 end)

@@ -8,7 +8,7 @@ describe("batch()", function()
     local _, err
     local hosts, shm = utils.ccm_start()
 
-    session, err = cassandra.spawn_session {
+    session, err = cassandra.new {
       shm = shm,
       contact_points = hosts
     }
@@ -35,6 +35,10 @@ describe("batch()", function()
       )
     ]]
     assert.falsy(err)
+  end)
+
+  teardown(function()
+    session:shutdown()
   end)
 
   after_each(function()

@@ -89,10 +89,12 @@ describe("error handling", function()
     it("returns the CQL error code", function()
       local res, err, cql_code = session:execute "CAN I HAZ CQL"
       assert.falsy(res)
+      assert.truthy(err)
       assert.equal(cassandra.cql_errors.SYNTAX_ERROR, cql_code)
 
       res, err, cql_code = session:execute "SELECT * FROM system.local WHERE key = ?"
       assert.falsy(res)
+      assert.truthy(err)
       assert.equal(cassandra.cql_errors.INVALID, cql_code)
     end)
   end)

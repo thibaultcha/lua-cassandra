@@ -591,7 +591,7 @@ function RequestHandler:handle_error(request, err, err_type, cql_err_code)
   end
 
   -- this error needs to be reported to the session
-  return nil, err
+  return nil, err, cql_err_code
 end
 
 function RequestHandler:retry(request)

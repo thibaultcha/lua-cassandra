@@ -19,7 +19,6 @@ local socket = require "cassandra.socket"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
-local table_utils = require "cassandra.utils.table"
 local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
@@ -239,9 +238,9 @@ function Host:connect()
         self:close()
         self:decrease_version()
         if self.protocol_version < MIN_PROTOCOL_VERSION then
-          log.err("Connection could not find a supported protocol version.")
+          log.err("could not find a supported protocol version")
         else
-          log.debug("Decreasing protocol version to v"..self.protocol_version)
+          log.debug("decreasing protocol version to v"..self.protocol_version)
           return self:connect()
         end
       end
@@ -296,7 +295,8 @@ end
 function Host:get_reused_times()
   local count, err = self.socket:getreusedtimes()
   if err then
-    log.err("could not get reused times for socket to "..self.address.."("..err..")")
+    log.err("could not get reused times for socket with peer "..self.address.." ("..err..")")
+    return 0
   end
   return count
 end
@@ -400,10 +400,11 @@ end
 
 local RequestHandler = {}
 
-function RequestHandler:new(hosts, options)
+function RequestHandler:new(hosts, options, query_options)
   local o = {
     hosts = hosts,
     options = options,
+    retry_on_timeout = query_options.retry_on_timeout,
     n_retries = 0
   }
 
@@ -492,7 +493,7 @@ local function check_schema_consensus(request_handler)
 end
 
 function RequestHandler:wait_for_schema_consensus()
-  log.debug("Waiting for schema consensus")
+  log.debug "waiting for schema consensus"
 
   local match, t_diff, err
   local start = time_utils.get_time()
@@ -506,7 +507,7 @@ function RequestHandler:wait_for_schema_consensus()
   if err then
     return err
   elseif not match then
-    log.err("waiting for schema consensus timed out. "..t_diff.." > "..self.options.protocol_options.max_schema_consensus_wait)
+    log.err("waiting for schema consensus timed out ("..t_diff.." > "..self.options.protocol_options.max_schema_consensus_wait..")")
   end
 end
 
@@ -516,7 +517,7 @@ function RequestHandler:send_on_next_coordinator(request)
     return nil, err
   end
 
-  log.debug("load balancing policy proposed to try host at: "..coordinator.address)
+  log.debug("load balancing policy proposed to try host at "..coordinator.address)
 
   return self:send(request)
 end
@@ -540,7 +541,7 @@ function RequestHandler:send(request)
   if result.type == "SCHEMA_CHANGE" then
     local err = self:wait_for_schema_consensus()
     if err then
-      log.warn("There was an error while waiting for the schema consensus between nodes: "..err)
+      log.warn("error while waiting for the schema consensus between nodes ("..err..")")
     end
   end
 
@@ -557,7 +558,7 @@ function RequestHandler:handle_error(request, err, err_type, cql_err_code)
     -- always retry, another node will be picked
     return self:retry(request)
   elseif err_type == Errors.t_timeout then
-    if self.options.query_options.retry_on_timeout then
+    if self.retry_on_timeout then
       return self:retry(request)
     end
   elseif err_type == Errors.t_cql then
@@ -801,16 +802,15 @@ function Session:execute(query, args, query_options)
     error("argument #1 must be a string", 2)
   end
 
-  local options = table_utils.copy_args(self.options)
-  options.query_options = table_utils.extend_table(options.query_options, query_options)
+  query_options = self.options:extend_query_options(query_options)
 
-  local request_handler = RequestHandler:new(self.hosts, options)
+  local request_handler = RequestHandler:new(self.hosts, self.options, query_options)
 
-  if options.query_options.auto_paging then
-    return page_iterator(request_handler, query, args, options.query_options)
+  if query_options.auto_paging then
+    return page_iterator(request_handler, query, args, query_options)
   end
 
-  return inner_execute(request_handler, query, args, options.query_options)
+  return inner_execute(request_handler, query, args, query_options)
 end
 
 --- Execute a batch of queries.
@@ -854,12 +854,11 @@ end
 -- @treturn table `result`: A table describing the result. Batch results are always `VOID` results. If an error occurred, this value will be `nil` and a second value describing the error is returned.
 -- @treturn string `err`: A string describing the error that occurred.
 function Session:batch(queries, query_options)
-  local options = table_utils.copy_args(self.options)
-  options.query_options = table_utils.extend_table({logged = true}, options.query_options, query_options)
+  query_options = self.options:extend_query_options({logged = true}, query_options)
 
-  local request_handler = RequestHandler:new(self.hosts, options)
+  local request_handler = RequestHandler:new(self.hosts, self.options, query_options)
 
-  if options.query_options.prepare then
+  if query_options.prepare then
     for i, q in ipairs(queries) do
       local query_id, err = prepare_query(request_handler, q[1])
       if err then
@@ -869,7 +868,7 @@ function Session:batch(queries, query_options)
     end
   end
 
-  local batch_request = Requests.BatchRequest(queries, options.query_options)
+  local batch_request = Requests.BatchRequest(queries, query_options)
   -- with :send(), the same coordinator will be used if we prepared some queries,
   -- and a new one will be chosen if none were used yet.
   return request_handler:send(batch_request)

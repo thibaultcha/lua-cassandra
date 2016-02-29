@@ -159,9 +159,9 @@ local function do_ssl_handshake(self)
   local ssl_options = self.options.ssl_options
 
   local luasec_opts = {
-    ca = ssl_options.ca,
     key = ssl_options.key,
-    certificate = ssl_options.certificate
+    cafile = ssl_options.ca,
+    cert = ssl_options.certificate
   }
 
   -- returns a boolean since `reused_session` is false.
@@ -213,52 +213,47 @@ function Host:connect()
 
   log.debug("session connected to "..self.address)
 
-  if self:get_reused_times() > 0 then
-    -- No need for startup request
-    return true
-  end
-
-  -- Startup request on first connection
-  local ready = false
-  local res, err = startup(self)
-  if err then
-    log.err("Startup request failed. "..err)
-    -- Check for incorrect protocol version
-    if err and err.code == CQL_Errors.PROTOCOL then
-      if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
-        self:close()
-        self:decrease_version()
-        if self.protocol_version < MIN_PROTOCOL_VERSION then
-          log.err("could not find a supported protocol version")
-        else
-          log.debug("decreasing protocol version to v"..self.protocol_version)
-          return self:connect()
+  if self:get_reused_times() < 1 then
+    -- Startup request on first connection
+    local res, err = startup(self)
+    if err then
+      log.err("Startup request failed. "..err)
+      -- Check for incorrect protocol version
+      if err and err.code == CQL_Errors.PROTOCOL then
+        if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
+          self:close()
+          self:decrease_version()
+          if self.protocol_version < MIN_PROTOCOL_VERSION then
+            log.err "could not find a supported protocol version"
+          else
+            log.debug("decreasing protocol version to v"..self.protocol_version)
+            return self:connect()
+          end
         end
       end
-    end
 
-    return false, err, true
-  elseif res.must_authenticate then
-    log.debug("host at "..self.address.." asked for authentication")
-    if self.options.auth == nil then
-      return false, "Host at "..self.address..
-        " required authentication but no auth provider was configured for session"
-    end
+      return false, err, true
+    elseif res.must_authenticate then
+      log.debug("host at "..self.address.." asked for authentication")
+      if self.options.auth == nil then
+        return false, "Host at "..self.address..
+          " required authentication but no auth provider was configured on the session"
+      end
 
-    local ok, err = send_auth(self, self.options.auth)
-    if not ok then
-      return false, err
-    else
-      log.debug("successfully authenticated to host at "..self.address)
-      ready = true
+      local ok, err = send_auth(self, self.options.auth)
+      if not ok then
+        return false, err
+      else
+        log.debug("successfully authenticated to host at "..self.address)
+      end
+    elseif not res.ready then
+      return false, "host is not ready"
     end
-  elseif res.ready then
-    ready = true
   end
 
-  if ready then
-    log.debug("host at "..self.address.." is ready with protocol v"..self.protocol_version)
-
+  -- it could be that the socket comes from the connection pool, but this Host
+  -- instance is fresh new, in which case we need to go in there.
+  if not self.connected then
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
       if err then
@@ -267,13 +262,18 @@ function Host:connect()
     end
 
     self.connected = true
-    return true
+    log.debug("host at "..self.address.." is ready with protocol v"..self.protocol_version)
   end
+
+  return true
 end
 
 function Host:change_keyspace(keyspace)
+  print("in change")
+  self.options.keyspace = keyspace
   if self.connected then
-    self.options.keyspace = keyspace
+    print("changing")
+
 
     return change_keyspace(self, keyspace)
   end
@@ -849,7 +849,7 @@ end
 -- @treturn string `err`: A string describing the error that occurred.
 function Session:set_keyspace(keyspace)
   self.options.keyspace = keyspace
-
+  print("in set")
   for _, host in ipairs(self.hosts) do
     host:change_keyspace(keyspace)
   end

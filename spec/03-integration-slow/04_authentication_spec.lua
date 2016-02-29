@@ -25,7 +25,7 @@ describe("PasswordAuthenticator", function()
         ca = ca_path
       }
     }
-    assert.equal("Host at 127.0.0.1:9042 required authentication but no auth provider was configured for session", err)
+    assert.equal("Host at 127.0.0.1:9042 required authentication but no auth provider was configured on the session", err)
     assert.falsy(session)
   end)
   it("be refused if credentials are invalid", function()

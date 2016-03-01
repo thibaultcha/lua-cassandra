@@ -120,7 +120,7 @@ Once you have a local copy of this module's `src/` directory, add it to your `LU
 /path/to/src/?.lua;/path/to/src/?/init.lua;
 ```
 
-**Note**: When used *outside* of ngx_lua, this module requires:
+**Note**: When used *outside* of ngx_lua, this module requires additional dependencies:
 
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
 - If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)

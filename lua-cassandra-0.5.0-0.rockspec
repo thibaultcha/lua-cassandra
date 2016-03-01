@@ -9,9 +9,6 @@ description = {
   homepage = "http://thibaultcha.github.io/lua-cassandra",
   license = "MIT"
 }
-dependencies = {
-  "luasocket ~> 3.0-rc1"
-}
 build = {
   type = "builtin",
   modules = {

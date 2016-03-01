@@ -1,5 +1,5 @@
-local cassandra = require "cassandra"
 local utils = require "spec.spec_utils"
+local cassandra = require "cassandra"
 
 local SSL_PATH = utils.ssl_path()
 local ca_path = SSL_PATH.."/cassandra.pem"
@@ -20,16 +20,15 @@ desc("SSL", function()
   end)
 
   it("should not connect without SSL", function()
-    local ok, err = cassandra.spawn_cluster {
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts
     }
-    assert.truthy(err)
+    assert.falsy(session)
     assert.equal("all hosts tried for query failed. 127.0.0.1:9042: closed.", err)
-    assert.False(ok)
   end)
   it("should connect with SSL without verifying server certificate", function()
-    local session, err = cassandra.spawn_session {
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts,
       ssl_options = {
@@ -44,7 +43,7 @@ desc("SSL", function()
     assert.equal(1, #rows)
   end)
   it("should verify server certificate", function()
-    local session, err = cassandra.spawn_session {
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts,
       ssl_options = {
@@ -70,7 +69,7 @@ desc("SSL", function()
     end)
 
     it("should fail to authentice to server without cert and key", function()
-      local session, err = cassandra.spawn_session {
+      local session, err = cassandra.new {
         shm = _shm,
         contact_points = _hosts,
         ssl_options = {
@@ -85,7 +84,7 @@ desc("SSL", function()
     end)
 
     it("should authenticate to server", function()
-      local session, err = cassandra.spawn_session {
+      local session, err = cassandra.new {
         shm = _shm,
         contact_points = _hosts,
         ssl_options = {

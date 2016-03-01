@@ -1,5 +1,5 @@
-local cassandra = require "cassandra"
 local utils = require "spec.spec_utils"
+local cassandra = require "cassandra"
 
 local SSL_ENABLED = false -- disabled while LuaSec doesn't support Lua 5.3 (we still want auth tests)
 local SSL_PATH = utils.ssl_path()
@@ -15,8 +15,8 @@ describe("PasswordAuthenticator", function()
     })
   end)
 
-  it("should complain if not auth provider was configured", function()
-    local session, err = cassandra.spawn_session {
+  it("complains if no auth provider was configured", function()
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts,
       ssl_options = {
@@ -25,11 +25,11 @@ describe("PasswordAuthenticator", function()
         ca = ca_path
       }
     }
-    assert.equal("Host at 127.0.0.1:9042 required authentication but no auth provider was configured for session", err)
+    assert.equal("Host at 127.0.0.1:9042 required authentication but no auth provider was configured on the session", err)
     assert.falsy(session)
   end)
-  it("should be refused if credentials are invalid", function()
-    local session, err = cassandra.spawn_session {
+  it("be refused if credentials are invalid", function()
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts,
       ssl_options = {
@@ -42,8 +42,8 @@ describe("PasswordAuthenticator", function()
     assert.equal("[Bad credentials] Username and/or password are incorrect", err)
     assert.falsy(session)
   end)
-  it("should authenticate with valid credentials", function()
-    local session, err = cassandra.spawn_session {
+  it("authenticate with valid credentials", function()
+    local session, err = cassandra.new {
       shm = _shm,
       contact_points = _hosts,
       ssl_options = {

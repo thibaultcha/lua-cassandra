@@ -8,7 +8,7 @@ describe("batch()", function()
     local _, err
     local hosts, shm = utils.ccm_start()
 
-    session, err = cassandra.spawn_session {
+    session, err = cassandra.new {
       shm = shm,
       contact_points = hosts
     }
@@ -37,11 +37,25 @@ describe("batch()", function()
     assert.falsy(err)
   end)
 
+  teardown(function()
+    session:shutdown()
+  end)
+
   after_each(function()
     session:execute("TRUNCATE counter_test_table")
   end)
 
   local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
+
+  it("should require argument #1 to be a table", function()
+    assert.has_error(function()
+      session:batch()
+    end, "bad argument #1 to 'batch' (table expected, got nil)")
+
+    assert.has_error(function()
+      session:batch(1)
+    end, "bad argument #1 to 'batch' (table expected, got number)")
+  end)
 
   it("should execute logged batched queries with no params", function()
     local res, err = session:batch({

@@ -22,7 +22,11 @@ describe("execute()", function()
   it("should require argument #1 to be a string", function()
     assert.has_error(function()
       session:execute()
-    end, "argument #1 must be a string")
+    end, "bad argument #1 to 'execute' (string expected, got nil)")
+
+    assert.has_error(function()
+      session:execute(1)
+    end, "bad argument #1 to 'execute' (string expected, got number)")
   end)
 
   --

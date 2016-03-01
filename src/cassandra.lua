@@ -269,12 +269,8 @@ function Host:connect()
 end
 
 function Host:change_keyspace(keyspace)
-  print("in change")
   self.options.keyspace = keyspace
   if self.connected then
-    print("changing")
-
-
     return change_keyspace(self, keyspace)
   end
 end
@@ -758,7 +754,8 @@ function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, "cannot reuse a session that has been shut down"
   elseif type(query) ~= "string" then
-    error("argument #1 must be a string", 2)
+    local msg = "bad argument #1 to 'execute' (string expected, got "..type(query)..")"
+    error(msg, 2)
   end
 
   query_options = self.options:extend_query_options(query_options)
@@ -813,6 +810,11 @@ end
 -- @treturn table `result`: A table describing the result. Batch results are always `VOID` results. If an error occurred, this value will be `nil` and a second value describing the error is returned.
 -- @treturn string `err`: A string describing the error that occurred.
 function Session:batch(queries, query_options)
+  if type(queries) ~= "table" then
+    local msg = "bad argument #1 to 'batch' (table expected, got "..type(queries)..")"
+    error(msg, 2)
+  end
+
   query_options = self.options:extend_query_options({logged = true}, query_options)
 
   local request_handler = RequestHandler:new(self.hosts, self.options, query_options)
@@ -849,7 +851,7 @@ end
 -- @treturn string `err`: A string describing the error that occurred.
 function Session:set_keyspace(keyspace)
   self.options.keyspace = keyspace
-  print("in set")
+
   for _, host in ipairs(self.hosts) do
     host:change_keyspace(keyspace)
   end
@@ -1078,7 +1080,7 @@ local types_mt = {
     if types.cql_types[key] ~= nil then
       return function(value)
         if value == nil then
-          error("argument #1 required for '"..key.."' type shorthand", 2)
+          error("bad argument #1 to '"..key.."' (got nil)", 2)
         end
         return {value = value, type_id = types.cql_types[key]}
       end

@@ -47,6 +47,16 @@ describe("batch()", function()
 
   local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
 
+  it("should require argument #1 to be a table", function()
+    assert.has_error(function()
+      session:batch()
+    end, "bad argument #1 to 'batch' (table expected, got nil)")
+
+    assert.has_error(function()
+      session:batch(1)
+    end, "bad argument #1 to 'batch' (table expected, got number)")
+  end)
+
   it("should execute logged batched queries with no params", function()
     local res, err = session:batch({
       {"INSERT INTO users(id, name, n) VALUES(".._UUID..", 'Alice', 1)"},

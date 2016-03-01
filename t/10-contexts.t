@@ -278,6 +278,7 @@ qr/\[debug\].*?body_filter local/
 
 
 === TEST 9: support in log
+--- wait: 1
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -309,6 +310,7 @@ qr/\[error\].*?log local/
 
 
 === TEST 10: support in timer
+--- wait: 1
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config

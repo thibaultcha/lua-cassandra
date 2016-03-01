@@ -46,7 +46,7 @@ http {
       content_by_lua_block {
         local cassandra = require "cassandra"
 
-        local session, err = cassandra.spawn_session {
+        local session, err = cassandra.new {
           shm = "cassandra", -- defined by "lua_shared_dict"
           contact_points = {"127.0.0.1", "127.0.0.2"}
         }
@@ -83,7 +83,7 @@ With plain Lua:
 ```lua
 local cassandra = require "cassandra"
 
-local session, err = cassandra.spawn_session {
+local session, err = cassandra.new {
   shm = "cassandra",
   contact_points = {"127.0.0.1", "127.0.0.2"}
 }

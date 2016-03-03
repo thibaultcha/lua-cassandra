@@ -80,17 +80,18 @@ function StartupRequest:new()
 end
 
 function StartupRequest:build()
-  self.frame_body:write_string_map({
+  self.frame_body:write_string_map {
     CQL_VERSION = CQL_VERSION
-  })
+  }
 end
 
 --- QueryRequest
 -- @section query_request
 
+-- v2: <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+-- v3: <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
 local function build_request_parameters(frame_body, version, params, options)
-  -- v2: <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
-  -- v3: <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+  if not options then options = {} end
 
   if options.consistency == nil then
     options.consistency = types.consistencies.one
@@ -129,12 +130,11 @@ function QueryRequest:new(query, params, options)
   QueryRequest.super.new(self, OP_CODES.QUERY)
 end
 
+-- v2: <query>
+--      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+-- v3: <query>
+--      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
 function QueryRequest:build()
-  -- v2: <query>
-  --      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
-  -- v3: <query>
-  --      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
-
   self.frame_body:write_long_string(self.query)
   build_request_parameters(self.frame_body, self.version, self.params, self.options)
 end
@@ -168,20 +168,18 @@ end
 
 local ExecutePreparedRequest = Request:extend()
 
-function ExecutePreparedRequest:new(query_id, query, params, options)
+function ExecutePreparedRequest:new(query_id, params, options)
   self.query_id = query_id
-  self.query = query
   self.params = params
   self.options = options
   ExecutePreparedRequest.super.new(self, OP_CODES.EXECUTE)
 end
 
+-- v2: <queryId>
+--      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
+-- v3: <queryId>
+--      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
 function ExecutePreparedRequest:build()
-  -- v2: <queryId>
-  --      <consistency><flags>[<n><value_1>...<value_n>][<result_page_size>][<paging_state>][<serial_consistency>]
-  -- v3: <queryId>
-  --      <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
-
   self.frame_body:write_short_bytes(self.query_id)
   build_request_parameters(self.frame_body, self.version, self.params, self.options)
 end
@@ -203,10 +201,9 @@ function BatchRequest:new(queries, options)
   BatchRequest.super.new(self, OP_CODES.BATCH)
 end
 
+-- v2: <type><n><query_1>...<query_n><consistency>
+-- v3: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
 function BatchRequest:build()
-  -- v2: <type><n><query_1>...<query_n><consistency>
-  -- v3: <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
-
   self.frame_body:write_byte(self.type)
   self.frame_body:write_short(#self.queries)
 

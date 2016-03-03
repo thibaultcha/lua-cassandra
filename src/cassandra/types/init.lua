@@ -79,7 +79,7 @@ local ERRORS = {
   UNPREPARED = 0x2500
 }
 
-local ERRORS_TRANSLATIONS = {
+local ERROR_TRANSLATIONS = {
   [ERRORS.SERVER] = "Server error",
   [ERRORS.PROTOCOL] = "Protocol error",
   [ERRORS.BAD_CREDENTIALS] = "Bad credentials",
@@ -104,6 +104,6 @@ return {
   cql_types = cql_types,
   QUERY_FLAGS = QUERY_FLAGS,
   OP_CODES = OP_CODES,
-  ERRORS = ERRORS,
-  ERRORS_TRANSLATIONS = ERRORS_TRANSLATIONS
+  errors = ERRORS,
+  error_translations = ERROR_TRANSLATIONS
 }

@@ -16,7 +16,7 @@ describe("Casandra", function()
       assert.truthy(cassandra.cql_errors)
 
       local types = require "cassandra.types"
-      for t in pairs(types.ERRORS) do
+      for t in pairs(types.errors) do
         assert.truthy(cassandra.cql_errors[t])
       end
     end)

@@ -23,7 +23,7 @@ local string_utils = require "cassandra.utils.string"
 local FrameHeader = require "cassandra.types.frame_header"
 local FrameReader = require "cassandra.frame_reader"
 
-local CQL_Errors = types.ERRORS
+local CQL_Errors = types.errors
 local string_find = string.find
 local setmetatable = setmetatable
 local ipairs = ipairs

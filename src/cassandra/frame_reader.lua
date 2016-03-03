@@ -113,11 +113,20 @@ local RESULT_PARSERS = {
     }
   end,
   [RESULT_KINDS.SCHEMA_CHANGE] = function(buffer)
+    local change_type = buffer:read_string()
+    local target = buffer:read_string()
+    local keyspace = buffer:read_string()
+    local name
+    if target == "TABLE" or target == "TYPE" then
+      name = buffer:read_string()
+    end
+
     return {
       type = "SCHEMA_CHANGE",
-      change = buffer:read_string(),
-      keyspace = buffer:read_string(),
-      table = buffer:read_string()
+      change_type = change_type,
+      target = target,
+      keyspace = keyspace,
+      name = name
     }
   end
 }
@@ -135,8 +144,8 @@ end
 local function parse_error(frame_body)
   local code = frame_body:read_int()
   local message = frame_body:read_string()
-  local code_translation = types.ERRORS_TRANSLATIONS[code]
-  return "["..code_translation.."] "..message, Errors.t_cql, code
+  local code_translation = types.error_translations[code]
+  return "["..code_translation.."] "..message, code
 end
 
 local function parse_ready()

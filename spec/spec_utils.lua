@@ -1,9 +1,4 @@
-local unpack
-if _VERSION == "Lua 5.3" then
-  unpack = table.unpack
-else
-  unpack = _G.unpack
-end
+local unpack = rawget(table, "unpack") or unpack
 
 local function exec(cmd, ignore)
   cmd = cmd.." >/dev/null"

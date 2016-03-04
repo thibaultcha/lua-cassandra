@@ -1159,7 +1159,7 @@ Cassandra.consistencies = types.consistencies
 -- @field UNPREPARED Can be thrown while a prepared statement tries to be executed if the provide prepared statement ID is not known by this host. (This error could return more informations but it is **not yet supported**.)
 -- @table cql_errors
 
-Cassandra.cql_errors = types.ERRORS
+Cassandra.cql_errors = types.errors
 
 local DEFAULT_AUTH_PROVIDERS = {
   PlainTextProvider = require "cassandra.auth.plain_text_provider"

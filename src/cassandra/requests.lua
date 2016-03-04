@@ -204,9 +204,9 @@ function BatchRequest:build()
 
   for _, q in ipairs(self.queries) do
     local query, args = unpack(q)
-    if q.query_id ~= nil then
+    if self.options.prepared then
       self.frame_body:write_byte(1)
-      self.frame_body:write_short_bytes(q.query_id)
+      self.frame_body:write_short_bytes(query) -- query id
     else
       self.frame_body:write_byte(0)
       self.frame_body:write_long_string(query)

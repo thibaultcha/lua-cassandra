@@ -158,9 +158,48 @@ function _Host:set_keyspace(keyspace)
   return self:send(keyspace_req)
 end
 
-function _Host:execute(query, args, opts, prepared)
+function _Host:prepare(query)
+  local prepare_request = Requests.PrepareRequest(query)
+  return self:send(prepare_request)
+end
+
+local query_options = {
+  consistency = types.consistencies.one,
+  serial_consistency = types.consistencies.serial,
+  page_size = 1000,
+  paging_state = nil,
+  auto_paging = false,
+  -- execute with a prepared query id
+  prepared = false,
+  -- batch
+  logged = true,
+  counter = false,
+  timestamp = nil
+}
+
+local function get_opts(o)
+  if not o then
+    return query_options
+  else
+    local opts = {
+      paging_state = o.paging_state,
+      timestamp = o.timestamp
+    }
+    for k,v in pairs(query_options) do
+      if o[k] == nil then
+        opts[k] = v
+      else
+        opts[k] = o[k]
+      end
+    end
+    return opts
+  end
+end
+
+function _Host:execute(query, args, options, prepared)
   local request
-  if opts and opts.prepared then
+  local opts = get_opts(options)
+  if opts.prepared then
     -- query is the prepared queryid
     request = Requests.ExecutePreparedRequest(query, args, opts)
   else
@@ -170,12 +209,8 @@ function _Host:execute(query, args, opts, prepared)
   return self:send(request)
 end
 
-function _Host:prepare(query)
-  local prepare_request = Requests.PrepareRequest(query)
-  return self:send(prepare_request)
-end
-
-function _Host:batch(queries, opts)
+function _Host:batch(queries, options)
+  local opts = get_opts(options)
   local batch_request = Requests.BatchRequest(queries, opts)
   return self:send(batch_request)
 end

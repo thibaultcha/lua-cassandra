@@ -1,6 +1,9 @@
 local utils = require "spec.spec_utils"
 local host = require "cassandra.host"
 
+-- TODO: attach type serializers to host
+local cassandra = require "cassandra"
+
 describe("host", function()
   setup(function()
     utils.ccm_start()
@@ -28,6 +31,16 @@ describe("host", function()
       assert.equal(2, peer.protocol_version)
       assert.falsy(peer.ssl)
       assert.truthy(peer.sock)
+    end)
+  end)
+
+  describe("__tostring()", function()
+    it("has a __tostring() metamethod", function()
+      local peer, err = host.new()
+      assert.falsy(err)
+
+      local str = tostring(peer)
+      assert.truthy(string.find(str, "<Cassandra socket: tcp{master}:"))
     end)
   end)
 
@@ -235,10 +248,6 @@ describe("host", function()
       end)
     end)
 
-    describe("batch()", function()
-
-    end)
-
     describe("set_keyspace()", function()
       it("sets a peer's keyspace", function()
         local peer_k, err = host.new()
@@ -257,15 +266,148 @@ describe("host", function()
         assert.equal("local", rows[1].key)
       end)
     end)
-  end) -- CQL
 
-  describe("__tostring()", function()
-    it("has a __tostring() metamethod", function()
-      local peer, err = host.new()
-      assert.falsy(err)
+    describe("batch()", function()
+      local keyspace = "batch_specs"
+      local uuid = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
+      setup(function()
+        utils.create_keyspace(peer, keyspace)
 
-      local str = tostring(peer)
-      assert.truthy(string.find(str, "<Cassandra socket: tcp{master}:"))
+        local _, err = peer:set_keyspace(keyspace)
+        assert.falsy(err)
+
+        _, err = peer:execute [[
+          CREATE TABLE IF NOT EXISTS things(
+            id uuid PRIMARY KEY,
+            n int
+          )
+        ]]
+        assert.falsy(err)
+
+        _, err = peer:execute [[
+          CREATE TABLE IF NOT EXISTS counters(
+            key text PRIMARY KEY,
+            value counter
+          )
+        ]]
+        assert.falsy(err)
+      end)
+
+      teardown(function()
+        utils.drop_keyspace(peer, keyspace)
+      end)
+
+      after_each(function()
+        peer:execute("TRUNCATE counter_test_table")
+      end)
+
+      it("executes a logged batch by default", function()
+        local res, err = peer:batch {
+          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+          {"UPDATE things SET n = 2 WHERE id = "..uuid},
+          {"UPDATE things SET n = 3 WHERE id = "..uuid}
+        }
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(3, rows[1].n)
+      end)
+      it("executes batch with params", function()
+        local res, err = peer:batch({
+          {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 1}},
+          {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 2}},
+          {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 3}},
+        })
+        assert.falsy(err)
+
+        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(3, rows[1].n)
+      end)
+      it("executes an unlogged batch", function()
+        local res, err = peer:batch({
+          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+          {"UPDATE things SET n = 2 WHERE id = "..uuid},
+          {"UPDATE things SET n = 3 WHERE id = "..uuid}
+        }, {logged = false})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(3, rows[1].n)
+      end)
+      it("executes a counter batch", function()
+        local res, err = peer:batch({
+          {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"},
+          {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"},
+          {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"}
+        }, {counter = true})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute "SELECT value FROM counters WHERE key = 'counter'"
+        assert.falsy(err)
+        assert.equal(3, rows[1].value)
+      end)
+      it("supports protocol level timestamp", function()
+        local uuid = "0d0dca5e-e1d5-11e5-89ff-93118511c17e"
+        local _, err = peer:batch({
+          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+          {"UPDATE things SET n = 2 WHERE id = "..uuid},
+          {"UPDATE things SET n = 3 WHERE id = "..uuid}
+        }, {timestamp = 1428311323417123})
+        assert.falsy(err)
+
+        local rows, err = peer:execute("SELECT n,writetime(n) FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(3, rows[1].n)
+        assert.equal(1428311323417123, rows[1]["writetime(n)"])
+      end)
+      it("supports serial consistency", function()
+        local _, err = peer:batch({
+          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+          {"UPDATE things SET n = 2 WHERE id = "..uuid},
+          {"UPDATE things SET n = 3 WHERE id = "..uuid}
+        }, {serial_consistency = cassandra.consistencies.local_serial})
+        assert.falsy(err)
+
+        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(3, rows[1].n)
+      end)
+      it("execute prepared queries", function()
+        local res1, err = peer:prepare "INSERT INTO things(id,n) VALUES(?,?)"
+        assert.falsy(err)
+
+        local res2, err = peer:prepare "UPDATE things set n = ? WHERE id = ?"
+        assert.falsy(err)
+
+        local q1, q2 = res1.query_id, res2.query_id
+
+        local res, err = peer:batch({
+          {q1, {cassandra.uuid(uuid), 1}},
+          {q2, {2, cassandra.uuid(uuid)}},
+          {q2, {3, cassandra.uuid(uuid)}},
+          {q2, {4, cassandra.uuid(uuid)}},
+          {q2, {5, cassandra.uuid(uuid)}}
+        }, {prepared = true})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(5, rows[1].n)
+      end)
+      it("returns CQL errors", function()
+        local res, err = peer:batch {
+          {"INSERT FOO"}, {"INSERT BAR"}
+        }
+        assert.falsy(res)
+        assert.equal("[Syntax error] line 0:-1 mismatched input '<EOF>' expecting '('", err)
+      end)
     end)
-  end)
+  end) -- CQL
 end)

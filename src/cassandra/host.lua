@@ -28,7 +28,12 @@ function _Host.new(opts)
     host = opts.host or "127.0.0.1",
     port = opts.port or 9042,
     protocol_version = opts.protocol_version or DEFAULT_PROTOCOL_VERSION,
-    -- ssl = opts.ssl
+    ssl = opts.ssl,
+    verify = opts.verify,
+    cert = opts.cert,
+    cafile = opts.cafile,
+    key = opts.key,
+    -- auth = opts.auth
   }
 
   return setmetatable(host, _Host)
@@ -76,6 +81,16 @@ local function send_startup(self)
   return self:send(startup_req)
 end
 
+local function ssl_handshake(self)
+  local params = {
+    key = self.key,
+    cafile = self.cafile,
+    cert = self.cert
+  }
+
+  return self.sock:sslhandshake(false, nil, self.verify, params)
+end
+
 function _Host:connect()
   if not self.sock then
     return nil, "no socket created"
@@ -84,7 +99,10 @@ function _Host:connect()
   local ok, err = self.sock:connect(self.host, self.port)
   if not ok then return nil, err end
 
-  -- TODO: SSL handshake
+  if self.ssl then
+    ok, err = ssl_handshake(self)
+    if not ok then return nil, err end
+  end
 
   local reused, err = self.sock:getreusedtimes()
   if not reused then return nil, err end

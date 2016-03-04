@@ -42,19 +42,18 @@ function _Host:send(request)
   request:set_version(self.protocol_version)
 
   local frame = request:get_full_frame()
-  local sock = self.sock
-
-  local sent, err = sock:send(frame)
+  local sent, err = self.sock:send(frame)
   if not sent then return nil, err end
 
   -- receive frame version byte
-  local v_byte, err = sock:receive(1)
+  local v_byte, err = self.sock:receive(1)
   if not v_byte then return nil, err end
 
-  local n_bytes = FrameHeader.size_from_byte(v_byte) - 1 -- we just read one more byte
+  -- -1 because of the v_byte we just read
+  local n_bytes = FrameHeader.size_from_byte(v_byte) - 1
 
   -- receive frame header
-  local header_bytes, err = sock:receive(n_bytes)
+  local header_bytes, err = self.sock:receive(n_bytes)
   if not header_bytes then return nil, err end
 
   local frame_header = FrameHeader.from_raw_bytes(v_byte, header_bytes)
@@ -62,7 +61,7 @@ function _Host:send(request)
   -- receive frame body
   local body_bytes
   if frame_header.body_length > 0 then
-    body_bytes, err = sock:receive(frame_header.body_length)
+    body_bytes, err = self.sock:receive(frame_header.body_length)
     if not body_bytes then return nil, err end
   end
 
@@ -94,7 +93,8 @@ function _Host:connect()
     -- startup request on first connection
     local res, err, code = send_startup(self)
     if not res then
-      if code == cql_errors.PROTOCOL and find(err, "Invalid or unsupported protocol version", nil, true) then
+      if code == cql_errors.PROTOCOL and
+         find(err, "Invalid or unsupported protocol version", nil, true) then
         -- too high protocol version
         self.sock:close()
         self.protocol_version = self.protocol_version - 1
@@ -160,6 +160,10 @@ end
 function _Host:batch(queries, opts)
   local batch_request = Requests.BatchRequest(queries, opts)
   return self:send(batch_request)
+end
+
+function _Host:__tostring()
+  return "<Cassandra socket: "..tostring(self.sock)..">"
 end
 
 return _Host

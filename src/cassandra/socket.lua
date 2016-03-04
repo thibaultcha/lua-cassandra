@@ -92,6 +92,10 @@ function luasocket_mt:sslhandshake(reused_session, _, verify, opts)
   return return_bool and true or self
 end
 
+function luasocket_mt:__tostring()
+  return tostring(self.sock)
+end
+
 --- Module
 
 return {

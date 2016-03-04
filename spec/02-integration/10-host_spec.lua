@@ -258,4 +258,14 @@ describe("host", function()
       end)
     end)
   end) -- CQL
+
+  describe("__tostring()", function()
+    it("has a __tostring() metamethod", function()
+      local peer, err = host.new()
+      assert.falsy(err)
+
+      local str = tostring(peer)
+      assert.truthy(string.find(str, "<Cassandra socket: tcp{master}:"))
+    end)
+  end)
 end)

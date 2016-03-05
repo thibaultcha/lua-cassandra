@@ -3,6 +3,9 @@ perl: 5.18
 sudo: false
 notifications:
   email: false
+branches:
+  except:
+    - refactor/breakdown
 addons:
   apt:
     packages:

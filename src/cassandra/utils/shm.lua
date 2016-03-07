@@ -1,9 +1,6 @@
 -- ngx.shared.DICT proxy
 -- https://github.com/bsm/fakengx/blob/master/fakengx.lua
 -- Used when the driver is required outside of ngx_lua.
--- Eventually, attaching the cluster infos to the session
--- should be done standardly, but this is a faster alternative
--- for now.
 
 local SharedDict = {}
 
@@ -14,8 +11,8 @@ local function set(data, key, value)
   }
 end
 
-function SharedDict:new()
-  return setmetatable({data = {}}, {__index = self})
+function SharedDict.new()
+  return setmetatable({data = {}}, {__index = SharedDict})
 end
 
 function SharedDict:get(key)

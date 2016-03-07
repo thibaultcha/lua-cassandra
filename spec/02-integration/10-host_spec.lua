@@ -321,6 +321,7 @@ describe("host", function()
           {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 3}},
         })
         assert.falsy(err)
+        assert.equal("VOID", res.type)
 
         local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
         assert.falsy(err)

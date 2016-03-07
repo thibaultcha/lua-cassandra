@@ -1,31 +1,27 @@
-local log = require "cassandra.log"
-local cache = require "cassandra.cache"
-local index_key = "rr_index"
-local math_fmod = math.fmod
+local _index_key = "shm_rr_index"
+local fmod = math.fmod
 
 return {
-  SharedRoundRobin = function(shm, hosts)
+  shm_round_robin = function(shm, hosts)
     local n = #hosts
     local counter = 0
 
-    local dict = cache.get_dict(shm)
-
-    local ok, err = dict:add(index_key, -1)
+    local ok, err = shm:add(_index_key, -1)
     if not ok and err ~= "exists" then
-      log.err("Cannot prepare shared round robin load balancing policy in shared dict "..shm..": "..err)
+      return nil, "could not prepare shm round robin load balancing policy: "..err
     end
 
-    local index, err = dict:incr(index_key, 1)
+    local index, err = shm:incr(_index_key, 1)
     if err then
-      log.err("Cannot increment shared round robin load balancing policy index in shared dict "..shm..": "..err)
+      return nil, "could not increment shm round robin load balancing policy index: "..err
     elseif index == nil then
       index = 0
     end
 
-    local plan_index = math_fmod(index or 0, n)
+    local plan_index = fmod(index or 0, n)
 
     return function(t, i)
-      local mod = math_fmod(plan_index, n) + 1
+      local mod = fmod(plan_index, n) + 1
       plan_index = plan_index + 1
       counter = counter + 1
 

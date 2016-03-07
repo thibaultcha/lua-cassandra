@@ -1,13 +1,16 @@
 local host = require "cassandra.host"
-local unpack = rawget(table, "unpack") or unpack
+local time_utils = require "cassandra.utils.time"
 
+local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
 local tonumber = tonumber
 local concat = table.concat
+local ipairs = ipairs
+local pairs = pairs
 local gsub = string.gsub
 local fmt = string.format
-local get_shm, new_lock, mutex, release
 
+local get_shm, new_lock, mutex, release
 if ngx ~= nil then
   local shared = ngx.shared
   local resty_lock = require "resty.lock"
@@ -40,41 +43,53 @@ local _Cluster = {}
 _Cluster.__index = _Cluster
 
 function _Cluster.new(opts)
-  if not opts then opts = {} end
-
+  opts = opts or {}
   local shm = get_shm(opts.shm or "cassandra")
   if not shm then return nil, "no shm named "..shm end
 
   local shm_prepared = get_shm(opts.shm_prepared or "cassandra_prepared")
   if not shm_prepared then return nil, "no shm named "..shm end
 
-  new_lock(shm)
-
   local cluster = {
     shm = shm,
     shm_prepared = shm_prepared,
+    lock = new_lock(shm),
 
     keyspace = opts.keyspace,
     contact_points = opts.contact_points or {"127.0.0.1"},
 
     query_options = opts.query_options or {},
-    connect_timeout = opts.connect_timeout or 1000, -- ms
     read_timeout = opts.read_timeout or 2000, -- ms
+    connect_timeout = opts.connect_timeout or 1000, -- ms
     max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000, -- ms
 
     ssl = opts.ssl,
     ssl_verify = opts.ssl_verify,
-    ssl_cert = opts.ssl_cert,
     ssl_cafile = opts.ssl_cafile,
+    ssl_cert = opts.ssl_cert,
     ssl_key = opts.ssl_key,
     auth = opts.auth,
 
-    load_balancing_policy = nil,
+    load_balancing_policy = opts.load_balancing_policy
+      or require("cassandra.policies.load_balancing").shm_round_robin,
     reconnection_policy = nil,
     retry_policy = nil
   }
 
   return setmetatable(cluster, _Cluster)
+end
+
+function _Cluster:spawn_host(address, port)
+  return host.new {
+    host = address,
+    port = port,
+    ssl = self.ssl,
+    verify = self.ssl_verify,
+    cert = self.ssl_cert,
+    cafile = self.ssl_cafile,
+    key = self.ssl_key,
+    auth = self.auth,
+  }
 end
 
 --- shm cluster infos
@@ -128,14 +143,71 @@ function _Cluster:get_peer(address)
   end
 end
 
+--- Peer health stuff
+
+local function set_peer_down(self, address, peer_infos)
+  local elapsed, err = mutex(self.lock)
+  if not elapsed then return nil, err
+  elseif elapsed == 0 then
+    peer_infos.unhealthy_at = time_utils.now()
+    -- TODO: reconnection delay
+    local ok, err = self:set_peer(address, peer_infos)
+    if not ok then return nil, err end
+    release(self.shm)
+  end
+
+  return true
+end
+
+local function is_peer_healthy(self, address, port, check_shm)
+  local peer_infos
+  if check_shm then
+    -- must get most up-to-date infos about that peer,
+    -- from the shm zone. Maybe another worker reported
+    -- it unhealthy
+    local err
+    peer_infos, err = self:get_peer(address)
+    if not peer_infos then return nil, err end
+
+    if peer_infos.unhealthy_at > 0 or
+      time_utils.now() - peer_infos.unhealthy_at < peer_infos.reconnection_delay then
+      -- this host is already reported as down, still waiting for retry
+      return nil, "host considered DOWN"
+    end
+  end
+
+  -- host seems healthy, let's try it
+  local peer, err = self:spawn_host(address, port)
+  if not peer then return nil, err end
+
+  peer:settimeout(self.connect_timeout)
+
+  local ok, err, maybe_down = peer:connect()
+  if ok then
+    -- our coordinator
+    return peer
+  else
+    peer:close()
+    if maybe_down then
+      -- host seems unhealthy
+      if check_shm then
+        local ok, err = set_peer_down(self, address, peer_infos)
+        if not ok then return nil, err end
+      end
+      return nil, "host seems unhealthy: "..err -- err from :connect()
+    end
+    return nil, err -- err from :connect()
+  end
+end
+
 --- Coordinator stuff
 
 local function no_host_available_error(errors)
-  local buf = {}
+  local buf = {"all hosts tried for query failed."}
   for address, err in pairs(errors) do
     buf[#buf + 1] = address..": "..err
   end
-  return "all hosts tried for query failed. "..concat(buf, "")
+  return concat(buf, " ")
 end
 
 local function serialize_contact_points(contact_points)
@@ -147,27 +219,15 @@ local function serialize_contact_points(contact_points)
   return buf
 end
 
-local function get_first_coordinator(self)
+function _Cluster:get_first_coordinator(contact_points)
   local errors = {}
-  local contact_points = serialize_contact_points(self.contact_points)
+  contact_points = serialize_contact_points(contact_points)
+
   for _, cp in ipairs(contact_points) do
-    local peer, err = host.new {
-      host = cp.address,
-      port = cp.port,
-      ssl = self.ssl,
-      verify = self.ssl_verify,
-      cert = self.ssl_cert,
-      cafile = self.ssl_cafile,
-      key = self.ssl_key,
-      auth = self.auth,
-    }
-    if not peer then return nil, err end
-    local ok, err, maybe_down = peer:connect()
-    if not ok then
-      if maybe_down then errors[cp.address] = err
-      else return nil, err end
+    local peer, err = is_peer_healthy(self, cp.address, cp.port, false)
+    if not peer then
+      errors[cp.address] = err
     else
-      -- our coordinator
       return peer
     end
   end
@@ -175,15 +235,37 @@ local function get_first_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
+function _Cluster:get_next_coordinator()
+  if not self.hosts then
+    return nil, "no hosts to try, must refresh"
+  end
+
+  local errors = {}
+  local load_balancing = self.load_balancing_policy
+
+  for _, address in load_balancing(self.shm, self.hosts) do
+    local peer, err = is_peer_healthy(self, address, nil, true)
+    if not peer then
+      errors[address] = err
+    else
+      return peer
+    end
+  end
+
+  return nil, no_host_available_error(errors)
+end
+
+-- Cluster infos retrieval
+
 local SELECT_PEERS = [[
 SELECT peer,data_center,rack,rpc_address FROM system.peers
 ]]
 
 function _Cluster:refresh()
-  local elapsed, err = mutex(self.shm)
+  local elapsed, err = mutex(self.lock)
   if not elapsed then return nil, err
   elseif elapsed == 0 then
-    local coordinator, err = get_first_coordinator(self)
+    local coordinator, err = self:get_first_coordinator(self.contact_points)
     if not coordinator then return nil, err end
 
     local rows, err = coordinator:execute(SELECT_PEERS)
@@ -205,10 +287,39 @@ function _Cluster:refresh()
     local ok, err = self:set_peers(hosts)
     if not ok then return nil, err end
 
+    self.hosts = hosts
+
     release(self.shm)
+  else
+    local hosts, err = self:peers()
+    if not hosts then return nil, err end
+    self.hosts = hosts
   end
 
   return true
+end
+
+-- Queries execution
+
+function _Cluster:execute(query, args, query_options)
+  if not self.hosts then
+    local ok, err = self:refresh()
+    if not ok then return nil, err end
+  end
+
+  local coordinator, err = self:get_next_coordinator()
+  if not coordinator then return nil, err end
+
+  local res, err = coordinator:execute(query, args, self.query_options or query_options)
+  coordinator:setkeepalive()
+  return res, err
+end
+
+function _Cluster:shutdown()
+  self.shm:flush_all()
+  self.shm:flush_expired()
+  self.shm_prepared:flush_all()
+  self.shm_prepared:flush_expired()
 end
 
 return _Cluster

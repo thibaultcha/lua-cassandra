@@ -18,10 +18,9 @@ local _Host = {
 _Host.__index = _Host
 
 function _Host.new(opts)
+  opts = opts or {}
   local sock, err = socket.tcp()
   if err then return nil, err end
-
-  if not opts then opts = {} end
 
   local host = {
     sock = sock,

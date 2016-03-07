@@ -11,7 +11,7 @@ if is_ngx then
   ngx_get_phase = ngx.get_phase
 end
 
-local function get_time()
+local function get_now()
   if is_ngx and ngx_get_phase() ~= "init" then
     return now() * 1000
   else
@@ -34,6 +34,6 @@ local function wait(t)
 end
 
 return {
-  get_time = get_time,
+  now = get_now,
   wait = wait
 }

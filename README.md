@@ -4,6 +4,8 @@ A pure Lua client library for Apache Cassandra (2.0+), compatible with [ngx_lua]
 
 It is implemented following the example of the official Datastax drivers, and tries to offer the same behaviors, options and features.
 
+**Note**: this projects is currently undergoing a massive refactoring (see [lua-cassandra#15](https://github.com/thibaultCha/lua-cassandra/pull/45)), please be aware before proposing changes. Thank you!
+
 ## Table of Contents
 
 - [Features](#features)

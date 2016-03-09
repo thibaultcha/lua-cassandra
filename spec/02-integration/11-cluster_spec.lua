@@ -3,23 +3,20 @@ local Cluster = require "cassandra.cluster"
 
 describe("cluster", function()
   setup(function()
-    utils.ccm_start("cluster", 3)
+    utils.ccm_start(3)
   end)
 
   describe("new()", function()
     it("creates a cluster with default options", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
-      assert.truthy(cluster)
+      local cluster = assert(Cluster.new())
       assert.same({"127.0.0.1"}, cluster.contact_points)
       assert.is_nil(cluster.keyspace)
     end)
     it("accepts options", function()
-      local cluster, err = Cluster.new {
+      local cluster = assert(Cluster.new {
         contact_points = {"127.0.0.2", "127.0.0.3"},
         keyspace = "system"
-      }
-      assert.is_nil(err)
+      })
       assert.same({"127.0.0.2", "127.0.0.3"}, cluster.contact_points)
       assert.equal("system", cluster.keyspace)
     end)
@@ -27,8 +24,9 @@ describe("cluster", function()
 
   describe("get_first_coordinator()", function()
     it("retrieves the first coordinator to respond", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new {
+        connect_timeout = 100
+      })
 
       local peer, err = cluster:get_first_coordinator {"127.0.0.255", "127.0.0.1"}
       assert.is_nil(err)
@@ -43,8 +41,9 @@ describe("cluster", function()
       end)
     end)
     it("returns nil when no coordinator replied", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new {
+        connect_timeout = 100
+      })
 
       local peer, err = cluster:get_first_coordinator {"127.0.0.254", "127.0.0.255"}
       assert.is_nil(peer)
@@ -54,12 +53,9 @@ describe("cluster", function()
 
   describe("refresh()", function()
     it("refreshes cluster infos in shm", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
 
-      local ok, err = cluster:refresh()
-      assert.is_nil(err)
-      assert.True(ok)
+      assert(cluster:refresh())
 
       local cluster_infos, err = cluster:peers()
       assert.is_nil(err)
@@ -72,10 +68,10 @@ describe("cluster", function()
       end
     end)
     it("complains when no coordinator replied", function()
-      local cluster, err = Cluster.new {
-        contact_points = {"127.0.0.254", "127.0.0.255"}
-      }
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new {
+        contact_points = {"127.0.0.254", "127.0.0.255"},
+        connect_timeout = 100
+      })
 
       local ok, err = cluster:refresh()
       assert.is_nil(ok)
@@ -85,8 +81,7 @@ describe("cluster", function()
 
   describe("get_next_coordinator()", function()
     it("complains if no hosts are in shm", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
 
       local peer, err = cluster:get_next_coordinator()
       assert.is_nil(peer)
@@ -94,11 +89,8 @@ describe("cluster", function()
     end)
     it("retrieves the next healthy peer from the load balancing policy", function()
       -- default is shm round robin policy
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
-
-      local _, err = cluster:refresh()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
+      assert(cluster:refresh())
 
       local peer_1, err = cluster:get_next_coordinator()
       assert.is_nil(err)
@@ -127,8 +119,7 @@ describe("cluster", function()
 
   describe("execute()", function()
     it("refreshes automatically if needed", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
 
       local rows, err = cluster:execute "SELECT * FROM system.peers"
       assert.is_nil(err)
@@ -136,25 +127,23 @@ describe("cluster", function()
     end)
     it("selects the coordinator from the load balancing policy", function()
       -- default is shm round robin policy
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
 
       local s = spy.on(cluster, "get_next_coordinator")
 
-      local _, err = cluster:execute "SELECT * FROM system.peers"
-      assert.is_nil(err)
-
-      assert.spy(s).was.called()
+      for i = 1, 3 do
+        local rows, err = cluster:execute "SELECT * FROM system.peers"
+        assert.is_nil(err)
+        assert.equal(2, #rows)
+        assert.spy(s).was.called(i)
+      end
     end)
   end)
 
   describe("shutdown()", function()
     it("flushes all the data in shms", function()
-      local cluster, err = Cluster.new()
-      assert.is_nil(err)
-
-      local _, err = cluster:refresh()
-      assert.is_nil(err)
+      local cluster = assert(Cluster.new())
+      assert(cluster:refresh())
 
       local keys = cluster.shm:get_keys()
       assert.not_same({}, keys)

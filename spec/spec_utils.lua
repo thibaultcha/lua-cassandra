@@ -1,105 +1,91 @@
 local unpack = rawget(table, "unpack") or unpack
 
 local function exec(cmd, ignore)
-  cmd = cmd.." >/dev/null"
+  local res1 = os.execute(cmd.." >/dev/null")
   local ok
   if _VERSION == "Lua 5.1" then
-    ok = select(1, os.execute(cmd)) == 0
+    ok = res1 == 0
   else
-    ok = select(3, os.execute(cmd)) == 0
+    ok = not not res1
   end
-
   if not ok and not ignore then
+    error("non-0 exit code: "..cmd, 2)
     os.exit(1)
   end
-
   return ok
 end
 
-local _M = {}
-
-local LOAD = os.getenv("CASSANDRA_LOAD")
-local SSL_PATH = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
-
-_M.n_inserts = LOAD and tonumber(LOAD) or 1000
-_M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.12"
+local _M = {
+  cassandra_version = os.getenv("CASSANDRA") or "2.1.12",
+  ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
+}
 
 --- CCM
 
-function _M.ssl_path()
-  return SSL_PATH
-end
-
-function _M.ccm_exists(c_name)
+local function ccm_exists(c_name)
   return exec("ccm list | grep "..c_name, true)
 end
 
-function _M.is_current(c_name)
+local function ccm_is_current(c_name)
   return exec("ccm list | grep '*"..c_name.."'", true)
 end
 
-function _M.ccm_start(c_name, n_nodes, c_ver, opts)
-  if not c_name then c_name = "default" end
-  if not n_nodes then n_nodes = 1 end
-  if not c_ver then c_ver = _M.CASSANDRA_VERSION end
+function _M.ccm_start(n_nodes, opts)
+  n_nodes = n_nodes or 3
+  opts = opts or {}
+  opts.name = opts.name or "default"
+  opts.version = opts.version or _M.cassandra_version
 
-  c_name = "lua_cassandra_"..c_name.."_specs"
+  local cluster_name = "lua_cassandra_"..opts.name.."_specs"
 
-  if not _M.is_current(c_name) then
+  if not ccm_is_current(cluster_name) then
     exec("ccm stop", true)
   end
 
   -- create cluster if not exists
-  if not _M.ccm_exists(c_name) then
-    local cmd = string.format("ccm create %s -v binary:%s -n %s", c_name, c_ver, n_nodes)
-
-    if opts and opts.ssl then
-      cmd = cmd.." --ssl='".._M.ssl_path().."'"
+  if not ccm_exists(cluster_name) then
+    local cmd = string.format("ccm create %s -v binary:%s -n %s",
+                              cluster_name, opts.version, n_nodes)
+    if opts.ssl then
+      cmd = cmd.." --ssl='".._M.ssl_path.."'"
     end
-
-    if opts and opts.require_client_auth then
+    if opts.require_client_auth then
       cmd = cmd.." --require_client_auth"
     end
-
-    if opts and opts.pwd_auth then
+    if opts.pwd_auth then
       cmd = cmd.." --pwd-auth"
     end
 
     exec(cmd)
   end
 
-  exec("ccm switch "..c_name)
+  exec("ccm switch "..cluster_name)
   exec("ccm start --wait-for-binary-proto")
 
   local hosts = {}
   for i = 1, n_nodes do
-    hosts[#hosts + 1] = "127.0.0."..i
+    hosts[#hosts+1] = "127.0.0."..i
   end
 
-  if opts and opts.pwd_auth then
+  if opts.pwd_auth then
     -- the cassandra superuser takes some time to be created
-    os.execute("sleep 10")
+    os.execute "sleep 5"
   end
 
-  return hosts, c_name
+  return hosts
 end
 
 --- CQL
 
-function _M.create_keyspace(session, keyspace)
-  local res, err = session:execute([[
+function _M.create_keyspace(host, keyspace)
+  return host:execute([[
     CREATE KEYSPACE IF NOT EXISTS ]]..keyspace..[[
     WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
   ]])
-  if err then
-    error(err)
-  end
-
-  return res
 end
 
-function _M.drop_keyspace(session, keyspace)
-  session:execute("DROP KEYSPACE "..keyspace)
+function _M.drop_keyspace(host, keyspace)
+  return host:execute("DROP KEYSPACE "..keyspace)
 end
 
 --- Assertions
@@ -108,26 +94,23 @@ local say = require "say"
 local assert = require "luassert.assert"
 
 local delta = 0.0000001
-local function validFixture(state, arguments)
+local function fixture(state, arguments)
+  local ok
   local fixture_type, fixture, decoded = unpack(arguments)
-
-  local result
   if fixture_type == "float" then
-    result = math.abs(decoded - fixture) < delta
+    ok = math.abs(decoded - fixture) < delta
   elseif type(fixture) == "table" then
-    result = pcall(assert.same, fixture, decoded)
+    ok = pcall(assert.same, fixture, decoded)
   else
-    result = pcall(assert.equal, fixture, decoded)
+    ok = pcall(assert.equal, fixture, decoded)
   end
-
   -- pop first argument, for proper output message (like assert.same)
   table.remove(arguments, 1)
   table.insert(arguments, 1, table.remove(arguments, 2))
-
-  return result
+  return ok
 end
 
-local function sameSet(state, arguments)
+local function same_set(state, arguments)
   local fixture, decoded = unpack(arguments)
 
   for _, x in ipairs(fixture) do
@@ -146,23 +129,19 @@ local function sameSet(state, arguments)
   return true
 end
 
-say:set("assertion.sameSet.positive", "Fixture and decoded value do not match")
-say:set("assertion.sameSet.negative", "Fixture and decoded value do not match")
-assert:register("assertion",
-                "sameSet",
-                sameSet,
-                "assertion.sameSet.positive",
-                "assertion.sameSet.negative")
+say:set("assertion.same_set.positive", "Fixture and decoded value do not match")
+say:set("assertion.same_set.negative", "Fixture and decoded value do not match")
+assert:register("assertion", "same_set", same_set,
+                "assertion.same_set.positive",
+                "assertion.same_set.negative")
 
-say:set("assertion.validFixture.positive",
+say:set("assertion.fixture.positive",
         "Expected fixture and decoded value to match.\nPassed in:\n%s\nExpected:\n%s")
-say:set("assertion.validFixture.negative",
+say:set("assertion.fixture.negative",
         "Expected fixture and decoded value to not match.\nPassed in:\n%s\nExpected:\n%s")
-assert:register("assertion",
-                "validFixture",
-                validFixture,
-                "assertion.validFixture.positive",
-                "assertion.validFixture.negative")
+assert:register("assertion", "fixture", fixture,
+                "assertion.fixture.positive",
+                "assertion.fixture.negative")
 
 --- Fixtures
 
@@ -200,6 +179,8 @@ _M.cql_list_fixtures = {
   {value_type = types.cql_types.int, type_name = "int", value = {1, 2 , 0, -42, 42}}
 }
 
+_M.cql_set_fixtures = _M.cql_list_fixture
+
 _M.cql_map_fixtures = {
   {
    key_type = types.cql_types.text,
@@ -216,8 +197,6 @@ _M.cql_map_fixtures = {
    value = {k1 = 1, k2 = 2}
   }
 }
-
-_M.cql_set_fixtures = _M.cql_list_fixtures
 
 _M.cql_tuple_fixtures = {
   {type = {"text", "text"}, value = {"hello", "world"}},

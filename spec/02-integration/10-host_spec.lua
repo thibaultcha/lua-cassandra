@@ -4,9 +4,11 @@ local host = require "cassandra.host"
 -- TODO: attach type serializers to host
 local cassandra = require "cassandra"
 
+local keyspace = "lua_resty_specs"
+
 describe("host", function()
   setup(function()
-    utils.ccm_start()
+    utils.ccm_start(3)
   end)
 
   describe("new()", function()
@@ -19,12 +21,11 @@ describe("host", function()
       assert.truthy(peer.sock)
     end)
     it("accepts options", function()
-      local peer, err = host.new {
+      local peer = assert(host.new {
         host = "192.168.1.1",
         port = 9043,
         protocol_version = 2
-      }
-      assert.is_nil(err)
+      })
       assert.equal("192.168.1.1", peer.host)
       assert.equal(9043, peer.port)
       assert.equal(2, peer.protocol_version)
@@ -35,11 +36,8 @@ describe("host", function()
 
   describe("__tostring()", function()
     it("has a __tostring() metamethod", function()
-      local peer, err = host.new()
-      assert.is_nil(err)
-
-      local str = tostring(peer)
-      assert.truthy(string.find(str, "<Cassandra socket: tcp{master}:"))
+      local peer = assert(host.new())
+      assert.matches("<Cassandra socket: tcp{master}:", tostring(peer))
     end)
   end)
 
@@ -50,12 +48,8 @@ describe("host", function()
       assert.is_nil(ok)
     end)
     it("connects to a peer", function()
-      local peer, err = host.new()
-      assert.is_nil(err)
-
-      local ok, err = peer:connect()
-      assert.is_nil(err)
-      assert.True(ok)
+      local peer = assert(host.new())
+      assert(peer:connect())
     end)
   end)
 
@@ -86,12 +80,8 @@ describe("host", function()
       assert.is_nil(ok)
     end)
     it("sets socket timeout", function()
-      local peer, err = host.new()
-      assert.is_nil(err)
-
-      local ok, err = peer:connect()
-      assert.is_nil(err)
-      assert.True(ok)
+      local peer = assert(host.new())
+      assert(peer:connect())
 
       assert.has_no_error(function()
         peer:settimeout(1000)
@@ -110,17 +100,9 @@ describe("host", function()
       assert.is_nil(ok)
     end)
     it("sets socket timeout", function()
-      local peer, err = host.new()
-      assert.is_nil(err)
-
-      local ok, err = peer:connect()
-      assert.is_nil(err)
-      assert.True(ok)
-
-      local ok, err = peer:setkeepalive()
-      assert.is_nil(err)
-      assert.True(ok)
-
+      local peer = assert(host.new())
+      assert(peer:connect())
+      assert(peer:setkeepalive())
       finally(function()
         peer:close()
       end)
@@ -128,14 +110,11 @@ describe("host", function()
   end)
 
   describe("CQL", function()
-    local peer
+    local uuid, peer = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
     setup(function()
-      local p, err = host.new()
-      assert.is_nil(err)
-
-      local _, err = p:connect()
-      assert.is_nil(err)
-
+      local p = assert(host.new())
+      assert(p:connect())
+      assert(utils.create_keyspace(p, keyspace))
       peer = p
     end)
     teardown(function()
@@ -206,10 +185,8 @@ describe("host", function()
         assert.is_nil(res.name)
       end)
       it("parses SET_KEYSPACE results", function()
-        local peer_k, err = host.new()
-        assert.is_nil(err)
-        local _, err = peer_k:connect()
-        assert.is_nil(err)
+        local peer_k = assert(host.new())
+        assert(peer_k:connect())
 
         local tmp_name = os.tmpname():gsub("/", ""):lower()
         local res, err = peer_k:execute([[
@@ -226,6 +203,7 @@ describe("host", function()
 
         res, err = peer_k:execute("DROP KEYSPACE "..tmp_name)
         assert.is_nil(err)
+        assert.truthy(res)
       end)
       it("returns CQL errors", function()
         local rows, err, code = peer:execute "SELECT"
@@ -259,10 +237,8 @@ describe("host", function()
 
     describe("set_keyspace()", function()
       it("sets a peer's keyspace", function()
-        local peer_k, err = host.new()
-        assert.is_nil(err)
-        local _, err = peer_k:connect()
-        assert.is_nil(err)
+        local peer_k = assert(host.new())
+        assert(peer_k:connect())
 
         local res, err = peer_k:set_keyspace "system"
         assert.is_nil(err)
@@ -277,37 +253,24 @@ describe("host", function()
     end)
 
     describe("batch()", function()
-      local keyspace = "batch_specs"
-      local uuid = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
       setup(function()
-        utils.create_keyspace(peer, keyspace)
-
-        local _, err = peer:set_keyspace(keyspace)
-        assert.is_nil(err)
-
-        _, err = peer:execute [[
+        assert(peer:set_keyspace(keyspace))
+        assert(peer:execute [[
           CREATE TABLE IF NOT EXISTS things(
             id uuid PRIMARY KEY,
             n int
           )
-        ]]
-        assert.is_nil(err)
-
-        _, err = peer:execute [[
+        ]])
+        assert(peer:execute [[
           CREATE TABLE IF NOT EXISTS counters(
             key text PRIMARY KEY,
             value counter
           )
-        ]]
-        assert.is_nil(err)
-      end)
-
-      teardown(function()
-        utils.drop_keyspace(peer, keyspace)
+        ]])
       end)
 
       after_each(function()
-        peer:execute("TRUNCATE counter_test_table")
+        assert(peer:execute "TRUNCATE counters")
       end)
 
       it("executes a logged batch by default", function()
@@ -419,5 +382,250 @@ describe("host", function()
         assert.equal("[Syntax error] line 0:-1 mismatched input '<EOF>' expecting '('", err)
       end)
     end) -- batch()
+
+    describe("Types", function()
+      setup(function()
+        assert(peer:set_keyspace(keyspace))
+        assert(peer:execute [[
+          CREATE TYPE IF NOT EXISTS address(
+            street text,
+            city text,
+            zip int,
+            country text
+          )
+        ]])
+        assert(peer:execute [[
+          CREATE TABLE IF NOT EXISTS cql_types(
+            id uuid PRIMARY KEY,
+            ascii_sample ascii,
+            bigint_sample bigint,
+            blob_sample blob,
+            boolean_sample boolean,
+            double_sample double,
+            float_sample float,
+            int_sample int,
+            text_sample text,
+            timestamp_sample timestamp,
+            varchar_sample varchar,
+            varint_sample varint,
+            timeuuid_sample timeuuid,
+            inet_sample inet,
+            list_sample_text list<text>,
+            list_sample_int list<int>,
+            map_sample_text_text map<text, text>,
+            map_sample_text_int map<text, int>,
+            set_sample_text set<text>,
+            set_sample_int set<int>,
+            udt_sample frozen<address>,
+            tuple_sample tuple<text, text>
+          )
+        ]])
+      end)
+
+      for fixture_type, fixture_values in pairs(utils.cql_fixtures) do
+        it("["..fixture_type.."] encoding/decoding", function()
+          local insert_query = string.format("INSERT INTO cql_types(id, %s_sample) VALUES(?, ?)", fixture_type)
+          local select_query = string.format("SELECT %s_sample FROM cql_types WHERE id = ?", fixture_type)
+
+          for _, fixture in ipairs(fixture_values) do
+            local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra[fixture_type](fixture)})
+            assert.falsy(err)
+            assert.equal("VOID", res.type)
+
+            local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+            assert.falsy(err)
+            assert.equal(1, #rows)
+
+            local decoded = rows[1][fixture_type.."_sample"]
+            assert.not_nil(decoded)
+            assert.fixture(fixture_type, fixture, decoded)
+          end
+        end)
+      end
+
+      it("[unset] (NULL)", function()
+        assert.is_table(cassandra.unset)
+        assert.equal("unset", cassandra.unset.type_id)
+
+        local rows, err = peer:execute("SELECT * FROM cql_types WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(1, #rows)
+        assert.is_string(rows[1].ascii_sample)
+
+        local res, err = peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {cassandra.unset, cassandra.uuid(uuid)})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        rows, err = peer:execute("SELECT * FROM cql_types WHERE id = "..uuid)
+        assert.falsy(err)
+        assert.equal(1, #rows)
+        assert.is_nil(rows[1].ascii_sample)
+      end)
+      it("[list<type>] encoding/decoding", function()
+        for _, fixture in ipairs(utils.cql_map_fixtures) do
+          local insert_query = string.format("INSERT INTO cql_types(id, map_sample_%s_%s) VALUES(?, ?)", fixture.key_type_name, fixture.value_type_name)
+          local select_query = string.format("SELECT map_sample_%s_%s FROM cql_types WHERE id = ?", fixture.key_type_name, fixture.value_type_name)
+
+          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture.value)})
+          assert.falsy(err)
+          assert.equal("VOID", res.type)
+
+          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+          assert.falsy(err)
+          assert.equal(1, #rows)
+
+          local decoded = rows[1]["map_sample_"..fixture.key_type_name.."_"..fixture.value_type_name]
+          assert.not_nil(decoded)
+          assert.fixture("list", fixture.value, decoded)
+        end
+      end)
+      it("[map<type, types>] encoding/decoding empty table", function()
+        local insert_query = "INSERT INTO cql_types(id, map_sample_text_int) VALUES(?, ?)"
+        local select_query = "SELECT * FROM cql_types WHERE id = ?"
+        local fixture = {}
+
+        local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture)})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+        assert.falsy(err)
+        assert.equal(1, #rows)
+        assert.is_nil(rows[1].map_sample_text_int)
+      end)
+      it("[list<type, type>] encoding/decoding", function()
+        for _, fixture in ipairs(utils.cql_list_fixtures) do
+          local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
+          local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
+
+          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.list(fixture.value)})
+          assert.falsy(err)
+          assert.equal("VOID", res.type)
+
+          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+          assert.falsy(err)
+          assert.equal(1, #rows)
+
+          local decoded = rows[1]["list_sample_"..fixture.type_name]
+          assert.not_nil(decoded)
+          assert.fixture("list", fixture.value, decoded)
+        end
+      end)
+      it("[set<type>] encoding/decoding", function()
+        for _, fixture in ipairs(utils.cql_list_fixtures) do
+          local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
+          local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
+
+          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.set(fixture.value)})
+          assert.falsy(err)
+          assert.equal("VOID", res.type)
+
+          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+          assert.falsy(err)
+          assert.equal(1, #rows)
+
+          local decoded = rows[1]["set_sample_"..fixture.type_name]
+          assert.not_nil(decoded)
+          assert.same_set(fixture.value, decoded)
+        end
+      end)
+      it("[udt] encoding/decoding", function()
+        local res, err = peer:execute("INSERT INTO cql_types(id, udt_sample) VALUES(?, ?)", {
+          cassandra.uuid(uuid),
+          cassandra.udt {"montgomery st", "san francisco", 94111, nil} -- nil country
+        })
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute("SELECT udt_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)})
+        assert.falsy(err)
+        assert.equal(1, #rows)
+        assert.same({
+          street = "montgomery st",
+          city = "san francisco",
+          zip = 94111,
+          country = ""
+        }, rows[1].udt_sample)
+      end)
+      it("[tuple] encoding/decoding", function()
+        for _, fixture in ipairs(utils.cql_tuple_fixtures) do
+          local res, err = peer:execute("INSERT INTO cql_types(id, tuple_sample) VALUES(?, ?)", {
+            cassandra.uuid(uuid),
+            cassandra.tuple(fixture.value)
+          })
+          assert.falsy(err)
+          assert.equal("VOID", res.type)
+
+          local rows, err = peer:execute("SELECT tuple_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)})
+          assert.falsy(err)
+          assert.equal(1, #rows)
+
+          local tuple = rows[1].tuple_sample
+          assert.not_nil(tuple)
+          assert.equal(fixture.value[1], tuple[1])
+          assert.equal(fixture.value[2], tuple[2])
+        end
+      end)
+    end)
+
+    describe("type inference", function()
+      for _, fixture_type in ipairs({"ascii", "boolean", "float", "int", "text", "varchar"}) do
+        local fixture_values = utils.cql_fixtures[fixture_type]
+        it("["..fixture_type.."] is inferred", function()
+          for _, fixture in ipairs(fixture_values) do
+            local insert_query = string.format("INSERT INTO cql_types(id, %s_sample) VALUES(?, ?)", fixture_type)
+            local select_query = string.format("SELECT %s_sample FROM cql_types WHERE id = ?", fixture_type)
+
+            local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture})
+            assert.falsy(err)
+            assert.equal("VOID", res.type)
+
+            local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+            assert.falsy(err)
+            assert.equal(1, #rows)
+
+            local decoded = rows[1][fixture_type.."_sample"]
+            assert.not_nil(decoded)
+            assert.fixture(fixture_type, fixture, decoded)
+          end
+        end)
+      end
+      it("[map<type, type>] is inferred", function()
+        for _, fixture in ipairs(utils.cql_list_fixtures) do
+          local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
+          local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
+
+          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value})
+          assert.falsy(err)
+          assert.equal("VOID", res.type)
+
+          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+          assert.falsy(err)
+          assert.equal(1, #rows)
+
+          local decoded = rows[1]["list_sample_"..fixture.type_name]
+          assert.not_nil(decoded)
+          assert.fixture("list", fixture.value, decoded)
+        end
+      end)
+    end)
+    it("[set<type>] is inferred", function()
+      for _, fixture in ipairs(utils.cql_list_fixtures) do
+        local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
+        local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
+
+        local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value})
+        assert.falsy(err)
+        assert.equal("VOID", res.type)
+
+        local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
+        assert.falsy(err)
+        assert.equal(1, #rows)
+
+        local decoded = rows[1]["set_sample_"..fixture.type_name]
+        assert.not_nil(decoded)
+        assert.same_set(fixture.value, decoded)
+      end
+    end)
   end) -- CQL
 end)

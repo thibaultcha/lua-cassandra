@@ -627,5 +627,97 @@ describe("host", function()
         assert.same_set(fixture.value, decoded)
       end
     end)
+
+    describe("pagination", function()
+      local n_inserts = 1001
+      local n_select = 20
+      setup(function()
+        assert(peer:execute [[
+          CREATE TABLE IF NOT EXISTS metrics(
+            id int PRIMARY KEY,
+            n int
+          )
+        ]])
+        assert(peer:execute "TRUNCATE metrics")
+        for i = 1, n_inserts do
+          assert(peer:execute("INSERT INTO metrics(id,n) VALUES(?,?)", {i, i*i}))
+        end
+      end)
+
+      it("default page size", function()
+        local rows = assert(peer:execute "SELECT * FROM metrics")
+        assert.equal(1000, #rows)
+      end)
+      it("page_size option", function()
+        local rows = assert(peer:execute("SELECT * FROM metrics", nil, {page_size = n_select}))
+        assert.equal(n_select, #rows)
+      end)
+      it("has_more_pages flag", function()
+        local rows = assert(peer:execute("SELECT * FROM metrics", nil, {page_size = n_select}))
+        assert.True(rows.meta.has_more_pages)
+      end)
+      it("paging_state", function()
+        local rows1 = assert(peer:execute("SELECT * FROM metrics", nil, {page_size = n_select}))
+        assert.truthy(rows1.meta.paging_state)
+        local rows2 = assert(peer:execute("SELECT * FROM metrics", nil, {
+          page_size = n_select,
+          paging_state = rows1.meta.paging_state
+        }))
+        assert.equal(n_select, #rows2)
+        assert.not_same(rows1, rows2)
+      end)
+      describe("iterate()", function()
+        it("iterates", function()
+          local n_page = 0
+          local opts, buf = {page_size = n_select}, {}
+          for rows, err, page in peer:iterate("SELECT * FROM metrics", nil, opts) do
+            assert.is_nil(err)
+            assert.is_number(page)
+            assert.is_table(rows)
+            assert.equal("ROWS", rows.type)
+            n_page = n_page + 1
+            for _, v in ipairs(rows) do buf[#buf+1] = v end
+          end
+
+          assert.equal(n_inserts, #buf)
+          assert.equal(math.ceil(n_inserts/n_select), n_page)
+        end)
+        it("returns 1st page at once", function()
+          local n = 0
+          local opts = {page_size = n_inserts}
+          for rows, err, page in peer:iterate("SELECT * FROM metrics", nil, opts) do
+            assert.is_nil(err)
+            assert.equal(1, page)
+            assert.equal(n_inserts, #rows)
+            n = n + 1
+          end
+          assert.equal(1, n)
+        end)
+        it("reports errors", function()
+          -- additional iteration to report error
+          local opts = {page_size = n_select}
+          for rows, err, page in peer:iterate("SELECT * FROM metrics WHERE col = 'a'", nil, opts) do
+            assert.equal("[Invalid] Undefined name col in where clause ('col = 'a'')", err)
+            assert.equal(0, page)
+            assert.same({meta = {has_more_pages = false}}, rows)
+          end
+        end)
+        it("executes prepared statements", function()
+          local q = assert(peer:prepare "SELECT * FROM METRICS")
+
+          local n_page = 0
+          local opts = {page_size = n_select, prepared = true}
+          for rows, err, page in peer:iterate(q.query_id, nil, opts) do
+            assert.is_nil(err)
+            assert.is_number(page)
+            assert.is_table(rows)
+            assert.equal("ROWS", rows.type)
+            n_page = n_page + 1
+          end
+
+          assert.equal(math.ceil(n_inserts/n_select), n_page)
+        end)
+      end)
+    end)
   end) -- CQL
 end)

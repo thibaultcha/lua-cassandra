@@ -195,17 +195,46 @@ local function get_opts(o)
   end
 end
 
-function _Host:execute(query, args, options, prepared)
-  local request
-  local opts = get_opts(options)
-  if opts.prepared then
+local function execute(self, query, args, opts)
+  local request = opts.prepared and
     -- query is the prepared queryid
-    request = Requests.ExecutePreparedRequest(query, args, opts)
-  else
-    request = Requests.QueryRequest(query, args, opts)
-  end
+    Requests.ExecutePreparedRequest(query, args, opts)
+    or
+    Requests.QueryRequest(query, args, opts)
 
   return self:send(request)
+end
+
+local function page_iterator(self, query, args, opts)
+  local page = 0
+  return function(_, p_rows)
+    local meta = p_rows.meta
+    if not meta.has_more_pages then return end -- end after error
+
+    opts.paging_state = meta.paging_state
+
+    local rows, err = execute(self, query, args, opts)
+    if rows and #rows > 0 then
+      page = page + 1
+    elseif err then -- expose the error with one more iteration
+      rows = {meta = {has_more_pages = false}}
+    else -- end of iteration
+      return nil
+    end
+
+    return rows, err, page
+  end, nil, {meta = {has_more_pages = true}}
+  -- nil: our iteration has no invariant state, our control variable is
+  -- the rows themselves
+end
+
+function _Host:execute(query, args, options)
+  local opts = get_opts(options)
+  return execute(self, query, args, opts)
+end
+
+function _Host:iterate(query, args, options)
+  return page_iterator(self, query, args, get_opts(options))
 end
 
 function _Host:batch(queries, options)

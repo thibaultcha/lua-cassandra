@@ -130,7 +130,7 @@ function _Host:connect()
     end
 
     if self.keyspace then
-      -- TODO: since this not sent when the connection was retrieved
+      -- TODO: since this not sent when the socket was retrieved
       -- from the connection pool, we must document that calling
       -- set_keyspace() manually is required if they interact with
       -- several at once.

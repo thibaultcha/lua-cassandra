@@ -144,6 +144,26 @@ function _Cluster:get_peer(address)
   end
 end
 
+function _Cluster:set_prepared(query, query_id)
+  local key = (self.keyspace or "").."_"..query
+  local ok, err, forcible = self.shm_prepared:set(key, query_id)
+  if not ok then
+    return nil, "cannot set prepared query id: "..err
+  elseif forcible then
+    -- TODO: warn
+  end
+  return ok
+end
+
+function _Cluster:get_prepared(query)
+  local key = (self.keyspace or "").."_"..query
+  local query_id, err = self.shm_prepared:get(key)
+  if err then
+    return nil, "cannot get prepared query id: "..err
+  end
+  return query_id
+end
+
 --- Peer health stuff
 
 local function set_peer_down(self, address, peer_infos)
@@ -154,7 +174,7 @@ local function set_peer_down(self, address, peer_infos)
     -- TODO: reconnection delay
     local ok, err = self:set_peer(address, peer_infos)
     if not ok then return nil, err end
-    release(self.shm)
+    release(self.lock)
   end
 
   return true
@@ -290,7 +310,7 @@ function _Cluster:refresh()
 
     self.hosts = hosts
 
-    release(self.shm)
+    release(self.lock)
   else
     local hosts, err = self:peers()
     if not hosts then return nil, err end
@@ -302,6 +322,34 @@ end
 
 -- Queries execution
 
+local function prepare(self, coordinator, query)
+  local query_id, err = self:get_prepared(query)
+  if err then return nil, err
+  elseif query_id == nil then
+    local elapsed, err = mutex(self.lock)
+    if not elapsed then return nil, err
+    elseif elapsed == 0 then
+      local res, err = coordinator:prepare(query)
+      if not res then return nil, err
+      elseif not res.query_id then
+        return nil, "could not retrieve query id from response"
+      end
+      query_id = res.query_id
+      local ok, err = self:set_prepared(query, query_id)
+      if not ok then return nil, err end
+      release(self.lock)
+    else
+      query_id, err = self:get_prepared(query)
+      if err then return nil, err
+      elseif query_id == nil then
+        return nil, "no query id after preparing query"
+      end
+    end
+  end
+
+  return query_id
+end
+
 function _Cluster:execute(query, args, query_options)
   if not self.hosts then
     local ok, err = self:refresh()
@@ -311,9 +359,16 @@ function _Cluster:execute(query, args, query_options)
   local coordinator, err = self:get_next_coordinator()
   if not coordinator then return nil, err end
 
-  local res, err = coordinator:execute(query, args, self.query_options or query_options)
+  query_options = query_options or self.query_options
+
+  if query_options.prepared then
+    query, err = prepare(self, coordinator, query)
+    if not query then return nil, err end
+  end
+
+  local res, err, code = coordinator:execute(query, args, query_options)
   coordinator:setkeepalive()
-  return res, err
+  return res, err, code
 end
 
 function _Cluster:shutdown()

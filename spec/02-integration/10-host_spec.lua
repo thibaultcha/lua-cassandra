@@ -382,11 +382,12 @@ describe("host", function()
         assert.equal(5, rows[1].n)
       end)
       it("returns CQL errors", function()
-        local res, err = peer:batch {
+        local res, err, code = peer:batch {
           {"INSERT FOO"}, {"INSERT BAR"}
         }
         assert.is_nil(res)
         assert.equal("[Syntax error] line 0:-1 mismatched input '<EOF>' expecting '('", err)
+        assert.equal(host.cql_errors.SYNTAX_ERROR, code)
       end)
     end) -- batch()
 

@@ -1,6 +1,10 @@
 local utils = require "spec.spec_utils"
 local Cluster = require "cassandra.cluster"
 
+-- TODO: only to get cql_errors.
+-- This will later be require "cassandra"
+local host = require "cassandra.host"
+
 describe("cluster", function()
   setup(function()
     utils.ccm_start(3)
@@ -142,6 +146,23 @@ describe("cluster", function()
       local cluster = assert(Cluster.new {keyspace = "system"})
       local rows = assert(cluster:execute "SELECT * FROM peers")
       assert.equal(2, #rows)
+    end)
+    it("prepares and execute at once", function()
+      local query = "SELECT * FROM system.peers"
+      local cluster = assert(Cluster.new {query_options = {prepared = true}})
+      local rows = assert(cluster:execute(query))
+      assert.equal(2, #rows)
+
+      local query_id = assert(cluster:get_prepared(query))
+      assert.truthy(query_id)
+    end)
+    it("returns CQL errors", function()
+      local cluster = assert(Cluster.new())
+      local res, err, code = cluster:execute "SELECT"
+      assert.is_nil(res)
+      assert.equal("[Syntax error] line 0:-1 no viable alternative at input '<EOF>'", err)
+      assert.truthy(code)
+      assert.equal(host.cql_errors.SYNTAX_ERROR, code)
     end)
   end)
 

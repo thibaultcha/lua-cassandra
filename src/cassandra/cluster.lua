@@ -83,6 +83,7 @@ function _Cluster:spawn_host(address, port)
   return host.new {
     host = address,
     port = port,
+    keyspace = self.keyspace,
     ssl = self.ssl,
     verify = self.ssl_verify,
     cert = self.ssl_cert,

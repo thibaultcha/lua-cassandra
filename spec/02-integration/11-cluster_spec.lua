@@ -138,6 +138,11 @@ describe("cluster", function()
         assert.spy(s).was.called(i)
       end
     end)
+    it("spawns hosts in a keyspace", function()
+      local cluster = assert(Cluster.new {keyspace = "system"})
+      local rows = assert(cluster:execute "SELECT * FROM peers")
+      assert.equal(2, #rows)
+    end)
   end)
 
   describe("shutdown()", function()

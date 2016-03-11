@@ -6,6 +6,7 @@ local types = require "cassandra.types"
 
 local setmetatable = setmetatable
 local cql_errors = types.errors
+local pairs = pairs
 local find = string.find
 
 local MIN_PROTOCOL_VERSION = 2
@@ -26,6 +27,7 @@ function _Host.new(opts)
     sock = sock,
     host = opts.host or "127.0.0.1",
     port = opts.port or 9042,
+    keyspace = opts.keyspace,
     protocol_version = opts.protocol_version or DEFAULT_PROTOCOL_VERSION,
     ssl = opts.ssl,
     verify = opts.verify,
@@ -125,6 +127,15 @@ function _Host:connect()
       return nil, err, true
     elseif res.must_authenticate then
       -- TODO: auth
+    end
+
+    if self.keyspace then
+      -- TODO: since this not sent when the connection was retrieved
+      -- from the connection pool, we must document that calling
+      -- set_keyspace() manually is required if they interact with
+      -- several at once.
+      local res, err = self:set_keyspace(self.keyspace)
+      if not res then return nil, err end
     end
   end
 

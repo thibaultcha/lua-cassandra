@@ -250,6 +250,13 @@ describe("host", function()
         assert.is_nil(err)
         assert.equal("local", rows[1].key)
       end)
+      it("connects directly in a keyspace", function()
+        local peer_k = assert(host.new {keyspace = "system"})
+        assert(peer_k:connect())
+
+        local rows = assert(peer_k:execute "SELECT * FROM local")
+        assert.equal("local", rows[1].key)
+      end)
     end)
 
     describe("batch()", function()

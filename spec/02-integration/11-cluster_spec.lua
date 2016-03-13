@@ -32,12 +32,8 @@ describe("cluster", function()
         connect_timeout = 100
       })
 
-      local peer, err = cluster:get_first_coordinator {"127.0.0.255", "127.0.0.1"}
-      assert.is_nil(err)
-      assert.truthy(peer)
-
-      local rows, err = peer:execute "SELECT * FROM system.peers"
-      assert.is_nil(err)
+      local peer = assert(cluster:get_first_coordinator {"127.0.0.255", "127.0.0.1"})
+      local rows = assert(peer:execute "SELECT * FROM system.peers")
       assert.equal(2, #rows)
 
       finally(function()
@@ -50,8 +46,8 @@ describe("cluster", function()
       })
 
       local peer, err = cluster:get_first_coordinator {"127.0.0.254", "127.0.0.255"}
-      assert.is_nil(peer)
       assert.equal("all hosts tried for query failed. 127.0.0.254: timeout 127.0.0.255: timeout", err)
+      assert.is_nil(peer)
     end)
   end)
 
@@ -61,13 +57,11 @@ describe("cluster", function()
 
       assert(cluster:refresh())
 
-      local cluster_infos, err = cluster:peers()
-      assert.is_nil(err)
+      local cluster_infos = assert(cluster:peers())
       assert.same({"127.0.0.3", "127.0.0.2", "127.0.0.1"}, cluster_infos)
 
       for _, host in ipairs(cluster_infos) do
-        local peer_infos, err = cluster:get_peer(host)
-        assert.is_nil(err)
+        local peer_infos = assert(cluster:get_peer(host))
         assert.same({reconnection_delay = 0, unhealthy_at = 0}, peer_infos)
       end
     end)
@@ -96,20 +90,12 @@ describe("cluster", function()
       local cluster = assert(Cluster.new())
       assert(cluster:refresh())
 
-      local peer_1, err = cluster:get_next_coordinator()
-      assert.is_nil(err)
-      assert.truthy(peer_1)
-
-      local rows, err = peer_1:execute "SELECT * FROM system.peers"
-      assert.is_nil(err)
+      local peer_1 = assert(cluster:get_next_coordinator())
+      local rows = assert(peer_1:execute "SELECT * FROM system.peers")
       assert.equal(2, #rows)
 
-      local peer_2, err = cluster:get_next_coordinator()
-      assert.is_nil(err)
-      assert.truthy(peer_2)
-
-      rows, err = peer_2:execute "SELECT * FROM system.peers"
-      assert.is_nil(err)
+      local peer_2 = assert(cluster:get_next_coordinator())
+      rows = peer_2:execute "SELECT * FROM system.peers"
       assert.equal(2, #rows)
 
       assert.not_equal(peer_1.host, peer_2.host)
@@ -125,8 +111,7 @@ describe("cluster", function()
     it("refreshes automatically if needed", function()
       local cluster = assert(Cluster.new())
 
-      local rows, err = cluster:execute "SELECT * FROM system.peers"
-      assert.is_nil(err)
+      local rows = assert(cluster:execute "SELECT * FROM system.peers")
       assert.equal(2, #rows)
     end)
     it("selects the coordinator from the load balancing policy", function()
@@ -136,8 +121,7 @@ describe("cluster", function()
       local s = spy.on(cluster, "get_next_coordinator")
 
       for i = 1, 3 do
-        local rows, err = cluster:execute "SELECT * FROM system.peers"
-        assert.is_nil(err)
+        local rows = assert(cluster:execute "SELECT * FROM system.peers")
         assert.equal(2, #rows)
         assert.spy(s).was.called(i)
       end

@@ -341,7 +341,7 @@ local function prepare(self, coordinator, query)
     else
       query_id, err = self:get_prepared(query)
       if err then return nil, err
-      elseif query_id == nil then
+      elseif not query_id then
         return nil, "no query id after preparing query"
       end
     end

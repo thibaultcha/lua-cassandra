@@ -27,8 +27,7 @@ desc("host SSL", function()
     local peer = assert(host.new {ssl = true})
     assert(peer:connect())
 
-    local rows, err = peer:execute "SELECT * FROM system.local"
-    assert.is_nil(err)
+    local rows = assert(peer:execute "SELECT * FROM system.local")
     assert.equal(1, #rows)
   end)
   it("connects with SSL and verifying server certificate", function()
@@ -40,8 +39,7 @@ desc("host SSL", function()
 
     assert(peer:connect())
 
-    local rows, err = peer:execute "SELECT * FROM system.local"
-    assert.is_nil(err)
+    local rows = assert(peer:execute "SELECT * FROM system.local")
     assert.equal(1, #rows)
   end)
 end)

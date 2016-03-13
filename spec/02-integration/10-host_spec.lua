@@ -60,15 +60,9 @@ describe("host", function()
       assert.is_nil(ok)
     end)
     it("closes a peer", function()
-      local peer, err = host.new()
-      assert.is_nil(err)
-
-      local ok, err = peer:connect()
-      assert.is_nil(err)
-      assert.True(ok)
-
-      ok, err = peer:close()
-      assert.is_nil(err)
+      local peer = assert(host.new())
+      assert(peer:connect())
+      local ok = assert(peer:close())
       assert.equal(1, ok)
     end)
   end)
@@ -128,9 +122,7 @@ describe("host", function()
         assert.is_nil(ok)
       end)
       it("executes a CQL query", function()
-        local rows, err, code = peer:execute "SELECT * FROM system.local"
-        assert.is_nil(err)
-        assert.is_nil(code)
+        local rows = assert(peer:execute "SELECT * FROM system.local")
         assert.equal(1, #rows)
         assert.equal("ROWS", rows.type)
 
@@ -138,8 +130,7 @@ describe("host", function()
         assert.equal("local", row.key)
       end)
       it("parses ROWS results correctly", function()
-        local rows, err, code = peer:execute "SELECT * FROM system.local"
-        assert.is_nil(err)
+        local rows = assert(peer:execute "SELECT * FROM system.local")
         assert.equal(1, #rows)
         assert.equal("ROWS", rows.type)
         assert.same({has_more_pages = false}, rows.meta)
@@ -149,11 +140,10 @@ describe("host", function()
       end)
       it("parses SCHEMA_CHANGE results", function()
         local tmp_name = os.tmpname():gsub("/", ""):lower()
-        local res, err = peer:execute([[
+        local res = assert(peer:execute([[
           CREATE KEYSPACE IF NOT EXISTS ]]..tmp_name..[[
           WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':1}
-        ]])
-        assert.is_nil(err)
+        ]]))
         assert.equal(0, #res)
         assert.equal("SCHEMA_CHANGE", res.type)
         assert.equal("CREATED", res.change_type)
@@ -161,13 +151,12 @@ describe("host", function()
         assert.equal(tmp_name, res.keyspace)
         assert.is_nil(res.name)
 
-        res, err = peer:execute([[
+        res = assert(peer:execute([[
           CREATE TABLE ]]..tmp_name..[[.my_table(
             id uuid PRIMARY KEY,
             value int
           )
-        ]])
-        assert.is_nil(err)
+        ]]))
         assert.equal(0, #res)
         assert.equal("SCHEMA_CHANGE", res.type)
         assert.equal("CREATED", res.change_type)
@@ -175,8 +164,7 @@ describe("host", function()
         assert.equal(tmp_name, res.keyspace)
         assert.equal("my_table", res.name)
 
-        res, err = peer:execute("DROP KEYSPACE "..tmp_name)
-        assert.is_nil(err)
+        res = assert(peer:execute("DROP KEYSPACE "..tmp_name))
         assert.equal(0, #res)
         assert.equal("SCHEMA_CHANGE", res.type)
         assert.equal("DROPPED", res.change_type)
@@ -189,21 +177,18 @@ describe("host", function()
         assert(peer_k:connect())
 
         local tmp_name = os.tmpname():gsub("/", ""):lower()
-        local res, err = peer_k:execute([[
+        local res = assert(peer_k:execute([[
           CREATE KEYSPACE IF NOT EXISTS ]]..tmp_name..[[
           WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':1}
-        ]])
-        assert.is_nil(err)
+        ]]))
 
-        res, err = peer_k:execute(string.format('USE "%s"', tmp_name))
-        assert.is_nil(err)
+        res = assert(peer_k:execute(string.format('USE "%s"', tmp_name)))
         assert.equal(0, #res)
         assert.equal("SET_KEYSPACE", res.type)
         assert.equal(tmp_name, res.keyspace)
 
-        res, err = peer_k:execute("DROP KEYSPACE "..tmp_name)
-        assert.is_nil(err)
-        assert.truthy(res)
+        res = assert(peer_k:execute("DROP KEYSPACE "..tmp_name))
+        assert.equal("SCHEMA_CHANGE", res.type)
       end)
       it("returns CQL errors", function()
         local rows, err, code = peer:execute "SELECT"
@@ -212,25 +197,20 @@ describe("host", function()
         assert.equal(host.cql_errors.SYNTAX_ERROR, code)
       end)
       it("binds args", function()
-        local rows, err = peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"})
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"}))
         assert.equal("local", rows[1].key)
       end)
     end) -- execute()
 
     describe("prepared queries", function()
       it("should prepare a query", function()
-        local res, err = peer:prepare "SELECT * FROM system.local WHERE key = ?"
-        assert.is_nil(err)
+        local res = assert(peer:prepare "SELECT * FROM system.local WHERE key = ?")
         assert.truthy(res.query_id)
         assert.equal("PREPARED", res.type)
       end)
       it("should execute a prepared query", function()
-        local res, err = peer:prepare "SELECT * FROM system.local WHERE key = ?"
-        assert.is_nil(err)
-
-        local rows, err = peer:execute(res.query_id, {"local"}, {prepared = true})
-        assert.is_nil(err)
+        local res = assert(peer:prepare "SELECT * FROM system.local WHERE key = ?")
+        local rows = assert(peer:execute(res.query_id, {"local"}, {prepared = true}))
         assert.equal("local", rows[1].key)
       end)
     end)
@@ -240,14 +220,12 @@ describe("host", function()
         local peer_k = assert(host.new())
         assert(peer_k:connect())
 
-        local res, err = peer_k:set_keyspace "system"
-        assert.is_nil(err)
+        local res = assert(peer_k:set_keyspace "system")
         assert.equal(0, #res)
         assert.equal("SET_KEYSPACE", res.type)
         assert.equal("system", res.keyspace)
 
-        local rows, err = peer_k:execute "SELECT * FROM local"
-        assert.is_nil(err)
+        local rows = assert(peer_k:execute "SELECT * FROM local")
         assert.equal("local", rows[1].key)
       end)
       it("connects directly in a keyspace", function()
@@ -281,104 +259,87 @@ describe("host", function()
       end)
 
       it("executes a logged batch by default", function()
-        local res, err = peer:batch {
+        local res = assert(peer:batch {
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }
-        assert.is_nil(err)
+        })
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
       it("executes batch with params", function()
-        local res, err = peer:batch({
+        local res = assert(peer:batch({
           {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 1}},
           {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 2}},
           {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 3}},
-        })
-        assert.is_nil(err)
+        }))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
       it("executes an unlogged batch", function()
-        local res, err = peer:batch({
+        local res = assert(peer:batch({
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {logged = false})
-        assert.is_nil(err)
+        }, {logged = false}))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
       it("executes a counter batch", function()
-        local res, err = peer:batch({
+        local res = assert(peer:batch({
           {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"},
           {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"},
           {"UPDATE counters SET value = value + 1 WHERE key = 'counter'"}
-        }, {counter = true})
-        assert.is_nil(err)
+        }, {counter = true}))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute "SELECT value FROM counters WHERE key = 'counter'"
-        assert.is_nil(err)
+        local rows = assert(peer:execute "SELECT value FROM counters WHERE key = 'counter'")
         assert.equal(3, rows[1].value)
       end)
       it("supports protocol level timestamp", function()
         local uuid = "0d0dca5e-e1d5-11e5-89ff-93118511c17e"
-        local _, err = peer:batch({
+        assert(peer:batch({
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {timestamp = 1428311323417123})
-        assert.is_nil(err)
+        }, {timestamp = 1428311323417123}))
 
-        local rows, err = peer:execute("SELECT n,writetime(n) FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT n,writetime(n) FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
         assert.equal(1428311323417123, rows[1]["writetime(n)"])
       end)
       it("supports serial consistency", function()
-        local _, err = peer:batch({
+        assert(peer:batch({
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {serial_consistency = cassandra.consistencies.local_serial})
-        assert.is_nil(err)
+        }, {serial_consistency = cassandra.consistencies.local_serial}))
 
-        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
       it("execute prepared queries", function()
-        local res1, err = peer:prepare "INSERT INTO things(id,n) VALUES(?,?)"
-        assert.is_nil(err)
-
-        local res2, err = peer:prepare "UPDATE things set n = ? WHERE id = ?"
-        assert.is_nil(err)
+        local res1 = assert(peer:prepare "INSERT INTO things(id,n) VALUES(?,?)")
+        local res2 = assert(peer:prepare "UPDATE things set n = ? WHERE id = ?")
 
         local q1, q2 = res1.query_id, res2.query_id
 
-        local res, err = peer:batch({
+        local res = assert(peer:batch({
           {q1, {cassandra.uuid(uuid), 1}},
           {q2, {2, cassandra.uuid(uuid)}},
           {q2, {3, cassandra.uuid(uuid)}},
           {q2, {4, cassandra.uuid(uuid)}},
           {q2, {5, cassandra.uuid(uuid)}}
-        }, {prepared = true})
-        assert.is_nil(err)
+        }, {prepared = true}))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute("SELECT * FROM things WHERE id = "..uuid)
-        assert.is_nil(err)
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(5, rows[1].n)
       end)
       it("returns CQL errors", function()
@@ -436,12 +397,10 @@ describe("host", function()
           local select_query = string.format("SELECT %s_sample FROM cql_types WHERE id = ?", fixture_type)
 
           for _, fixture in ipairs(fixture_values) do
-            local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra[fixture_type](fixture)})
-            assert.falsy(err)
+            local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), cassandra[fixture_type](fixture)}))
             assert.equal("VOID", res.type)
 
-            local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-            assert.falsy(err)
+            local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
             assert.equal(1, #rows)
 
             local decoded = rows[1][fixture_type.."_sample"]
@@ -455,17 +414,14 @@ describe("host", function()
         assert.is_table(cassandra.unset)
         assert.equal("unset", cassandra.unset.type_id)
 
-        local rows, err = peer:execute("SELECT * FROM cql_types WHERE id = "..uuid)
-        assert.falsy(err)
+        local rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = "..uuid))
         assert.equal(1, #rows)
         assert.is_string(rows[1].ascii_sample)
 
-        local res, err = peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {cassandra.unset, cassandra.uuid(uuid)})
-        assert.falsy(err)
+        local res = assert(peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {cassandra.unset, cassandra.uuid(uuid)}))
         assert.equal("VOID", res.type)
 
-        rows, err = peer:execute("SELECT * FROM cql_types WHERE id = "..uuid)
-        assert.falsy(err)
+        rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = "..uuid))
         assert.equal(1, #rows)
         assert.is_nil(rows[1].ascii_sample)
       end)
@@ -474,12 +430,10 @@ describe("host", function()
           local insert_query = string.format("INSERT INTO cql_types(id, map_sample_%s_%s) VALUES(?, ?)", fixture.key_type_name, fixture.value_type_name)
           local select_query = string.format("SELECT map_sample_%s_%s FROM cql_types WHERE id = ?", fixture.key_type_name, fixture.value_type_name)
 
-          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture.value)})
-          assert.falsy(err)
+          local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture.value)}))
           assert.equal("VOID", res.type)
 
-          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-          assert.falsy(err)
+          local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
           assert.equal(1, #rows)
 
           local decoded = rows[1]["map_sample_"..fixture.key_type_name.."_"..fixture.value_type_name]
@@ -492,12 +446,10 @@ describe("host", function()
         local select_query = "SELECT * FROM cql_types WHERE id = ?"
         local fixture = {}
 
-        local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture)})
-        assert.falsy(err)
+        local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.map(fixture)}))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-        assert.falsy(err)
+        local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
         assert.equal(1, #rows)
         assert.is_nil(rows[1].map_sample_text_int)
       end)
@@ -506,12 +458,10 @@ describe("host", function()
           local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
-          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.list(fixture.value)})
-          assert.falsy(err)
+          local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.list(fixture.value)}))
           assert.equal("VOID", res.type)
 
-          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-          assert.falsy(err)
+          local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
           assert.equal(1, #rows)
 
           local decoded = rows[1]["list_sample_"..fixture.type_name]
@@ -524,12 +474,10 @@ describe("host", function()
           local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
-          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.set(fixture.value)})
-          assert.falsy(err)
+          local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), cassandra.set(fixture.value)}))
           assert.equal("VOID", res.type)
 
-          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-          assert.falsy(err)
+          local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
           assert.equal(1, #rows)
 
           local decoded = rows[1]["set_sample_"..fixture.type_name]
@@ -538,15 +486,13 @@ describe("host", function()
         end
       end)
       it("[udt] encoding/decoding", function()
-        local res, err = peer:execute("INSERT INTO cql_types(id, udt_sample) VALUES(?, ?)", {
+        local res = assert(peer:execute("INSERT INTO cql_types(id, udt_sample) VALUES(?, ?)", {
           cassandra.uuid(uuid),
           cassandra.udt {"montgomery st", "san francisco", 94111, nil} -- nil country
-        })
-        assert.falsy(err)
+        }))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute("SELECT udt_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)})
-        assert.falsy(err)
+        local rows = assert(peer:execute("SELECT udt_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)}))
         assert.equal(1, #rows)
         assert.same({
           street = "montgomery st",
@@ -557,15 +503,13 @@ describe("host", function()
       end)
       it("[tuple] encoding/decoding", function()
         for _, fixture in ipairs(utils.cql_tuple_fixtures) do
-          local res, err = peer:execute("INSERT INTO cql_types(id, tuple_sample) VALUES(?, ?)", {
+          local res = assert(peer:execute("INSERT INTO cql_types(id, tuple_sample) VALUES(?, ?)", {
             cassandra.uuid(uuid),
             cassandra.tuple(fixture.value)
-          })
-          assert.falsy(err)
+          }))
           assert.equal("VOID", res.type)
 
-          local rows, err = peer:execute("SELECT tuple_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)})
-          assert.falsy(err)
+          local rows = assert(peer:execute("SELECT tuple_sample FROM cql_types WHERE id = ?", {cassandra.uuid(uuid)}))
           assert.equal(1, #rows)
 
           local tuple = rows[1].tuple_sample
@@ -584,12 +528,10 @@ describe("host", function()
             local insert_query = string.format("INSERT INTO cql_types(id, %s_sample) VALUES(?, ?)", fixture_type)
             local select_query = string.format("SELECT %s_sample FROM cql_types WHERE id = ?", fixture_type)
 
-            local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture})
-            assert.falsy(err)
+            local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), fixture}))
             assert.equal("VOID", res.type)
 
-            local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-            assert.falsy(err)
+            local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
             assert.equal(1, #rows)
 
             local decoded = rows[1][fixture_type.."_sample"]
@@ -603,12 +545,10 @@ describe("host", function()
           local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
-          local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value})
-          assert.falsy(err)
+          local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value}))
           assert.equal("VOID", res.type)
 
-          local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-          assert.falsy(err)
+          local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
           assert.equal(1, #rows)
 
           local decoded = rows[1]["list_sample_"..fixture.type_name]
@@ -622,12 +562,10 @@ describe("host", function()
         local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
         local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
-        local res, err = peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value})
-        assert.falsy(err)
+        local res = assert(peer:execute(insert_query, {cassandra.uuid(uuid), fixture.value}))
         assert.equal("VOID", res.type)
 
-        local rows, err = peer:execute(select_query, {cassandra.uuid(uuid)})
-        assert.falsy(err)
+        local rows = assert(peer:execute(select_query, {cassandra.uuid(uuid)}))
         assert.equal(1, #rows)
 
         local decoded = rows[1]["set_sample_"..fixture.type_name]

@@ -1,8 +1,10 @@
 local host = require "cassandra.host"
 local time_utils = require "cassandra.utils.time"
+local retry_policies = require "cassandra.policies.retry"
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
+local cql_errors = host.cql_errors
 local tonumber = tonumber
 local concat = table.concat
 local ipairs = ipairs
@@ -62,6 +64,7 @@ function _Cluster.new(opts)
     read_timeout = opts.read_timeout or 2000, -- ms
     connect_timeout = opts.connect_timeout or 1000, -- ms
     max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000, -- ms
+    retry_on_timeout = opts.retry_on_timeout == nil and true or opts.retry_on_timeout,
 
     ssl = opts.ssl,
     ssl_verify = opts.ssl_verify,
@@ -73,7 +76,7 @@ function _Cluster.new(opts)
     load_balancing_policy = opts.load_balancing_policy
       or require("cassandra.policies.load_balancing").shm_round_robin,
     reconnection_policy = nil,
-    retry_policy = nil
+    retry_policy = opts.retry_policy or retry_policies.simple_retry.new(3)
   }
 
   return setmetatable(cluster, _Cluster)
@@ -150,7 +153,7 @@ function _Cluster:set_prepared(query, query_id)
   if not ok then
     return nil, "cannot set prepared query id: "..err
   elseif forcible then
-    -- TODO: warn
+    -- TODO: warn shm is running out of memory
   end
   return ok
 end
@@ -170,14 +173,27 @@ local function set_peer_down(self, address, peer_infos)
   local elapsed, err = mutex(self.lock)
   if not elapsed then return nil, err
   elseif elapsed == 0 then
+    if not peer_infos then
+      peer_infos, err = self:get_peer(address)
+      if not peer_infos then return nil, err end
+    end
+
     peer_infos.unhealthy_at = time_utils.now()
     -- TODO: reconnection delay
+
     local ok, err = self:set_peer(address, peer_infos)
     if not ok then return nil, err end
     release(self.lock)
   end
 
   return true
+end
+
+local function set_peer_up(self, address)
+  return self:set_peer(address, {
+    unhealthy_at = 0,
+    reconnection_delay = 0
+  })
 end
 
 local function is_peer_healthy(self, address, port, check_shm)
@@ -298,10 +314,7 @@ function _Cluster:refresh()
     local hosts = {}
     for _, row in ipairs(rows) do
       hosts[#hosts + 1] = row.rpc_address
-      local ok, err = self:set_peer(row.rpc_address, {
-        unhealthy_at = 0,
-        reconnection_delay = 0
-      })
+      local ok, err = set_peer_up(self, row.rpc_address)
       if not ok then return nil, err end
     end
 
@@ -350,6 +363,92 @@ local function prepare(self, coordinator, query)
   return query_id
 end
 
+local execute, handle_error, retry, prepare_and_retry
+
+handle_error = function(self, coordinator, query, args, query_options, request_infos, err, cql_code)
+  if cql_code and cql_code == cql_errors.UNPREPARED then
+    -- this is the only case in which we do not close the connection to the
+    -- coordinator yet. prepare the query on the same node and retry it.
+    return prepare_and_retry(self, query, coordinator, query, args, query_options, request_infos)
+  else
+    -- first, we don't need to maintain the connection to this host anymore,
+    -- our load balancing will very probably pick another one.
+    coordinator:setkeepalive()
+
+    if cql_code then
+      -- CQL error from peer, retry policy steps in here.
+      -- by default, the error will be reported to the user unless the policy
+      -- says otherwise.
+      local decision = retry_policies.decisions.throw
+
+      if cql_code == cql_errors.OVERLOADED or
+         cql_code == cql_errors.IS_BOOTSTRAPPING or
+         cql_code == cql_errors.TRUNCATE_ERROR then
+         -- always retry, we will hit another node
+         return retry(self, query, args, query_options, request_infos)
+
+      -- Decisions taken by the retry policy
+      elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
+        decision = self.retry_policy:on_unavailable(request_infos)
+      elseif cql_code == cql_errors.READ_TIMEOUT then
+        decision = self.retry_policy:on_read_timeout(request_infos)
+      elseif cql_code == cql_errors.WRITE_TIMEOUT then
+        decision = self.retry_policy:on_write_timeout(request_infos)
+      end
+
+      if decision == retry_policies.decisions.retry then
+        return retry(self, query, args, query_options, request_infos)
+      end
+    elseif err == "timeout" then
+      if self.retry_on_timeout then
+        -- TCP timeout
+        return retry(self, query, args, query_options, request_infos)
+      end
+      -- else: report to user
+    else
+      -- host seems down?
+      local ok, err = set_peer_down(self, coordinator.host)
+      if not ok then return nil, err end
+
+      -- always retry, another node will be picked until the LB policy complains
+      return retry(self, query, args, query_options, request_infos)
+    end
+  end
+
+  -- this error is reported back to the user
+  return nil, err, cql_code
+end
+
+prepare_and_retry = function(self, coordinator, query, args, query_options, request_infos)
+
+end
+
+retry = function(self, query, args, query_options, request_infos)
+  local next_coordinator, err = self:get_next_coordinator()
+  if not next_coordinator then return nil, err end
+
+  request_infos.n_retries = request_infos.n_retries + 1
+
+  return execute(self, next_coordinator, query, args, query_options, request_infos)
+end
+
+execute = function(self, coordinator, query, args, query_options, request_infos)
+  local res, err, code = coordinator:execute(query, args, query_options)
+  if not res then
+    return handle_error(self, coordinator, query, args, query_options, request_infos, err, code)
+  end
+
+  -- success! make sure to re-up the node if it was DOWN and
+  -- put the socket back in the connection pool.
+
+  coordinator:setkeepalive()
+
+  local ok, err = set_peer_up(self, coordinator.host)
+  if not ok then return nil, err end
+
+  return res
+end
+
 function _Cluster:execute(query, args, query_options)
   if not self.hosts then
     local ok, err = self:refresh()
@@ -366,9 +465,7 @@ function _Cluster:execute(query, args, query_options)
     if not query then return nil, err end
   end
 
-  local res, err, code = coordinator:execute(query, args, query_options)
-  coordinator:setkeepalive()
-  return res, err, code
+  return execute(self, coordinator, query, args, query_options, {n_retries = 0})
 end
 
 function _Cluster:shutdown()

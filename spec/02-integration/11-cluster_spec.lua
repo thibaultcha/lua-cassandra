@@ -137,8 +137,7 @@ describe("cluster", function()
       local rows = assert(cluster:execute(query))
       assert.equal(2, #rows)
 
-      local query_id = assert(cluster:get_prepared(query))
-      assert.truthy(query_id)
+      assert(cluster:get_prepared(query))
     end)
     it("returns CQL errors", function()
       local cluster = assert(Cluster.new())
@@ -147,6 +146,108 @@ describe("cluster", function()
       assert.equal("[Syntax error] line 0:-1 no viable alternative at input '<EOF>'", err)
       assert.truthy(code)
       assert.equal(host.cql_errors.SYNTAX_ERROR, code)
+    end)
+
+    describe("node going down", function()
+      -- TODO
+    end)
+
+    describe("unprepared", function()
+
+    end)
+
+    describe("retry policy", function()
+      it("defaults to simple retry", function()
+        local cluster = assert(Cluster.new())
+        assert.equal(3, cluster.retry_policy.max_retries)
+      end)
+    end)
+
+    describe("timeouts", function()
+      local get_next_coordinator_orig = Cluster.get_next_coordinator
+      before_each(function()
+        Cluster.get_next_coordinator = function(self)
+          -- revert this stub, allowing retry policy to step in and chose another node
+          self.get_next_coordinator = get_next_coordinator_orig
+          return self.stub_coordinator
+        end
+      end)
+      after_each(function()
+        Cluster.get_next_coordinator = get_next_coordinator_orig
+      end)
+      it("accepts a false retry_on_timeout option", function()
+        local cluster = assert(Cluster.new {retry_on_timeout = false})
+        assert.False(cluster.retry_on_timeout)
+      end)
+      it("retries if host times out", function()
+        finally(function()
+          utils.ccm_up_node(1)
+        end)
+
+        local cluster = assert(Cluster.new {
+          connect_timeout = 100,
+          read_timeout = 100
+        })
+
+        assert(cluster:refresh()) -- retrieve all hosts to test the retry policy later
+
+        cluster.stub_coordinator = assert(host.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
+        cluster.stub_coordinator:settimeout(100)
+        assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
+        spy.on(cluster.stub_coordinator, "setkeepalive")
+
+        utils.ccm_down_node(1) -- simulate node going down
+
+        local test_peer = assert(host.new {host = "127.0.0.1"}) -- make sure this host really times out first
+        test_peer:settimeout(100)
+        local _, err = test_peer:connect()
+        assert.equal("timeout", err)
+
+        -- Attempt request (forcing our poisoned coordinator over the load balancing policy)
+        for i = 1, 3 do
+          local rows = assert(cluster:execute "SELECT * FROM system.local")
+          assert.equal(1, #rows)
+          for _, row in ipairs(rows) do
+            assert.not_equal("127.0.0.1", row.rpc_address) -- we never hit this node, it's the one which timed out
+          end
+        end
+
+        assert.spy(cluster.stub_coordinator.setkeepalive).was_called(1)
+      end)
+      it("does not retry without retry_on_timeout", function()
+        finally(function()
+          utils.ccm_up_node(1)
+        end)
+
+        local cluster = assert(Cluster.new {
+          connect_timeout = 100,
+          read_timeout = 100,
+          retry_on_timeout = false
+        })
+
+        assert(cluster:refresh()) -- retrieve all hosts to test the retry policy later
+
+        cluster.stub_coordinator = assert(host.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
+        cluster.stub_coordinator:settimeout(100)
+        assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
+        spy.on(cluster.stub_coordinator, "setkeepalive")
+
+        utils.ccm_down_node(1) -- simulate node going down
+
+        local test_peer = assert(host.new {host = "127.0.0.1"}) -- make sure this host really times out first
+        test_peer:settimeout(100)
+        local _, err = test_peer:connect()
+        assert.equal("timeout", err)
+
+        -- Attempt request (forcing our poisoned coordinator over the load balancing policy)
+        assert.error_matches(function()
+          for i = 1, 3 do
+            assert(cluster:execute "SELECT * FROM system.local")
+          end
+        end, "timeout")
+
+        assert.spy(cluster.stub_coordinator.setkeepalive).was_called(1)
+      end)
     end)
   end)
 

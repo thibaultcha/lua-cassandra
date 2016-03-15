@@ -75,6 +75,16 @@ function _M.ccm_start(n_nodes, opts)
   return hosts
 end
 
+function _M.ccm_down_node(node_n)
+  assert(type(node_n) == "number")
+  exec("ccm node"..node_n.." pause")
+end
+
+function _M.ccm_up_node(node_n)
+  assert(type(node_n) == "number")
+  exec("ccm node"..node_n.." resume")
+end
+
 --- CQL
 
 function _M.create_keyspace(host, keyspace)

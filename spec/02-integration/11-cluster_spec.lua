@@ -5,6 +5,9 @@ local Cluster = require "cassandra.cluster"
 -- This will later be require "cassandra"
 local host = require "cassandra.host"
 
+-- TODO: attach type serializers to host
+local cassandra = require "cassandra"
+
 describe("cluster", function()
   setup(function()
     utils.ccm_start(3)
@@ -147,13 +150,65 @@ describe("cluster", function()
       assert.truthy(code)
       assert.equal(host.cql_errors.SYNTAX_ERROR, code)
     end)
+    it("returns request infos", function()
+      local cluster = assert(Cluster.new())
+
+      local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+      assert.equal(2, #rows)
+      assert.equal(0, request_infos.n_retries)
+      assert.is_string(request_infos.coordinator)
+    end)
 
     describe("node going down", function()
       -- TODO
     end)
 
     describe("unprepared", function()
+      local uuid, peer = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
+      math.randomseed(os.time())
+      local r = math.random(10^8)
+      setup(function()
+        local p = assert(host.new())
+        assert(p:connect())
+        assert(utils.create_keyspace(p, utils.keyspace))
+        assert(p:set_keyspace(utils.keyspace))
+        assert(p:execute [[
+          CREATE TABLE IF NOT EXISTS foos(
+            id uuid,
+            n int,
+            PRIMARY KEY(id, n)
+          )
+        ]])
+        assert(p:execute("INSERT INTO foos(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), r}))
 
+        peer = p
+      end)
+      teardown(function()
+        peer:close()
+      end)
+      it("prepare and retry on a node that did not have the prepared query", function()
+        -- prepare a dumb query (dumb, but unique, so no need to restart the node for this test)
+        local query = "SELECT * FROM foos WHERE id = ? AND n = "..r
+        local cluster = assert(Cluster.new {
+          keyspace = utils.keyspace,
+          query_options = {prepared = true}
+        })
+
+        -- on 1st call, query will be prepared, but the second coordinator will not have
+        -- this query prepared
+        local ok = false
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute(query, {cassandra.uuid(uuid)}))
+          assert.equal(1, #rows)
+          if request_infos.prepared_and_retried then
+            assert.equal(0, request_infos.n_retries)
+            assert.equal(query, request_infos.orig_query)
+            ok = true
+          end
+        end
+
+        assert.True(ok)
+      end)
     end)
 
     describe("retry policy", function()

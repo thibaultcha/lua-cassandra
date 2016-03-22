@@ -4,8 +4,6 @@ local host = require "cassandra.host"
 -- TODO: attach type serializers to host
 local cassandra = require "cassandra"
 
-local keyspace = "lua_resty_specs"
-
 describe("host", function()
   setup(function()
     utils.ccm_start(3)
@@ -108,7 +106,7 @@ describe("host", function()
     setup(function()
       local p = assert(host.new())
       assert(p:connect())
-      assert(utils.create_keyspace(p, keyspace))
+      assert(utils.create_keyspace(p, utils.keyspace))
       peer = p
     end)
     teardown(function()
@@ -239,7 +237,7 @@ describe("host", function()
 
     describe("batch()", function()
       setup(function()
-        assert(peer:set_keyspace(keyspace))
+        assert(peer:set_keyspace(utils.keyspace))
         assert(peer:execute [[
           CREATE TABLE IF NOT EXISTS things(
             id uuid PRIMARY KEY,
@@ -354,7 +352,7 @@ describe("host", function()
 
     describe("Types", function()
       setup(function()
-        assert(peer:set_keyspace(keyspace))
+        assert(peer:set_keyspace(utils.keyspace))
         assert(peer:execute [[
           CREATE TYPE IF NOT EXISTS address(
             street text,

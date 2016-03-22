@@ -85,6 +85,12 @@ function _M.ccm_up_node(node_n)
   exec("ccm node"..node_n.." resume")
 end
 
+function _M.ccm_restart_node(node_n)
+  assert(type(node_n) == "number")
+  exec("ccm node"..node_n.." stop")
+  exec("ccm node"..node_n.." start --wait-for-binary-proto")
+end
+
 --- CQL
 
 function _M.create_keyspace(host, keyspace)
@@ -212,5 +218,7 @@ _M.cql_tuple_fixtures = {
   {type = {"text", "text"}, value = {"hello", "world"}},
   {type = {"text", "text"}, value = {"world", "hello"}}
 }
+
+_M.keyspace = "lua_resty_specs"
 
 return _M

@@ -335,10 +335,16 @@ end
 
 -- Queries execution
 
-local function prepare(self, coordinator, query)
-  local query_id, err = self:get_prepared(query)
-  if err then return nil, err
-  elseif query_id == nil then
+local function prepare(self, coordinator, query, force)
+  local query_id
+
+  if not force then
+    local err
+    query_id, err = self:get_prepared(query)
+    if err then return nil, err end
+  end
+
+  if query_id == nil then
     local elapsed, err = mutex(self.lock)
     if not elapsed then return nil, err
     elseif elapsed == 0 then
@@ -368,8 +374,8 @@ local execute, handle_error, retry, prepare_and_retry
 handle_error = function(self, coordinator, query, args, query_options, request_infos, err, cql_code)
   if cql_code and cql_code == cql_errors.UNPREPARED then
     -- this is the only case in which we do not close the connection to the
-    -- coordinator yet. prepare the query on the same node and retry it.
-    return prepare_and_retry(self, query, coordinator, query, args, query_options, request_infos)
+    -- coordinator yet: prepare the query on the same node and retry it.
+    return prepare_and_retry(self, coordinator, query, args, query_options, request_infos)
   else
     -- first, we don't need to maintain the connection to this host anymore,
     -- our load balancing will very probably pick another one.
@@ -420,7 +426,15 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
 end
 
 prepare_and_retry = function(self, coordinator, query, args, query_options, request_infos)
+  local query_id, err = prepare(self, coordinator, request_infos.orig_query, true)
+  if not query_id then return nil, err
+  elseif query_id ~= query then
+    -- TODO: log warning different ids
+  end
 
+  request_infos.prepared_and_retried = true
+
+  return execute(self, coordinator, query_id, args, query_options, request_infos)
 end
 
 retry = function(self, query, args, query_options, request_infos)
@@ -442,11 +456,12 @@ execute = function(self, coordinator, query, args, query_options, request_infos)
   -- put the socket back in the connection pool.
 
   coordinator:setkeepalive()
+  request_infos.coordinator = coordinator.host
 
   local ok, err = set_peer_up(self, coordinator.host)
   if not ok then return nil, err end
 
-  return res
+  return res, nil, request_infos
 end
 
 function _Cluster:execute(query, args, query_options)
@@ -460,12 +475,17 @@ function _Cluster:execute(query, args, query_options)
 
   query_options = query_options or self.query_options
 
+  local request_infos = {
+    n_retries = 0
+  }
+
   if query_options.prepared then
+    request_infos.orig_query = query
     query, err = prepare(self, coordinator, query)
     if not query then return nil, err end
   end
 
-  return execute(self, coordinator, query, args, query_options, {n_retries = 0})
+  return execute(self, coordinator, query, args, query_options, request_infos)
 end
 
 function _Cluster:shutdown()

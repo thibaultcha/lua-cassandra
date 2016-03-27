@@ -117,18 +117,6 @@ describe("cluster", function()
       local rows = assert(cluster:execute "SELECT * FROM system.peers")
       assert.equal(2, #rows)
     end)
-    it("selects the coordinator from the load balancing policy", function()
-      -- default is shm round robin policy
-      local cluster = assert(Cluster.new())
-
-      local s = spy.on(cluster, "get_next_coordinator")
-
-      for i = 1, 3 do
-        local rows = assert(cluster:execute "SELECT * FROM system.peers")
-        assert.equal(2, #rows)
-        assert.spy(s).was.called(i)
-      end
-    end)
     it("spawns hosts in a keyspace", function()
       local cluster = assert(Cluster.new {keyspace = "system"})
       local rows = assert(cluster:execute "SELECT * FROM peers")
@@ -159,11 +147,70 @@ describe("cluster", function()
       assert.is_string(request_infos.coordinator)
     end)
 
-    describe("node going down", function()
-      -- TODO
+    describe("load balancing policy", function()
+      it("selects the coordinator from the load balancing policy", function()
+        -- default is shm round robin policy
+        local cluster = assert(Cluster.new())
+
+        local s = spy.on(cluster, "get_next_coordinator")
+
+        for i = 1, 3 do
+          local rows = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+          assert.spy(s).was.called(i)
+        end
+      end)
+      it("sets unavailable nodes as down", function()
+        finally(function()
+          utils.ccm_up_node(1)
+        end)
+        local cluster = assert(Cluster.new())
+
+        local s = spy.on(cluster, "get_next_coordinator")
+
+        -- All 3 nodes are up and running
+        local tracked_nodes, uniques = {}, 0
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+          tracked_nodes[request_infos.coordinator] = true
+        end
+        for k in pairs(tracked_nodes) do uniques = uniques + 1 end
+        assert.equal(3, uniques)
+
+        -- Stop a node
+        utils.ccm_down_node(1)
+
+        -- Now 127.0.0.1 should be skipped
+        tracked_nodes, uniques = {}, 0
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+          tracked_nodes[request_infos.coordinator] = true
+        end
+        for k in pairs(tracked_nodes) do uniques = uniques + 1 end
+        assert.equal(2, uniques)
+        assert.is_nil(tracked_nodes["127.0.0.1"])
+
+        local peer_infos = assert(cluster:get_peer("127.0.0.1"))
+        assert.True(peer_infos.unhealthy_at > 0)
+        -- TODO: reconnection delay check?
+        -- assert.True(peer_infos.reconnection_delay > 0)
+      end)
     end)
 
-    describe("unprepared", function()
+    describe("#slow reconnection policy", function()
+
+    end)
+
+    describe("retry policy", function()
+      it("defaults to simple retry", function()
+        local cluster = assert(Cluster.new())
+        assert.equal(3, cluster.retry_policy.max_retries)
+      end)
+    end)
+
+    describe("CQL error: unprepared", function()
       local uuid, peer = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
       math.randomseed(os.time())
       local r = math.random(10^8)
@@ -211,14 +258,7 @@ describe("cluster", function()
       end)
     end)
 
-    describe("retry policy", function()
-      it("defaults to simple retry", function()
-        local cluster = assert(Cluster.new())
-        assert.equal(3, cluster.retry_policy.max_retries)
-      end)
-    end)
-
-    describe("timeouts", function()
+    describe("connection error: timeout", function()
       local get_next_coordinator_orig = Cluster.get_next_coordinator
       before_each(function()
         Cluster.get_next_coordinator = function(self)
@@ -304,6 +344,14 @@ describe("cluster", function()
         assert.spy(cluster.stub_coordinator.setkeepalive).was_called(1)
       end)
     end)
+  end) -- execute()
+
+  describe("batch()", function()
+
+  end)
+
+  describe("iterate()", function()
+
   end)
 
   describe("shutdown()", function()

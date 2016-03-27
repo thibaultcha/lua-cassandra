@@ -82,7 +82,14 @@ function _Cluster.new(opts)
   return setmetatable(cluster, _Cluster)
 end
 
-function _Cluster:spawn_host(address, port)
+function _Cluster:shutdown()
+  self.shm:flush_all()
+  self.shm:flush_expired()
+  self.shm_prepared:flush_all()
+  self.shm_prepared:flush_expired()
+end
+
+local function spawn_host(self, address, port)
   return host.new {
     host = address,
     port = port,
@@ -214,7 +221,7 @@ local function is_peer_healthy(self, address, port, check_shm)
   end
 
   -- host seems healthy, let's try it
-  local peer, err = self:spawn_host(address, port)
+  local peer, err = spawn_host(self, address, port)
   if not peer then return nil, err end
 
   peer:settimeout(self.connect_timeout)
@@ -335,7 +342,7 @@ end
 
 -- Queries execution
 
-local function prepare(self, coordinator, query, force)
+local function get_or_prepare(self, coordinator, query, force)
   local query_id
 
   if not force then
@@ -369,7 +376,47 @@ local function prepare(self, coordinator, query, force)
   return query_id
 end
 
-local execute, handle_error, retry, prepare_and_retry
+-------------------
+-- Inner execution
+-------------------
+
+local inner_execute -- to be defined later on
+
+local function pre_execute(self, query_options)
+  if not self.hosts then
+    local ok, err = self:refresh()
+    if not ok then return nil, err end
+  end
+
+  local coordinator, err = self:get_next_coordinator()
+  if not coordinator then return nil, err end
+
+  query_options = query_options or self.query_options
+
+  local request_infos = {
+    n_retries = 0
+  }
+
+  return coordinator, query_options, request_infos
+end
+
+local function post_execute(self, res, coordinator, request_infos)
+  -- success! make sure to re-up the node if it was DOWN and
+  -- put the socket back in the connection pool.
+  coordinator:setkeepalive()
+  request_infos.coordinator = coordinator.host
+
+  local ok, err = set_peer_up(self, coordinator.host)
+  if not ok then return nil, err end
+
+  return res, nil, request_infos
+end
+
+-------------------------------
+-- Retry policy and conditions
+-------------------------------
+
+local handle_error, retry, prepare_and_retry
 
 handle_error = function(self, coordinator, query, args, query_options, request_infos, err, cql_code)
   if cql_code and cql_code == cql_errors.UNPREPARED then
@@ -426,7 +473,7 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
 end
 
 prepare_and_retry = function(self, coordinator, query, args, query_options, request_infos)
-  local query_id, err = prepare(self, coordinator, request_infos.orig_query, true)
+  local query_id, err = get_or_prepare(self, coordinator, request_infos.orig_query, true)
   if not query_id then return nil, err
   elseif query_id ~= query then
     -- TODO: log warning different ids
@@ -434,7 +481,7 @@ prepare_and_retry = function(self, coordinator, query, args, query_options, requ
 
   request_infos.prepared_and_retried = true
 
-  return execute(self, coordinator, query_id, args, query_options, request_infos)
+  return inner_execute(self, coordinator, query_id, args, query_options, request_infos)
 end
 
 retry = function(self, query, args, query_options, request_infos)
@@ -443,56 +490,56 @@ retry = function(self, query, args, query_options, request_infos)
 
   request_infos.n_retries = request_infos.n_retries + 1
 
-  return execute(self, next_coordinator, query, args, query_options, request_infos)
+  return inner_execute(self, next_coordinator, query, args, query_options, request_infos)
 end
 
-execute = function(self, coordinator, query, args, query_options, request_infos)
+inner_execute = function(self, coordinator, query, args, query_options, request_infos)
   local res, err, code = coordinator:execute(query, args, query_options)
   if not res then
     return handle_error(self, coordinator, query, args, query_options, request_infos, err, code)
   end
 
-  -- success! make sure to re-up the node if it was DOWN and
-  -- put the socket back in the connection pool.
-
-  coordinator:setkeepalive()
-  request_infos.coordinator = coordinator.host
-
-  local ok, err = set_peer_up(self, coordinator.host)
-  if not ok then return nil, err end
-
-  return res, nil, request_infos
+  return post_execute(self, res, coordinator, request_infos)
 end
 
+-----------------------
+-- Public querying API
+-----------------------
+
 function _Cluster:execute(query, args, query_options)
-  if not self.hosts then
-    local ok, err = self:refresh()
-    if not ok then return nil, err end
-  end
+  local coordinator, opts, request_infos = pre_execute(self, query_options)
+  if not coordinator then return nil, opts end
 
-  local coordinator, err = self:get_next_coordinator()
-  if not coordinator then return nil, err end
-
-  query_options = query_options or self.query_options
-
-  local request_infos = {
-    n_retries = 0
-  }
-
-  if query_options.prepared then
+  if opts.prepared then
     request_infos.orig_query = query
-    query, err = prepare(self, coordinator, query)
+    query, err = get_or_prepare(self, coordinator, query)
     if not query then return nil, err end
   end
 
-  return execute(self, coordinator, query, args, query_options, request_infos)
+  return inner_execute(self, coordinator, query, args, opts, request_infos)
 end
 
-function _Cluster:shutdown()
-  self.shm:flush_all()
-  self.shm:flush_expired()
-  self.shm_prepared:flush_all()
-  self.shm_prepared:flush_expired()
+function _Cluster:batch(queries, query_options)
+  local coordinator, opts, request_infos = pre_execute(self, query_options)
+  if not coordinator then return nil, opts end
+
+  if opts.prepared then
+    for i, q in ipairs(queries) do
+      local query_id, err = get_or_prepare(self, coordinator, query)
+      if not query_id then return nil, err end
+      queries[i] = query_id
+    end
+  end
+
+  -- need to know if this matter. Can I ignore retry policy on batch? unprepared errors?
+  -- inner_batch
+  -- return inner_execute(self, coordinator, queries, args, opts, request_infos)
 end
+
+--[[
+function _Cluster:iterate()
+  -- need to know if LB policy must be used here or not
+end
+--]]
 
 return _Cluster

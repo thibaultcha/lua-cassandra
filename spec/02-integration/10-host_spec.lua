@@ -179,6 +179,7 @@ describe("host", function()
           CREATE KEYSPACE IF NOT EXISTS ]]..tmp_name..[[
           WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':1}
         ]]))
+        assert.equal("SCHEMA_CHANGE", res.type)
 
         res = assert(peer_k:execute(string.format('USE "%s"', tmp_name)))
         assert.equal(0, #res)

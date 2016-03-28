@@ -3,8 +3,6 @@ local host = require "cassandra.host"
 local Cluster = require "cassandra.cluster"
 
 local ca_path = utils.ssl_path.."/cassandra.pem"
-local key_path = utils.ssl_path.."/client_key.pem"
-local cert_path = utils.ssl_path.."/client_cert.pem"
 
 describe("SSL", function()
   setup(function()

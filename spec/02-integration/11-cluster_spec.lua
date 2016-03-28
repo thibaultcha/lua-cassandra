@@ -177,7 +177,7 @@ describe("cluster", function()
         utils.ccm_down_node(1)
 
         -- Now 127.0.0.1 should be skipped
-        tracked_nodes, uniques = {}, 0
+        local tracked_nodes, uniques = {}, 0
         for i = 1, 3 do
           local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
           assert.equal(2, #rows)
@@ -210,7 +210,7 @@ describe("cluster", function()
 
         -- Now 127.0.0.1 should be skipped
         for i = 1, 3 do
-          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          local rows = assert(cluster:execute "SELECT * FROM system.peers")
           assert.equal(2, #rows)
         end
 
@@ -222,7 +222,7 @@ describe("cluster", function()
         os.execute("sleep "..delay_1/1000)
 
         for i = 1, 3 do
-          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          local rows = assert(cluster:execute "SELECT * FROM system.peers")
           assert.equal(2, #rows)
         end
         -- 2nd iteration
@@ -238,7 +238,7 @@ describe("cluster", function()
         os.execute("sleep "..delay_2/1000)
 
         for i = 1, 3 do
-          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          local rows = assert(cluster:execute "SELECT * FROM system.peers")
           assert.equal(2, #rows)
         end
 

@@ -34,7 +34,7 @@ function _Host.new(opts)
     cert = opts.cert,
     cafile = opts.cafile,
     key = opts.key,
-    -- auth = opts.auth
+    auth = opts.auth
   }
 
   return setmetatable(host, _Host)
@@ -82,6 +82,17 @@ local function send_startup(self)
   return self:send(startup_req)
 end
 
+local function send_auth(self)
+  local token = self.auth:initial_response()
+  local auth_request = Requests.AuthResponse(token)
+  local res, err = self:send(auth_request)
+  if not res then
+    return nil, err
+  elseif res and res.authenticated then
+    return true
+  end
+end
+
 local function ssl_handshake(self)
   local params = {
     key = self.key,
@@ -108,7 +119,7 @@ function _Host:connect()
   local reused, err = self.sock:getreusedtimes()
   if not reused then return nil, err end
 
-  if self.sock:getreusedtimes() < 1 then
+  if reused < 1 then
     -- startup request on first connection
     local res, err, code = send_startup(self)
     if not res then
@@ -126,7 +137,12 @@ function _Host:connect()
       -- real connection issue, host could be down?
       return nil, err, true
     elseif res.must_authenticate then
-      -- TODO: auth
+      if not self.auth then
+        return nil, "authentication required"
+      end
+
+      local ok, err = send_auth(self)
+      if not ok then return nil, err end
     end
 
     if self.keyspace then
@@ -259,5 +275,7 @@ end
 function _Host:__tostring()
   return "<Cassandra socket: "..tostring(self.sock)..">"
 end
+
+_Host.auth_providers = require "cassandra.auth"
 
 return _Host

@@ -17,7 +17,9 @@ local function shared_exp(shm, base_delay, max_delay)
       local index_key = key..host
 
       local ok, err = shm:set(index_key, 0)
-      if not ok then return nil, err end
+      if not ok and ngx then
+        ngx.log(ngx.WARN, "could not reset shared_exp policy: "..err)
+      end
 
       return true
     end,
@@ -25,8 +27,8 @@ local function shared_exp(shm, base_delay, max_delay)
       local index_key = key..host
 
       local ok, err = shm:add(index_key, 0)
-      if not ok and err ~= "exists" then
-
+      if not ok and err ~= "exists" and ngx then
+        ngx.log(ngx.WARN, "could not init shared_exp policy: "..err)
       end
 
       local index = shm:incr(index_key, 1)

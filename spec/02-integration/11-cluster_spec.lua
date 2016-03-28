@@ -408,7 +408,40 @@ describe("cluster", function()
   end)
 
   describe("iterate()", function()
+    local n_inserts, n_select, peer = 1001, 20
+    setup(function()
+      peer = assert(host.new())
+      assert(peer:connect())
+      assert(peer:set_keyspace(utils.keyspace))
+      assert(peer:execute [[
+        CREATE TABLE IF NOT EXISTS metrics(
+          id int PRIMARY KEY,
+          n int
+        )
+      ]])
+      assert(peer:execute "TRUNCATE metrics")
+      for i = 1, n_inserts do
+        assert(peer:execute("INSERT INTO metrics(id,n) VALUES(?,?)", {i, i*i}))
+      end
+    end)
+    it("iterates with auto-refresh", function()
+      local cluster = assert(Cluster.new {keyspace = utils.keyspace})
+      local s = spy.on(cluster, "get_next_coordinator")
+      local n_page = 0
+      local opts, buf = {page_size = n_select}, {}
+      for rows, err, page in cluster:iterate("SELECT * FROM metrics", nil, opts) do
+        assert.is_nil(err)
+        assert.is_number(page)
+        assert.is_table(rows)
+        assert.equal("ROWS", rows.type)
+        n_page = n_page + 1
+        for _, v in ipairs(rows) do buf[#buf+1] = v end
+      end
 
+      assert.equal(n_inserts, #buf)
+      assert.equal(math.ceil(n_inserts/n_select), n_page)
+      assert.spy(s).was_called(n_page)
+    end)
   end)
 
   describe("shutdown()", function()

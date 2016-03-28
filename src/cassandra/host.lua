@@ -226,7 +226,7 @@ local function page_iterator(self, query, args, opts)
 
     opts.paging_state = meta.paging_state
 
-    local rows, err = execute(self, query, args, opts)
+    local rows, err = self:execute(query, args, opts)
     if rows and #rows > 0 then
       page = page + 1
     elseif err then -- expose the error with one more iteration
@@ -240,6 +240,8 @@ local function page_iterator(self, query, args, opts)
   -- nil: our iteration has no invariant state, our control variable is
   -- the rows themselves
 end
+
+_Host.page_iterator = page_iterator
 
 function _Host:execute(query, args, options)
   return execute(self, query, args, get_opts(options))

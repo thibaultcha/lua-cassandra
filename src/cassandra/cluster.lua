@@ -544,10 +544,13 @@ function _Cluster:batch(queries, query_options)
   return inner_execute(self, coordinator, request, request_infos)
 end
 
---[[
-function _Cluster:iterate()
-  -- need to know if LB policy must be used here or not
+function _Cluster:iterate(query, args, query_options)
+  if not self.hosts then
+    local ok, err = self:refresh()
+    if not ok then return nil, err end
+  end
+
+  return host.page_iterator(self, query, args, query_options)
 end
---]]
 
 return _Cluster

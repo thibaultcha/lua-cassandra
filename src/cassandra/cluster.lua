@@ -12,9 +12,10 @@ local pairs = pairs
 local gsub = string.gsub
 local fmt = string.format
 
-local get_shm, new_lock, mutex, release
+local get_shm, new_lock, mutex, release, log_warn
 if ngx ~= nil then
   local shared = ngx.shared
+  local log, WARN = ngx.log, ngx.WARN
   local resty_lock = require "resty.lock"
 
   get_shm = function(name)
@@ -32,6 +33,9 @@ if ngx ~= nil then
     local ok, err = lock:unlock()
     if not ok then return nil, "could not release lock: "..err end
     return ok
+  end
+  log_warn = function(...)
+    log(WARN, ...)
   end
 else
   local shared = require "cassandra.utils.shm"
@@ -161,8 +165,8 @@ function _Cluster:set_prepared(query, query_id)
   local ok, err, forcible = self.shm_prepared:set(key, query_id)
   if not ok then
     return nil, "cannot set prepared query id: "..err
-  elseif forcible then
-    -- TODO: warn shm is running out of memory
+  elseif forcible and log_warn then
+    log_warn("prepared shm is running out of memory, consider increasing its size")
   end
   return ok
 end
@@ -379,6 +383,50 @@ local function get_or_prepare(self, coordinator, query, force)
   return query_id
 end
 
+local local_query = Requests.QueryRequest "SELECT schema_version FROM system.local"
+local peers_query = Requests.QueryRequest "SELECT schema_version FROM system.peers"
+
+local function check_schema_consensus(coordinator)
+  local local_res, err = coordinator:send(local_query)
+  if not local_res then return nil, err end
+
+  local peers_res, err = coordinator:send(peers_query)
+  if not peers_res then return nil, err end
+
+  if #peers_res > 0 and #local_res > 0 then
+    for _, peer_row in ipairs(peers_res) do
+      if peer_row.schema_version ~= local_res[1].schema_version then
+        return false
+      end
+    end
+  end
+
+  return true
+end
+
+local function wait_for_schema_consensus(self, coordinator)
+  if #self:peers() <= 1 then
+    return true
+  end
+
+  local ok, err, tdiff
+  local tstart = time_utils.now()
+
+  repeat
+    time_utils.wait(0.5)
+    ok, err = check_schema_consensus(coordinator)
+    tdiff = time_utils.now() - tstart
+  until ok or err or tdiff >= self.max_schema_consensus_wait
+
+  if ok then
+    return true
+  elseif err then
+    return nil, err
+  else
+    return nil, "timeout"
+  end
+end
+
 -------------------
 -- Inner execution
 -------------------
@@ -412,10 +460,16 @@ local function inner_execute(self, coordinator, request, request_infos)
 
   -- success! make sure to re-up the node if it was DOWN and
   -- put the socket back in the connection pool.
-  coordinator:setkeepalive()
   request_infos.coordinator = coordinator.host
 
   local ok, err = set_peer_up(self, coordinator.host)
+  if ok and res.type == "SCHEMA_CHANGE" then
+    ok, err = wait_for_schema_consensus(self, coordinator)
+    if not ok then err = "error while waiting for schema consensus: "..err end
+  end
+
+  coordinator:setkeepalive()
+
   if not ok then return nil, err end
 
   return res, nil, request_infos
@@ -482,8 +536,9 @@ end
 prepare_and_retry = function(self, coordinator, request, request_infos)
   local query_id, err = get_or_prepare(self, coordinator, request_infos.orig_query, true)
   if not query_id then return nil, err
-  elseif query_id ~= request_infos.query_id then
-    -- TODO: log warning different ids
+  elseif query_id ~= request_infos.query_id and log_warn then
+    log_warn(fmt("unexpected difference between query ids for query '%s' (%s ~= %s)",
+      request_infos.orig_query, request, query_id))
   end
 
   request_infos.prepared_and_retried = true

@@ -389,6 +389,35 @@ describe("cluster", function()
         assert.spy(cluster.stub_coordinator.setkeepalive).was_called(1)
       end)
     end)
+
+    describe("schema consensus", function()
+      it("waits on SCHEMA_CHANGE results", function()
+        local cluster = assert(Cluster.new {keyspace = utils.keyspace})
+        finally(function()
+          cluster:execute "DROP TABLE consensus"
+        end)
+
+        local res = assert(cluster:execute [[
+          CREATE TABLE consensus(id int PRIMARY KEY)
+        ]])
+        assert.equal("SCHEMA_CHANGE", res.type)
+      end)
+      it("timeouts", function()
+        local cluster = assert(Cluster.new {
+          keyspace = utils.keyspace,
+          max_schema_consensus_wait = 1000
+        })
+        finally(function()
+          cluster:execute "DROP TABLE consensus"
+        end)
+
+        local res, err = cluster:execute [[
+          CREATE TABLE consensus(id int PRIMARY KEY)
+        ]]
+        assert.equal("error while waiting for schema consensus: timeout", err)
+        assert.is_nil(res)
+      end)
+    end)
   end) -- execute()
 
   describe("batch()", function()

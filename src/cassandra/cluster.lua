@@ -1,7 +1,6 @@
 local host = require "cassandra.host"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
-local retry_policies = require "cassandra.policies.retry"
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
@@ -75,9 +74,11 @@ function _Cluster.new(opts)
     auth = opts.auth,
 
     load_balancing_policy = opts.load_balancing_policy
-      or require("cassandra.policies.load_balancing").shm_round_robin,
-    reconnection_policy = nil,
-    retry_policy = opts.retry_policy or retry_policies.simple_retry.new(3)
+      or require("cassandra.policies.load_balancing").shared_round_robin,
+    reconnection_policy = opts.reconnection_policy
+      or require("cassandra.policies.reconnection").shared_exp(shm, 1000, 10 * 60 * 1000),
+    retry_policy = opts.retry_policy
+      or require("cassandra.policies.retry").simple.new(3)
   }
 
   return setmetatable(cluster, _Cluster)
@@ -187,7 +188,7 @@ local function set_peer_down(self, address, peer_infos)
     end
 
     peer_infos.unhealthy_at = time_utils.now()
-    -- TODO: reconnection delay
+    peer_infos.reconnection_delay = self.reconnection_policy.get_next(address)
 
     local ok, err = self:set_peer(address, peer_infos)
     if not ok then return nil, err end
@@ -198,6 +199,7 @@ local function set_peer_down(self, address, peer_infos)
 end
 
 local function set_peer_up(self, address)
+  self.reconnection_policy.reset(address)
   return self:set_peer(address, {
     unhealthy_at = 0,
     reconnection_delay = 0
@@ -214,7 +216,7 @@ local function is_peer_healthy(self, address, port, check_shm)
     peer_infos, err = self:get_peer(address)
     if not peer_infos then return nil, err end
 
-    if peer_infos.unhealthy_at > 0 or
+    if peer_infos.unhealthy_at > 0 and
       time_utils.now() - peer_infos.unhealthy_at < peer_infos.reconnection_delay then
       -- this host is already reported as down, still waiting for retry
       return nil, "host considered DOWN"
@@ -437,7 +439,7 @@ handle_error = function(self, coordinator, request, request_infos, err, cql_code
       -- CQL error from peer, retry policy steps in here.
       -- by default, the error will be reported to the user unless the policy
       -- says otherwise.
-      local decision = retry_policies.decisions.throw
+      local try_again = false
 
       if cql_code == cql_errors.OVERLOADED or
          cql_code == cql_errors.IS_BOOTSTRAPPING or
@@ -447,14 +449,14 @@ handle_error = function(self, coordinator, request, request_infos, err, cql_code
 
       -- Decisions taken by the retry policy
       elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
-        decision = self.retry_policy:on_unavailable(request_infos)
+        try_again = self.retry_policy:on_unavailable(request_infos)
       elseif cql_code == cql_errors.READ_TIMEOUT then
-        decision = self.retry_policy:on_read_timeout(request_infos)
+        try_again = self.retry_policy:on_read_timeout(request_infos)
       elseif cql_code == cql_errors.WRITE_TIMEOUT then
-        decision = self.retry_policy:on_write_timeout(request_infos)
+        try_again = self.retry_policy:on_write_timeout(request_infos)
       end
 
-      if decision == retry_policies.decisions.retry then
+      if try_again then
         return retry(self, request, request_infos)
       end
     elseif err == "timeout" then

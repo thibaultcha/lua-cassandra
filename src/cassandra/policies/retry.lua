@@ -1,36 +1,22 @@
-local decisions = {
-  throw = 0,
-  retry = 1
-}
+local simple = {}
+simple.__index = simple
 
-local SimpleRetry = {}
-SimpleRetry.__index = SimpleRetry
-
-function SimpleRetry.new(max_retries)
-  return setmetatable({max_retries = max_retries}, SimpleRetry)
+function simple.new(max_retries)
+  return setmetatable({max_retries = max_retries}, simple)
 end
 
-function SimpleRetry:on_unavailable(request_infos)
-  return decisions.throw
+function simple:on_unavailable(request_infos)
+  return false
 end
 
-function SimpleRetry:on_read_timeout(request_infos)
-  if request_infos.n_retries > self.max_retries then
-    return decisions.throw
-  end
-
-  return decisions.retry
+function simple:on_read_timeout(request_infos)
+  return request_infos.n_retries < self.max_retries
 end
 
-function SimpleRetry:on_write_timeout(request_infos)
-  if request_infos.n_retries > self.max_retries then
-    return decisions.throw
-  end
-
-  return decisions.retry
+function simple:on_write_timeout(request_infos)
+  return request_infos.n_retries < self.max_retries
 end
 
 return {
-  decisions = decisions,
-  simple_retry = SimpleRetry
+  simple = simple
 }

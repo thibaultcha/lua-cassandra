@@ -15,8 +15,6 @@ local DEFAULTS = {
   -- contact_points = {},
   -- keyspace = nil,
   policies = {
-    load_balancing = require("cassandra.policies.load_balancing").SharedRoundRobin,
-    reconnection = require("cassandra.policies.reconnection").SharedExponential(1000, 10 * 60 * 1000),
     retry = require("cassandra.policies.retry"),
   },
   query_options = {

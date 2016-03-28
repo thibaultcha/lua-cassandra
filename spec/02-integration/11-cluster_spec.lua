@@ -148,6 +148,11 @@ describe("cluster", function()
     end)
 
     describe("load balancing policy", function()
+      it("defaults to shared_round_robin", function()
+        local lb_policies = require "cassandra.policies.load_balancing"
+        local cluster = assert(Cluster.new())
+        assert.equal(lb_policies.shared_round_robin, cluster.load_balancing_policy)
+      end)
       it("selects the coordinator from the load balancing policy", function()
         -- default is shm round robin policy
         local cluster = assert(Cluster.new())
@@ -161,22 +166,12 @@ describe("cluster", function()
         end
       end)
       it("sets unavailable nodes as down", function()
+        local cluster = assert(Cluster.new())
+        assert(cluster:refresh())
+        assert(3, #cluster.hosts)
         finally(function()
           utils.ccm_up_node(1)
         end)
-        local cluster = assert(Cluster.new())
-
-        local s = spy.on(cluster, "get_next_coordinator")
-
-        -- All 3 nodes are up and running
-        local tracked_nodes, uniques = {}, 0
-        for i = 1, 3 do
-          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
-          assert.equal(2, #rows)
-          tracked_nodes[request_infos.coordinator] = true
-        end
-        for k in pairs(tracked_nodes) do uniques = uniques + 1 end
-        assert.equal(3, uniques)
 
         -- Stop a node
         utils.ccm_down_node(1)
@@ -194,13 +189,63 @@ describe("cluster", function()
 
         local peer_infos = assert(cluster:get_peer("127.0.0.1"))
         assert.True(peer_infos.unhealthy_at > 0)
-        -- TODO: reconnection delay check?
-        -- assert.True(peer_infos.reconnection_delay > 0)
       end)
     end)
 
-    describe("#slow reconnection policy", function()
+    describe("reconnection policy", function()
+      it("defaults to shared_exp", function()
+        local cluster = assert(Cluster.new())
+        assert.equal("shared_exp", cluster.reconnection_policy.name)
+      end)
+      it("reconnects exponentially #slow", function()
+        local cluster = assert(Cluster.new())
+        assert(cluster:refresh())
+        assert(3, #cluster.hosts)
+        finally(function()
+          utils.ccm_up_node(1)
+        end)
 
+        -- Stop a node
+        utils.ccm_down_node(1)
+
+        -- Now 127.0.0.1 should be skipped
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+        end
+
+        -- reconnection delay should be at its 1st iteration
+        local peer_infos = assert(cluster:get_peer("127.0.0.1"))
+        local delay_1 = cluster.reconnection_policy.get_next("stub")
+        assert.equal(delay_1, peer_infos.reconnection_delay)
+
+        os.execute("sleep "..delay_1/1000)
+
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+        end
+        -- 2nd iteration
+        peer_infos = assert(cluster:get_peer("127.0.0.1"))
+        local delay_2 = cluster.reconnection_policy.get_next("stub")
+        assert.equal(delay_2, peer_infos.reconnection_delay)
+
+        assert.not_equal(delay_1, delay_2)
+
+        -- node back up
+        utils.ccm_up_node(1)
+
+        os.execute("sleep "..delay_2/1000)
+
+        for i = 1, 3 do
+          local rows, _, request_infos = assert(cluster:execute "SELECT * FROM system.peers")
+          assert.equal(2, #rows)
+        end
+
+        peer_infos = assert(cluster:get_peer("127.0.0.1"))
+        assert.equal(0, peer_infos.reconnection_delay)
+        assert.equal(0, peer_infos.unhealthy_at)
+      end)
     end)
 
     describe("retry policy", function()

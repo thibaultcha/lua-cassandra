@@ -2,7 +2,7 @@ local _index_key = "shm_rr_index"
 local fmod = math.fmod
 
 return {
-  shm_round_robin = function(shm, hosts)
+  shared_round_robin = function(shm, hosts)
     local n = #hosts
     local counter = 0
 

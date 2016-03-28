@@ -1,4 +1,5 @@
 local host = require "cassandra.host"
+local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
 local retry_policies = require "cassandra.policies.retry"
 
@@ -380,7 +381,8 @@ end
 -- Inner execution
 -------------------
 
-local inner_execute -- to be defined later on
+local handle_error, retry, prepare_and_retry
+local get_opts = host.get_request_opts
 
 local function pre_execute(self, query_options)
   if not self.hosts then
@@ -397,10 +399,15 @@ local function pre_execute(self, query_options)
     n_retries = 0
   }
 
-  return coordinator, query_options, request_infos
+  return coordinator, get_opts(query_options), request_infos
 end
 
-local function post_execute(self, res, coordinator, request_infos)
+local function inner_execute(self, coordinator, request, request_infos)
+  local res, err, code = coordinator:send(request)
+  if not res then
+    return handle_error(self, coordinator, request, request_infos, err, code)
+  end
+
   -- success! make sure to re-up the node if it was DOWN and
   -- put the socket back in the connection pool.
   coordinator:setkeepalive()
@@ -416,13 +423,11 @@ end
 -- Retry policy and conditions
 -------------------------------
 
-local handle_error, retry, prepare_and_retry
-
-handle_error = function(self, coordinator, query, args, query_options, request_infos, err, cql_code)
+handle_error = function(self, coordinator, request, request_infos, err, cql_code)
   if cql_code and cql_code == cql_errors.UNPREPARED then
     -- this is the only case in which we do not close the connection to the
     -- coordinator yet: prepare the query on the same node and retry it.
-    return prepare_and_retry(self, coordinator, query, args, query_options, request_infos)
+    return prepare_and_retry(self, coordinator, request, request_infos)
   else
     -- first, we don't need to maintain the connection to this host anymore,
     -- our load balancing will very probably pick another one.
@@ -438,7 +443,7 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
          cql_code == cql_errors.IS_BOOTSTRAPPING or
          cql_code == cql_errors.TRUNCATE_ERROR then
          -- always retry, we will hit another node
-         return retry(self, query, args, query_options, request_infos)
+         return retry(self, request, request_infos)
 
       -- Decisions taken by the retry policy
       elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
@@ -450,12 +455,12 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
       end
 
       if decision == retry_policies.decisions.retry then
-        return retry(self, query, args, query_options, request_infos)
+        return retry(self, request, request_infos)
       end
     elseif err == "timeout" then
       if self.retry_on_timeout then
         -- TCP timeout
-        return retry(self, query, args, query_options, request_infos)
+        return retry(self, request, request_infos)
       end
       -- else: report to user
     else
@@ -464,7 +469,7 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
       if not ok then return nil, err end
 
       -- always retry, another node will be picked until the LB policy complains
-      return retry(self, query, args, query_options, request_infos)
+      return retry(self, request, request_infos)
     end
   end
 
@@ -472,34 +477,25 @@ handle_error = function(self, coordinator, query, args, query_options, request_i
   return nil, err, cql_code
 end
 
-prepare_and_retry = function(self, coordinator, query, args, query_options, request_infos)
+prepare_and_retry = function(self, coordinator, request, request_infos)
   local query_id, err = get_or_prepare(self, coordinator, request_infos.orig_query, true)
   if not query_id then return nil, err
-  elseif query_id ~= query then
+  elseif query_id ~= request_infos.query_id then
     -- TODO: log warning different ids
   end
 
   request_infos.prepared_and_retried = true
 
-  return inner_execute(self, coordinator, query_id, args, query_options, request_infos)
+  return inner_execute(self, coordinator, request, request_infos)
 end
 
-retry = function(self, query, args, query_options, request_infos)
+retry = function(self, request, request_infos)
   local next_coordinator, err = self:get_next_coordinator()
   if not next_coordinator then return nil, err end
 
   request_infos.n_retries = request_infos.n_retries + 1
 
-  return inner_execute(self, next_coordinator, query, args, query_options, request_infos)
-end
-
-inner_execute = function(self, coordinator, query, args, query_options, request_infos)
-  local res, err, code = coordinator:execute(query, args, query_options)
-  if not res then
-    return handle_error(self, coordinator, query, args, query_options, request_infos, err, code)
-  end
-
-  return post_execute(self, res, coordinator, request_infos)
+  return inner_execute(self, next_coordinator, request, request_infos)
 end
 
 -----------------------
@@ -510,13 +506,18 @@ function _Cluster:execute(query, args, query_options)
   local coordinator, opts, request_infos = pre_execute(self, query_options)
   if not coordinator then return nil, opts end
 
+  local request
   if opts.prepared then
+    local query_id, err = get_or_prepare(self, coordinator, query)
+    if not query_id then return nil, err end
+    request = Requests.ExecutePreparedRequest(query_id, args, opts)
+    request_infos.query_id = query_id
     request_infos.orig_query = query
-    query, err = get_or_prepare(self, coordinator, query)
-    if not query then return nil, err end
+  else
+    request = Requests.QueryRequest(query, args, opts)
   end
 
-  return inner_execute(self, coordinator, query, args, opts, request_infos)
+  return inner_execute(self, coordinator, request, request_infos)
 end
 
 function _Cluster:batch(queries, query_options)
@@ -525,15 +526,22 @@ function _Cluster:batch(queries, query_options)
 
   if opts.prepared then
     for i, q in ipairs(queries) do
+      local query, args
+      if type(q) == "string" then
+        query = q
+      else
+        query, args = q[1], q[2]
+      end
       local query_id, err = get_or_prepare(self, coordinator, query)
       if not query_id then return nil, err end
-      queries[i] = query_id
+      queries[i] = {query_id, args}
     end
+    request_infos.prepared = true
   end
 
-  -- need to know if this matter. Can I ignore retry policy on batch? unprepared errors?
-  -- inner_batch
-  -- return inner_execute(self, coordinator, queries, args, opts, request_infos)
+  local request = Requests.BatchRequest(queries, opts)
+
+  return inner_execute(self, coordinator, request, request_infos)
 end
 
 --[[

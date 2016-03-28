@@ -206,6 +206,8 @@ local function get_opts(o)
   end
 end
 
+_Host.get_request_opts = get_opts
+
 local function execute(self, query, args, opts)
   local request = opts.prepared and
     -- query is the prepared queryid
@@ -240,8 +242,7 @@ local function page_iterator(self, query, args, opts)
 end
 
 function _Host:execute(query, args, options)
-  local opts = get_opts(options)
-  return execute(self, query, args, opts)
+  return execute(self, query, args, get_opts(options))
 end
 
 function _Host:iterate(query, args, options)
@@ -249,8 +250,7 @@ function _Host:iterate(query, args, options)
 end
 
 function _Host:batch(queries, options)
-  local opts = get_opts(options)
-  local batch_request = Requests.BatchRequest(queries, opts)
+  local batch_request = Requests.BatchRequest(queries, get_opts(options))
   return self:send(batch_request)
 end
 

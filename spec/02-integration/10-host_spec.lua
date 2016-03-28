@@ -251,6 +251,9 @@ describe("host", function()
           )
         ]])
       end)
+      teardown(function()
+        assert(peer:execute "TRUNCATE things")
+      end)
 
       after_each(function()
         assert(peer:execute "TRUNCATE counters")
@@ -261,6 +264,17 @@ describe("host", function()
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
+        })
+        assert.equal("VOID", res.type)
+
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
+        assert.equal(3, rows[1].n)
+      end)
+      it("executes a batch of queries as strings", function()
+        local res = assert(peer:batch {
+          "INSERT INTO things(id, n) VALUES("..uuid..", 1)",
+          "UPDATE things SET n = 2 WHERE id = "..uuid,
+          "UPDATE things SET n = 3 WHERE id = "..uuid
         })
         assert.equal("VOID", res.type)
 
@@ -339,6 +353,20 @@ describe("host", function()
 
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(5, rows[1].n)
+      end)
+      it("execute prepared queries without args", function()
+        local res1 = assert(peer:prepare("INSERT INTO things(id,n) VALUES("..uuid..",1)"))
+        local res2 = assert(peer:prepare("UPDATE things set n = 2 WHERE id = "..uuid))
+
+        local q1, q2 = res1.query_id, res2.query_id
+
+        local res = assert(peer:batch({
+          q1, q2
+        }, {prepared = true}))
+        assert.equal("VOID", res.type)
+
+        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
+        assert.equal(2, rows[1].n)
       end)
       it("returns CQL errors", function()
         local res, err, code = peer:batch {

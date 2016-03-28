@@ -7,7 +7,6 @@ local FrameHeader = require "cassandra.types.frame_header"
 local OP_CODES = types.OP_CODES
 local string_byte = string.byte
 local string_format = string.format
-local unpack = rawget(table, "unpack") or unpack
 
 local CQL_VERSION = "3.0.0"
 
@@ -203,7 +202,13 @@ function BatchRequest:build()
   self.frame_body:write_short(#self.queries)
 
   for _, q in ipairs(self.queries) do
-    local query, args = unpack(q)
+    local query, args
+    if type(q) == "string" then
+      query = q
+    else
+      query, args = q[1], q[2]
+    end
+
     if self.options.prepared then
       self.frame_body:write_byte(1)
       self.frame_body:write_short_bytes(query) -- query id

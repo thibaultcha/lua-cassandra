@@ -347,7 +347,64 @@ describe("cluster", function()
   end) -- execute()
 
   describe("batch()", function()
+    local peer, cluster
+    setup(function()
+      cluster = assert(Cluster.new {keyspace = utils.keyspace})
+      peer = assert(host.new())
+      assert(peer:connect())
+      assert(peer:set_keyspace(utils.keyspace))
+      assert(peer:execute [[
+        CREATE TABLE IF NOT EXISTS things2(
+          id int PRIMARY KEY,
+          n int
+        )
+      ]])
+    end)
+    teardown(function()
+      assert(peer:execute "TRUNCATE things2")
+      peer:close()
+      cluster:shutdown()
+    end)
+    it("executes a batch with auto-refresh and LB policy", function()
+      local res, _, request_infos1 = assert(cluster:batch {
+        "INSERT INTO things2(id, n) VALUES(1, 1)",
+        "UPDATE things2 SET n = 2 WHERE id = 1"
+      })
+      assert.equal("VOID", res.type)
+      assert.is_string(request_infos1.coordinator)
 
+      local res, _, request_infos2 = assert(cluster:batch {
+        {"UPDATE things2 SET n = 3 WHERE id = 1"}
+      })
+      assert.equal("VOID", res.type)
+      assert.is_string(request_infos2.coordinator)
+
+      assert.not_equal(request_infos2.coordinator, request_infos1.coordinator)
+      local rows = assert(cluster:execute "SELECT * FROM things2 WHERE id = 1")
+      assert.equal(3, rows[1].n)
+    end)
+    it("executes a prepared batch without args", function()
+      local res, _, request_infos = assert(cluster:batch({
+        "INSERT INTO things2(id, n) VALUES(2, 1)",
+        "UPDATE things2 SET n = 2 WHERE id = 2"
+      }, {prepared = true}))
+      assert.equal("VOID", res.type)
+      assert.True(request_infos.prepared)
+
+      local rows = assert(cluster:execute "SELECT * FROM things2 WHERE id = 2")
+      assert.equal(2, rows[1].n)
+    end)
+    it("executes a prepared batch with args", function()
+      local res, _, request_infos = assert(cluster:batch({
+        {"INSERT INTO things2(id, n) VALUES(3, ?)", {1}},
+        {"UPDATE things2 SET n = ? WHERE id = 3", {2}}
+      }, {prepared = true}))
+      assert.equal("VOID", res.type)
+      assert.True(request_infos.prepared)
+
+      local rows = assert(cluster:execute "SELECT * FROM things2 WHERE id = 3")
+      assert.equal(2, rows[1].n)
+    end)
   end)
 
   describe("iterate()", function()

@@ -1,5 +1,5 @@
 local utils = require "spec.spec_utils"
-local host = require "cassandra.host"
+local cassandra = require "cassandra"
 local Cluster = require "cassandra.cluster"
 
 local ca_path = utils.ssl_path.."/cassandra.pem"
@@ -11,19 +11,19 @@ describe("SSL", function()
 
   describe("host", function()
     it("does not connect without SSL enabled", function()
-      local peer = assert(host.new())
+      local peer = assert(cassandra.new())
       local ok, err = peer:connect()
       assert.is_nil(ok)
       assert.equal("closed", err)
     end)
     it("connects with SSL", function()
-      local peer = assert(host.new {ssl = true})
+      local peer = assert(cassandra.new {ssl = true})
       assert(peer:connect())
       local rows = assert(peer:execute "SELECT * FROM system.local")
       assert.equal(1, #rows)
     end)
     it("connects with SSL and verifying server certificate", function()
-      local peer = assert(host.new {
+      local peer = assert(cassandra.new {
         ssl = true,
         verify = true,
         cafile = ca_path

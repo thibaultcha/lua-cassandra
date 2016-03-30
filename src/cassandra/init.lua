@@ -13,7 +13,9 @@ local MIN_PROTOCOL_VERSION = 2
 local DEFAULT_PROTOCOL_VERSION = 3
 
 local _Host = {
-  cql_errors = cql_errors
+  cql_errors = cql_errors,
+  consistencies = types.consistencies,
+  auth_providers = require "cassandra.auth"
 }
 
 _Host.__index = _Host
@@ -276,6 +278,23 @@ function _Host:__tostring()
   return "<Cassandra socket: "..tostring(self.sock)..">"
 end
 
-_Host.auth_providers = require "cassandra.auth"
+local types_mt = {
+  __index = function(self, key)
+    if types.cql_types[key] ~= nil then
+      return function(value)
+        if value == nil then
+          error("bad argument #1 to '"..key.."' (got nil)", 2)
+        end
+        return {value = value, type_id = types.cql_types[key]}
+      end
+    elseif key == "unset" then
+      return {value = "unset", type_id = "unset"}
+    end
+
+    return rawget(self, key)
+  end
+}
+
+setmetatable(_Host, types_mt)
 
 return _Host

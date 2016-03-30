@@ -1,12 +1,10 @@
-local utils = require "spec.spec_utils"
 local cassandra = require "cassandra"
 local Buffer = require "cassandra.buffer"
+local utils = require "spec.spec_utils"
 local types = require "cassandra.types"
 local CQL_TYPES = types.cql_types
 
-local SUPPORTED_PROTOCOL_VERSIONS = {cassandra.DEFAULT_PROTOCOL_VERSION, cassandra.MIN_PROTOCOL_VERSION}
-
-for _, protocol_version in ipairs(SUPPORTED_PROTOCOL_VERSIONS) do
+for _, protocol_version in ipairs({2, 3}) do
 
 describe("CQL Types protocol v"..protocol_version, function()
   it("[uuid] should be bufferable", function()
@@ -26,7 +24,7 @@ describe("CQL Types protocol v"..protocol_version, function()
         buf:reset()
 
         local decoded = buf["read_cql_"..fixture_type](buf)
-        assert.validFixture(fixture_type, fixture, decoded)
+        assert.fixture(fixture_type, fixture, decoded)
       end
     end)
 
@@ -39,7 +37,7 @@ describe("CQL Types protocol v"..protocol_version, function()
           buf:reset()
 
           local decoded = buf:read_cql_value({type_id = CQL_TYPES[fixture_type]})
-          assert.validFixture(fixture_type, fixture, decoded)
+          assert.fixture(fixture_type, fixture, decoded)
         end
       end)
     end)

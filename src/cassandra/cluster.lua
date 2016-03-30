@@ -1,10 +1,10 @@
-local host = require "cassandra.host"
+local cassandra = require "cassandra"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
-local cql_errors = host.cql_errors
+local cql_errors = cassandra.cql_errors
 local tonumber = tonumber
 local concat = table.concat
 local ipairs = ipairs
@@ -96,7 +96,7 @@ function _Cluster:shutdown()
 end
 
 local function spawn_host(self, address, port)
-  return host.new {
+  return cassandra.new {
     host = address,
     port = port,
     keyspace = self.keyspace,
@@ -432,7 +432,7 @@ end
 -------------------
 
 local handle_error, retry, prepare_and_retry
-local get_opts = host.get_request_opts
+local get_opts = cassandra.get_request_opts
 
 local function pre_execute(self, query_options)
   if not self.hosts then
@@ -607,7 +607,7 @@ function _Cluster:iterate(query, args, query_options)
     if not ok then return nil, err end
   end
 
-  return host.page_iterator(self, query, args, query_options)
+  return cassandra.page_iterator(self, query, args, query_options)
 end
 
 return _Cluster

@@ -107,7 +107,7 @@ end
 --- Assertions
 
 local say = require "say"
-local assert = require "luassert.assert"
+local luassert = require "luassert.assert"
 
 local delta = 0.0000001
 local function fixture(state, arguments)
@@ -116,11 +116,11 @@ local function fixture(state, arguments)
   if fixture_type == "float" then
     ok = math.abs(decoded - fixture) < delta
   elseif type(fixture) == "table" then
-    ok = pcall(assert.same, fixture, decoded)
+    ok = pcall(luassert.same, fixture, decoded)
   else
-    ok = pcall(assert.equal, fixture, decoded)
+    ok = pcall(luassert.equal, fixture, decoded)
   end
-  -- pop first argument, for proper output message (like assert.same)
+  -- pop first argument, for proper output message (like luassert.same)
   table.remove(arguments, 1)
   table.insert(arguments, 1, table.remove(arguments, 2))
   return ok
@@ -147,17 +147,17 @@ end
 
 say:set("assertion.same_set.positive", "Fixture and decoded value do not match")
 say:set("assertion.same_set.negative", "Fixture and decoded value do not match")
-assert:register("assertion", "same_set", same_set,
-                "assertion.same_set.positive",
-                "assertion.same_set.negative")
+luassert:register("assertion", "same_set", same_set,
+                  "assertion.same_set.positive",
+                  "assertion.same_set.negative")
 
 say:set("assertion.fixture.positive",
         "Expected fixture and decoded value to match.\nPassed in:\n%s\nExpected:\n%s")
 say:set("assertion.fixture.negative",
         "Expected fixture and decoded value to not match.\nPassed in:\n%s\nExpected:\n%s")
-assert:register("assertion", "fixture", fixture,
-                "assertion.fixture.positive",
-                "assertion.fixture.negative")
+luassert:register("assertion", "fixture", fixture,
+                  "assertion.fixture.positive",
+                  "assertion.fixture.negative")
 
 --- Fixtures
 
@@ -195,7 +195,7 @@ _M.cql_list_fixtures = {
   {value_type = types.cql_types.int, type_name = "int", value = {1, 2 , 0, -42, 42}}
 }
 
-_M.cql_set_fixtures = _M.cql_list_fixture
+_M.cql_set_fixtures = _M.cql_list_fixtures
 
 _M.cql_map_fixtures = {
   {

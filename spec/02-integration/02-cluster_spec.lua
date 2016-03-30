@@ -1,11 +1,6 @@
 local utils = require "spec.spec_utils"
 local Cluster = require "cassandra.cluster"
 
--- TODO: only to get cql_errors.
--- This will later be require "cassandra"
-local host = require "cassandra.host"
-
--- TODO: attach type serializers to host
 local cassandra = require "cassandra"
 
 describe("cluster", function()
@@ -136,7 +131,7 @@ describe("cluster", function()
       assert.is_nil(res)
       assert.equal("[Syntax error] line 0:-1 no viable alternative at input '<EOF>'", err)
       assert.truthy(code)
-      assert.equal(host.cql_errors.SYNTAX_ERROR, code)
+      assert.equal(cassandra.cql_errors.SYNTAX_ERROR, code)
     end)
     it("returns request infos", function()
       local cluster = assert(Cluster.new())
@@ -260,7 +255,7 @@ describe("cluster", function()
       math.randomseed(os.time())
       local r = math.random(10^8)
       setup(function()
-        local p = assert(host.new())
+        local p = assert(cassandra.new())
         assert(p:connect())
         assert(utils.create_keyspace(p, utils.keyspace))
         assert(p:set_keyspace(utils.keyspace))
@@ -331,14 +326,14 @@ describe("cluster", function()
 
         assert(cluster:refresh()) -- retrieve all hosts to test the retry policy later
 
-        cluster.stub_coordinator = assert(host.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
+        cluster.stub_coordinator = assert(cassandra.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
         cluster.stub_coordinator:settimeout(100)
         assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
         spy.on(cluster.stub_coordinator, "setkeepalive")
 
         utils.ccm_down_node(1) -- simulate node going down
 
-        local test_peer = assert(host.new {host = "127.0.0.1"}) -- make sure this host really times out first
+        local test_peer = assert(cassandra.new {host = "127.0.0.1"}) -- make sure this host really times out first
         test_peer:settimeout(100)
         local _, err = test_peer:connect()
         assert.equal("timeout", err)
@@ -367,14 +362,14 @@ describe("cluster", function()
 
         assert(cluster:refresh()) -- retrieve all hosts to test the retry policy later
 
-        cluster.stub_coordinator = assert(host.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
+        cluster.stub_coordinator = assert(cassandra.new {host = "127.0.0.1"}) -- create a valid peer and open its connection
         cluster.stub_coordinator:settimeout(100)
         assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
         spy.on(cluster.stub_coordinator, "setkeepalive")
 
         utils.ccm_down_node(1) -- simulate node going down
 
-        local test_peer = assert(host.new {host = "127.0.0.1"}) -- make sure this host really times out first
+        local test_peer = assert(cassandra.new {host = "127.0.0.1"}) -- make sure this host really times out first
         test_peer:settimeout(100)
         local _, err = test_peer:connect()
         assert.equal("timeout", err)
@@ -424,7 +419,7 @@ describe("cluster", function()
     local peer, cluster
     setup(function()
       cluster = assert(Cluster.new {keyspace = utils.keyspace})
-      peer = assert(host.new())
+      peer = assert(cassandra.new())
       assert(peer:connect())
       assert(peer:set_keyspace(utils.keyspace))
       assert(peer:execute [[
@@ -484,7 +479,7 @@ describe("cluster", function()
   describe("iterate()", function()
     local n_inserts, n_select, peer = 1001, 20
     setup(function()
-      peer = assert(host.new())
+      peer = assert(cassandra.new())
       assert(peer:connect())
       assert(peer:set_keyspace(utils.keyspace))
       assert(peer:execute [[

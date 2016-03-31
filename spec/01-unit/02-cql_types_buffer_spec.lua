@@ -1,6 +1,6 @@
+local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
 local Buffer = require "cassandra.buffer"
-local utils = require "spec.spec_utils"
 local types = require "cassandra.types"
 local CQL_TYPES = types.cql_types
 
@@ -16,7 +16,7 @@ describe("CQL Types protocol v"..protocol_version, function()
     assert.equal(fixture, decoded)
   end)
 
-  for fixture_type, fixture_values in pairs(utils.cql_fixtures) do
+  for fixture_type, fixture_values in pairs(helpers.cql_fixtures) do
     it("["..fixture_type.."] should be bufferable", function()
       for _, fixture in ipairs(fixture_values) do
         local buf = Buffer(protocol_version)
@@ -44,7 +44,7 @@ describe("CQL Types protocol v"..protocol_version, function()
   end
 
   it("[list<type>] should be bufferable", function()
-    for _, fixture in ipairs(utils.cql_list_fixtures) do
+    for _, fixture in ipairs(helpers.cql_list_fixtures) do
       local buf = Buffer(protocol_version)
       buf:write_cql_set(fixture.value)
       buf:reset()
@@ -54,7 +54,7 @@ describe("CQL Types protocol v"..protocol_version, function()
   end)
 
   it("[map<type, type>] should be bufferable", function()
-    for _, fixture in ipairs(utils.cql_map_fixtures) do
+    for _, fixture in ipairs(helpers.cql_map_fixtures) do
       local buf = Buffer(protocol_version)
       buf:write_cql_map(fixture.value)
       buf:reset()
@@ -64,7 +64,7 @@ describe("CQL Types protocol v"..protocol_version, function()
   end)
 
   it("[set<type>] should be bufferable", function()
-    for _, fixture in ipairs(utils.cql_set_fixtures) do
+    for _, fixture in ipairs(helpers.cql_set_fixtures) do
       local buf = Buffer(protocol_version)
       buf:write_cql_set(fixture.value)
       buf:reset()

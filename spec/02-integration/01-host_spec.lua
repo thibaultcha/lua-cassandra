@@ -1,9 +1,9 @@
-local utils = require "spec.spec_utils"
+local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
 
 describe("cassandra (host)", function()
   setup(function()
-    utils.ccm_start(3)
+    helpers.ccm_start(3)
   end)
 
   describe("consistencies", function()
@@ -140,7 +140,7 @@ describe("cassandra (host)", function()
     setup(function()
       local p = assert(cassandra.new())
       assert(p:connect())
-      assert(utils.create_keyspace(p, utils.keyspace))
+      assert(helpers.create_keyspace(p, helpers.keyspace))
       peer = p
     end)
     teardown(function()
@@ -272,7 +272,7 @@ describe("cassandra (host)", function()
 
     describe("batch()", function()
       setup(function()
-        assert(peer:set_keyspace(utils.keyspace))
+        assert(peer:set_keyspace(helpers.keyspace))
         assert(peer:execute [[
           CREATE TABLE IF NOT EXISTS things(
             id uuid PRIMARY KEY,
@@ -415,7 +415,7 @@ describe("cassandra (host)", function()
 
     describe("Types", function()
       setup(function()
-        assert(peer:set_keyspace(utils.keyspace))
+        assert(peer:set_keyspace(helpers.keyspace))
         assert(peer:execute [[
           CREATE TYPE IF NOT EXISTS address(
             street text,
@@ -452,7 +452,7 @@ describe("cassandra (host)", function()
         ]])
       end)
 
-      for fixture_type, fixture_values in pairs(utils.cql_fixtures) do
+      for fixture_type, fixture_values in pairs(helpers.cql_fixtures) do
         it("["..fixture_type.."] encoding/decoding", function()
           local insert_query = string.format("INSERT INTO cql_types(id, %s_sample) VALUES(?, ?)", fixture_type)
           local select_query = string.format("SELECT %s_sample FROM cql_types WHERE id = ?", fixture_type)
@@ -487,7 +487,7 @@ describe("cassandra (host)", function()
         assert.is_nil(rows[1].ascii_sample)
       end)
       it("[list<type>] encoding/decoding", function()
-        for _, fixture in ipairs(utils.cql_map_fixtures) do
+        for _, fixture in ipairs(helpers.cql_map_fixtures) do
           local insert_query = string.format("INSERT INTO cql_types(id, map_sample_%s_%s) VALUES(?, ?)", fixture.key_type_name, fixture.value_type_name)
           local select_query = string.format("SELECT map_sample_%s_%s FROM cql_types WHERE id = ?", fixture.key_type_name, fixture.value_type_name)
 
@@ -515,7 +515,7 @@ describe("cassandra (host)", function()
         assert.is_nil(rows[1].map_sample_text_int)
       end)
       it("[list<type, type>] encoding/decoding", function()
-        for _, fixture in ipairs(utils.cql_list_fixtures) do
+        for _, fixture in ipairs(helpers.cql_list_fixtures) do
           local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
@@ -531,7 +531,7 @@ describe("cassandra (host)", function()
         end
       end)
       it("[set<type>] encoding/decoding", function()
-        for _, fixture in ipairs(utils.cql_list_fixtures) do
+        for _, fixture in ipairs(helpers.cql_list_fixtures) do
           local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
@@ -563,7 +563,7 @@ describe("cassandra (host)", function()
         }, rows[1].udt_sample)
       end)
       it("[tuple] encoding/decoding", function()
-        for _, fixture in ipairs(utils.cql_tuple_fixtures) do
+        for _, fixture in ipairs(helpers.cql_tuple_fixtures) do
           local res = assert(peer:execute("INSERT INTO cql_types(id, tuple_sample) VALUES(?, ?)", {
             cassandra.uuid(uuid),
             cassandra.tuple(fixture.value)
@@ -583,7 +583,7 @@ describe("cassandra (host)", function()
 
     describe("type inference", function()
       for _, fixture_type in ipairs({"ascii", "boolean", "float", "int", "text", "varchar"}) do
-        local fixture_values = utils.cql_fixtures[fixture_type]
+        local fixture_values = helpers.cql_fixtures[fixture_type]
         it("["..fixture_type.."] is inferred", function()
           for _, fixture in ipairs(fixture_values) do
             local insert_query = string.format("INSERT INTO cql_types(id, %s_sample) VALUES(?, ?)", fixture_type)
@@ -602,7 +602,7 @@ describe("cassandra (host)", function()
         end)
       end
       it("[map<type, type>] is inferred", function()
-        for _, fixture in ipairs(utils.cql_list_fixtures) do
+        for _, fixture in ipairs(helpers.cql_list_fixtures) do
           local insert_query = string.format("INSERT INTO cql_types(id, list_sample_%s) VALUES(?, ?)", fixture.type_name)
           local select_query = string.format("SELECT list_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 
@@ -619,7 +619,7 @@ describe("cassandra (host)", function()
       end)
     end)
     it("[set<type>] is inferred", function()
-      for _, fixture in ipairs(utils.cql_list_fixtures) do
+      for _, fixture in ipairs(helpers.cql_list_fixtures) do
         local insert_query = string.format("INSERT INTO cql_types(id, set_sample_%s) VALUES(?, ?)", fixture.type_name)
         local select_query = string.format("SELECT set_sample_%s FROM cql_types WHERE id = ?", fixture.type_name)
 

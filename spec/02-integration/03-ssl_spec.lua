@@ -1,12 +1,12 @@
-local utils = require "spec.spec_utils"
+local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
 local Cluster = require "cassandra.cluster"
 
-local ca_path = utils.ssl_path.."/cassandra.pem"
+local ca_path = helpers.ssl_path.."/cassandra.pem"
 
 describe("SSL", function()
   setup(function()
-    utils.ccm_start(1, {ssl = true, name = "ssl"})
+    helpers.ccm_start(1, {ssl = true, name = "ssl"})
   end)
 
   describe("host", function()

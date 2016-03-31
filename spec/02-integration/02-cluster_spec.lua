@@ -1,11 +1,11 @@
-local utils = require "spec.spec_utils"
+local helpers = require "spec.helpers"
 local Cluster = require "cassandra.cluster"
 
 local cassandra = require "cassandra"
 
 describe("cluster", function()
   setup(function()
-    utils.ccm_start(3)
+    helpers.ccm_start(3)
   end)
 
   describe("new()", function()
@@ -165,11 +165,11 @@ describe("cluster", function()
         assert(cluster:refresh())
         assert(3, #cluster.hosts)
         finally(function()
-          utils.ccm_up_node(1)
+          helpers.ccm_up_node(1)
         end)
 
         -- Stop a node
-        utils.ccm_down_node(1)
+        helpers.ccm_down_node(1)
 
         -- Now 127.0.0.1 should be skipped
         local tracked_nodes, uniques = {}, 0
@@ -197,11 +197,11 @@ describe("cluster", function()
         assert(cluster:refresh())
         assert(3, #cluster.hosts)
         finally(function()
-          utils.ccm_up_node(1)
+          helpers.ccm_up_node(1)
         end)
 
         -- Stop a node
-        utils.ccm_down_node(1)
+        helpers.ccm_down_node(1)
 
         -- Now 127.0.0.1 should be skipped
         for i = 1, 3 do
@@ -228,7 +228,7 @@ describe("cluster", function()
         assert.not_equal(delay_1, delay_2)
 
         -- node back up
-        utils.ccm_up_node(1)
+        helpers.ccm_up_node(1)
 
         os.execute("sleep "..delay_2/1000)
 
@@ -257,8 +257,8 @@ describe("cluster", function()
       setup(function()
         local p = assert(cassandra.new())
         assert(p:connect())
-        assert(utils.create_keyspace(p, utils.keyspace))
-        assert(p:set_keyspace(utils.keyspace))
+        assert(helpers.create_keyspace(p, helpers.keyspace))
+        assert(p:set_keyspace(helpers.keyspace))
         assert(p:execute [[
           CREATE TABLE IF NOT EXISTS foos(
             id uuid,
@@ -277,7 +277,7 @@ describe("cluster", function()
         -- prepare a dumb query (dumb, but unique, so no need to restart the node for this test)
         local query = "SELECT * FROM foos WHERE id = ? AND n = "..r
         local cluster = assert(Cluster.new {
-          keyspace = utils.keyspace,
+          keyspace = helpers.keyspace,
           query_options = {prepared = true}
         })
 
@@ -316,7 +316,7 @@ describe("cluster", function()
       end)
       it("retries if host times out", function()
         finally(function()
-          utils.ccm_up_node(1)
+          helpers.ccm_up_node(1)
         end)
 
         local cluster = assert(Cluster.new {
@@ -331,7 +331,7 @@ describe("cluster", function()
         assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
         spy.on(cluster.stub_coordinator, "setkeepalive")
 
-        utils.ccm_down_node(1) -- simulate node going down
+        helpers.ccm_down_node(1) -- simulate node going down
 
         local test_peer = assert(cassandra.new {host = "127.0.0.1"}) -- make sure this host really times out first
         test_peer:settimeout(100)
@@ -351,7 +351,7 @@ describe("cluster", function()
       end)
       it("does not retry without retry_on_timeout", function()
         finally(function()
-          utils.ccm_up_node(1)
+          helpers.ccm_up_node(1)
         end)
 
         local cluster = assert(Cluster.new {
@@ -367,7 +367,7 @@ describe("cluster", function()
         assert(cluster.stub_coordinator:connect()) -- force this coordinator to be used first by the stub cluster
         spy.on(cluster.stub_coordinator, "setkeepalive")
 
-        utils.ccm_down_node(1) -- simulate node going down
+        helpers.ccm_down_node(1) -- simulate node going down
 
         local test_peer = assert(cassandra.new {host = "127.0.0.1"}) -- make sure this host really times out first
         test_peer:settimeout(100)
@@ -387,7 +387,7 @@ describe("cluster", function()
 
     describe("schema consensus", function()
       it("waits on SCHEMA_CHANGE results", function()
-        local cluster = assert(Cluster.new {keyspace = utils.keyspace})
+        local cluster = assert(Cluster.new {keyspace = helpers.keyspace})
         finally(function()
           cluster:execute "DROP TABLE consensus"
         end)
@@ -399,7 +399,7 @@ describe("cluster", function()
       end)
       it("timeouts", function()
         local cluster = assert(Cluster.new {
-          keyspace = utils.keyspace,
+          keyspace = helpers.keyspace,
           max_schema_consensus_wait = 1000
         })
         finally(function()
@@ -418,10 +418,10 @@ describe("cluster", function()
   describe("batch()", function()
     local peer, cluster
     setup(function()
-      cluster = assert(Cluster.new {keyspace = utils.keyspace})
+      cluster = assert(Cluster.new {keyspace = helpers.keyspace})
       peer = assert(cassandra.new())
       assert(peer:connect())
-      assert(peer:set_keyspace(utils.keyspace))
+      assert(peer:set_keyspace(helpers.keyspace))
       assert(peer:execute [[
         CREATE TABLE IF NOT EXISTS things2(
           id int PRIMARY KEY,
@@ -481,7 +481,7 @@ describe("cluster", function()
     setup(function()
       peer = assert(cassandra.new())
       assert(peer:connect())
-      assert(peer:set_keyspace(utils.keyspace))
+      assert(peer:set_keyspace(helpers.keyspace))
       assert(peer:execute [[
         CREATE TABLE IF NOT EXISTS metrics(
           id int PRIMARY KEY,
@@ -494,7 +494,7 @@ describe("cluster", function()
       end
     end)
     it("iterates with auto-refresh", function()
-      local cluster = assert(Cluster.new {keyspace = utils.keyspace})
+      local cluster = assert(Cluster.new {keyspace = helpers.keyspace})
       local s = spy.on(cluster, "get_next_coordinator")
       local n_page = 0
       local opts, buf = {page_size = n_select}, {}

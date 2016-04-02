@@ -1,6 +1,6 @@
 local auth_providers = require "cassandra.auth"
 
-describe("Auth Providers", function()
+describe("auth providers", function()
   describe("plain_text", function()
     local plain_text = auth_providers.plain_text
     it("should be instanciable", function()
@@ -17,7 +17,7 @@ describe("Auth Providers", function()
         plain_text("username")
       end, "arg #2 must be a string (password)")
       local trace = debug.traceback()
-      assert.matches("spec/01-unit/12-auth_providers_spec.lua", trace, nil, true)
+      assert.matches("spec/01-unit/05-policies_auth_spec.lua", trace, nil, true)
     end)
     it("should implement initial_response()", function()
       local auth = plain_text("username", "password")

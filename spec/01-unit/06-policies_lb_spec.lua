@@ -1,6 +1,6 @@
 local load_balancing_policies = require "cassandra.policies.load_balancing"
 
-describe("Load balancing policies", function()
+describe("load balancing policies", function()
   describe("shared round robin", function()
     local shared_round_robin = load_balancing_policies.shared_round_robin
     local hosts = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}

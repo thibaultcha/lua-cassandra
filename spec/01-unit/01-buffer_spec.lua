@@ -1,4 +1,4 @@
-local Buffer = require("cassandra.frame").buffer
+local Buffer = require("cassandra.protocol").buffer
 
 describe("Buffer", function()
   -- protocol types (different than CQL types)

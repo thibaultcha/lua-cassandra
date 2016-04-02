@@ -161,7 +161,7 @@ luassert:register("assertion", "fixture", fixture,
 
 --- Fixtures
 
-local cql_types = require("cassandra.frame").cql_types
+local cql_types = require("cassandra.protocol").cql_types
 
 _M.cql_fixtures = {
   -- custom

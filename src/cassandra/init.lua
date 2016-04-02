@@ -4,17 +4,17 @@ local Requests = require "cassandra.requests"
 local socket = require "cassandra.socket"
 local types = require "cassandra.types"
 
+local protocol = require "cassandra.protocol"
+local cql_types = protocol.cql_types
+local cql_errors = protocol.cql_errors
+
 local setmetatable = setmetatable
-local cql_errors = types.errors
 local pairs = pairs
 local find = string.find
 
-local MIN_PROTOCOL_VERSION = 2
-local DEFAULT_PROTOCOL_VERSION = 3
-
 local _Host = {
   cql_errors = cql_errors,
-  consistencies = types.consistencies,
+  consistencies = protocol.consistencies,
   auth_providers = require "cassandra.auth"
 }
 
@@ -30,7 +30,7 @@ function _Host.new(opts)
     host = opts.host or "127.0.0.1",
     port = opts.port or 9042,
     keyspace = opts.keyspace,
-    protocol_version = opts.protocol_version or DEFAULT_PROTOCOL_VERSION,
+    protocol_version = opts.protocol_version or protocol.def_protocol_version,
     ssl = opts.ssl,
     verify = opts.verify,
     cert = opts.cert,
@@ -130,7 +130,7 @@ function _Host:connect()
         -- too high protocol version
         self.sock:close()
         self.protocol_version = self.protocol_version - 1
-        if self.protocol_version < MIN_PROTOCOL_VERSION then
+        if self.protocol_version < protocol.min_protocol_version then
           return nil, "could not find a supported protocol version"
         end
         return self:connect()
@@ -192,8 +192,8 @@ function _Host:prepare(query)
 end
 
 local query_options = {
-  consistency = types.consistencies.one,
-  serial_consistency = types.consistencies.serial,
+  consistency = protocol.consistencies.one,
+  serial_consistency = protocol.consistencies.serial,
   page_size = 1000,
   paging_state = nil,
   auto_paging = false,
@@ -278,9 +278,6 @@ function _Host:__tostring()
   return "<Cassandra socket: "..tostring(self.sock)..">"
 end
 
-local frame = require "cassandra.frame"
-local cql_types = frame.cql_types
-
 local cql_marshallers = {
   __index = function(self, key)
     local cql_t = cql_types[key]
@@ -292,7 +289,7 @@ local cql_marshallers = {
         return {val = val, __cql_type = cql_t}
       end
     elseif key == "unset" then
-      return {__cql_type = frame.cql_t_unset}
+      return {__cql_type = protocol.cql_t_unset}
     end
 
     return rawget(self, key)

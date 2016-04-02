@@ -1,8 +1,8 @@
 local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
-local frame = require "cassandra.frame"
-local Buffer = frame.buffer
-local cql_types = frame.cql_types
+local protocol = require "cassandra.protocol"
+local Buffer = protocol.buffer
+local cql_types = protocol.cql_types
 
 for protocol_version = 2, 3 do
 

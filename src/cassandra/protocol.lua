@@ -3,7 +3,7 @@ local bit
 if jit then
   bit = require 'bit'
 else
-  bit = require 'cassandra.bit'
+  bit = require 'cassandra.utils.bit'
 end
 
 local setmetatable = setmetatable
@@ -72,6 +72,24 @@ local consistencies = {
   serial = 0x0008,
   local_serial = 0x0009,
   local_one = 0x000a
+}
+
+local ERRORS = {
+  SERVER = 0x0000,
+  PROTOCOL = 0x000A,
+  BAD_CREDENTIALS = 0x0100,
+  UNAVAILABLE_EXCEPTION = 0x1000,
+  OVERLOADED = 0x1001,
+  IS_BOOTSTRAPPING = 0x1002,
+  TRUNCATE_ERROR = 0x1003,
+  WRITE_TIMEOUT = 0x1100,
+  READ_TIMEOUT = 0x1200,
+  SYNTAX_ERROR = 0x2000,
+  UNAUTHORIZED = 0x2100,
+  INVALID = 0x2200,
+  CONFIG_ERROR = 0x2300,
+  ALREADY_EXISTS = 0x2400,
+  UNPREPARED = 0x2500
 }
 
 local OP_CODES = {
@@ -1014,24 +1032,6 @@ do
     NO_METADATA = 0x04
   }
 
-  local ERRORS = {
-    SERVER = 0x0000,
-    PROTOCOL = 0x000A,
-    BAD_CREDENTIALS = 0x0100,
-    UNAVAILABLE_EXCEPTION = 0x1000,
-    OVERLOADED = 0x1001,
-    IS_BOOTSTRAPPING = 0x1002,
-    TRUNCATE_ERROR = 0x1003,
-    WRITE_TIMEOUT = 0x1100,
-    READ_TIMEOUT = 0x1200,
-    SYNTAX_ERROR = 0x2000,
-    UNAUTHORIZED = 0x2100,
-    INVALID = 0x2200,
-    CONFIG_ERROR = 0x2300,
-    ALREADY_EXISTS = 0x2400,
-    UNPREPARED = 0x2500
-  }
-
   local ERROR_TRANSLATIONS = {
     [ERRORS.SERVER] = 'Server error',
     [ERRORS.PROTOCOL] = 'Protocol error',
@@ -1206,9 +1206,12 @@ end
 
 return {
   buffer = Buffer, -- for testing only
+  errors = errors,
   requests = requests,
   cql_types = cql_types,
   cql_t_unset = cql_t_unset,
   frame_reader = frame_reader,
-  consistencies = consistencies
+  consistencies = consistencies,
+  min_protocol_version = 2,
+  def_protocol_version = 3
 }

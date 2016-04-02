@@ -106,7 +106,10 @@ describe("CQL marshalling v"..protocol_version, function()
       }
 
       local buf = Buffer.new(protocol_version)
-      buf:write_cql_values(values)
+      buf:write_short(#values)
+      for i = 1, #values do
+        buf:write_cql_value(values[i])
+      end
       buf:reset()
 
       assert.equal(#values, buf:read_short())

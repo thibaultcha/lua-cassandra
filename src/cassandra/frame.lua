@@ -30,63 +30,9 @@ local fmt = string.format
 local band = bit.band
 local bor = bit.bor
 
-local QUERY_FLAGS = {
-  COMPRESSION = 0x01, -- not implemented
-  TRACING = 0x02
-}
-
-local ERRORS = {
-  SERVER = 0x0000,
-  PROTOCOL = 0x000A,
-  BAD_CREDENTIALS = 0x0100,
-  UNAVAILABLE_EXCEPTION = 0x1000,
-  OVERLOADED = 0x1001,
-  IS_BOOTSTRAPPING = 0x1002,
-  TRUNCATE_ERROR = 0x1003,
-  WRITE_TIMEOUT = 0x1100,
-  READ_TIMEOUT = 0x1200,
-  SYNTAX_ERROR = 0x2000,
-  UNAUTHORIZED = 0x2100,
-  INVALID = 0x2200,
-  CONFIG_ERROR = 0x2300,
-  ALREADY_EXISTS = 0x2400,
-  UNPREPARED = 0x2500
-}
-
-local ERROR_TRANSLATIONS = {
-  [ERRORS.SERVER] = 'Server error',
-  [ERRORS.PROTOCOL] = 'Protocol error',
-  [ERRORS.BAD_CREDENTIALS] = 'Bad credentials',
-  [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
-  [ERRORS.OVERLOADED] = 'Overloaded',
-  [ERRORS.IS_BOOTSTRAPPING] = 'Is bootstrapping',
-  [ERRORS.TRUNCATE_ERROR] = 'Truncate error',
-  [ERRORS.WRITE_TIMEOUT] = 'Write timeout',
-  [ERRORS.READ_TIMEOUT] = 'Read timeout',
-  [ERRORS.SYNTAX_ERROR] = 'Syntax error',
-  [ERRORS.UNAUTHORIZED] = 'Unauthorized',
-  [ERRORS.INVALID] = 'Invalid',
-  [ERRORS.CONFIG_ERROR] = 'Config error',
-  [ERRORS.ALREADY_EXISTS] = 'Already exists',
-  [ERRORS.UNPREPARED] = 'Unprepared'
-}
-
-local consistencies = {
-  any = 0x0000,
-  one = 0x0001,
-  two = 0x0002,
-  three = 0x0003,
-  quorum = 0x0004,
-  all = 0x0005,
-  local_quorum = 0x0006,
-  each_quorum = 0x0007,
-  serial = 0x0008,
-  local_serial = 0x0009,
-  local_one = 0x000a
-}
-
-
 local Buffer = {}
+local requests = {}
+local frame_reader = {}
 
 local cql_t_unset = -1
 local cql_types = {
@@ -112,6 +58,39 @@ local cql_types = {
   set       = 0x22,
   udt       = 0x30,
   tuple     = 0x31
+}
+
+local consistencies = {
+  any = 0x0000,
+  one = 0x0001,
+  two = 0x0002,
+  three = 0x0003,
+  quorum = 0x0004,
+  all = 0x0005,
+  local_quorum = 0x0006,
+  each_quorum = 0x0007,
+  serial = 0x0008,
+  local_serial = 0x0009,
+  local_one = 0x000a
+}
+
+local OP_CODES = {
+  ERROR = 0x00,
+  STARTUP = 0x01,
+  READY = 0x02,
+  AUTHENTICATE = 0x03,
+  OPTIONS = 0x05,
+  SUPPORTED = 0x06,
+  QUERY = 0x07,
+  RESULT = 0x08,
+  PREPARE = 0x09,
+  EXECUTE = 0x0A,
+  REGISTER = 0x0B,
+  EVENT = 0x0C,
+  BATCH = 0x0D,
+  AUTH_CHALLENGE = 0x0E,
+  AUTH_RESPONSE = 0x0F,
+  AUTH_SUCCESS = 0x10
 }
 
 do
@@ -767,7 +746,7 @@ do
   -- CQL Unmarshalling
   --------------------
 
-  local cql_unmarshaller = {
+  local cql_unmarshallers = {
     -- custom = 0x00,
     [cql_types.ascii] = unmarsh_raw,
     [cql_types.bigint] = unmarsh_bigint,
@@ -794,7 +773,7 @@ do
 
   -- Read a CQL value with a given CQL type
   function Buffer:read_cql_value(t)
-    local unmarshaller = cql_unmarshaller[t.__cql_type]
+    local unmarshaller = cql_unmarshallers[t.__cql_type]
     if not unmarshaller then
       error('no unmarshaller for CQL type '..t.__cql_type)
     end
@@ -808,28 +787,14 @@ end -- do CQL encoding
 -- CQL Requests
 ---------------
 
-local requests = {}
-
 do
   local CQL_VERSION = '3.0.0'
-  local OP_CODES = {
-    ERROR = 0x00,
-    STARTUP = 0x01,
-    READY = 0x02,
-    AUTHENTICATE = 0x03,
-    OPTIONS = 0x05,
-    SUPPORTED = 0x06,
-    QUERY = 0x07,
-    RESULT = 0x08,
-    PREPARE = 0x09,
-    EXECUTE = 0x0A,
-    REGISTER = 0x0B,
-    EVENT = 0x0C,
-    BATCH = 0x0D,
-    AUTH_CHALLENGE = 0x0E,
-    AUTH_RESPONSE = 0x0F,
-    AUTH_SUCCESS = 0x10
+  --[[
+  local QUERY_FLAGS = {
+    COMPRESSION = 0x01,
+    TRACING = 0x02
   }
+  --]]
 
   local request_mt = {}
   request_mt.__index = request_mt
@@ -1030,6 +995,210 @@ do
   }
 end
 
+---------------
+-- Frame reader
+---------------
+
+do
+  local RESULT_KINDS = {
+    VOID = 0x01,
+    ROWS = 0x02,
+    SET_KEYSPACE = 0x03,
+    PREPARED = 0x04,
+    SCHEMA_CHANGE = 0x05
+  }
+
+  local ROWS_RESULT_FLAGS = {
+    GLOBAL_TABLES_SPEC = 0x01,
+    HAS_MORE_PAGES = 0x02,
+    NO_METADATA = 0x04
+  }
+
+  local ERRORS = {
+    SERVER = 0x0000,
+    PROTOCOL = 0x000A,
+    BAD_CREDENTIALS = 0x0100,
+    UNAVAILABLE_EXCEPTION = 0x1000,
+    OVERLOADED = 0x1001,
+    IS_BOOTSTRAPPING = 0x1002,
+    TRUNCATE_ERROR = 0x1003,
+    WRITE_TIMEOUT = 0x1100,
+    READ_TIMEOUT = 0x1200,
+    SYNTAX_ERROR = 0x2000,
+    UNAUTHORIZED = 0x2100,
+    INVALID = 0x2200,
+    CONFIG_ERROR = 0x2300,
+    ALREADY_EXISTS = 0x2400,
+    UNPREPARED = 0x2500
+  }
+
+  local ERROR_TRANSLATIONS = {
+    [ERRORS.SERVER] = 'Server error',
+    [ERRORS.PROTOCOL] = 'Protocol error',
+    [ERRORS.BAD_CREDENTIALS] = 'Bad credentials',
+    [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
+    [ERRORS.OVERLOADED] = 'Overloaded',
+    [ERRORS.IS_BOOTSTRAPPING] = 'Is bootstrapping',
+    [ERRORS.TRUNCATE_ERROR] = 'Truncate error',
+    [ERRORS.WRITE_TIMEOUT] = 'Write timeout',
+    [ERRORS.READ_TIMEOUT] = 'Read timeout',
+    [ERRORS.SYNTAX_ERROR] = 'Syntax error',
+    [ERRORS.UNAUTHORIZED] = 'Unauthorized',
+    [ERRORS.INVALID] = 'Invalid',
+    [ERRORS.CONFIG_ERROR] = 'Config error',
+    [ERRORS.ALREADY_EXISTS] = 'Already exists',
+    [ERRORS.UNPREPARED] = 'Unprepared'
+  }
+
+  function frame_reader.version(b)
+    local version = band(byte(b), 0x7F) -- string.byte
+    local header_size = version < 3 and 8 or 9
+    return version, header_size
+  end
+
+  function frame_reader.read_header(version, bytes)
+    local buf = Buffer.new(version, bytes)
+    local flags = buf:read_bytes()
+    local stream_id
+    if version < 3 then
+      stream_id = buf:read_byte()
+    else
+      stream_id = buf:read_short()
+    end
+    return {
+      flags = flags,
+      version = version,
+      stream_id = stream_id,
+      op_code = buf:read_byte(),
+      body_length = buf:read_int()
+    }
+  end
+
+  local function parse_metadata(body)
+    local columns = {}
+    local k_name, t_name, paging_state
+
+    local flags = body:read_int()
+    local columns_count = body:read_int()
+    local has_more_pages = band(flags, ROWS_RESULT_FLAGS.HAS_MORE_PAGES) ~= 0
+    local has_global_table_spec = band(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC) ~= 0
+    --local has_no_metadata = band(flags, ROWS_RESULT_FLAGS.NO_METADATA) ~= 0
+
+    if has_more_pages then
+      paging_state = body:read_bytes()
+    end
+    if has_global_table_spec then
+      k_name = body:read_string()
+      t_name = body:read_string()
+    end
+
+    for _ = 1, columns_count do
+      if not has_global_table_spec then
+        k_name = body:read_string()
+        t_name = body:read_string()
+      end
+      columns[#columns+1] = {
+        name = body:read_string(),
+        type = body:read_options(),
+        keysapce = k_name,
+        table = t_name
+      }
+    end
+    return {
+      columns = columns,
+      columns_count = columns_count,
+      has_more_pages = has_more_pages,
+      paging_state = paging_state
+    }
+  end
+
+  local results_parsers = {
+    [RESULT_KINDS.VOID] = function()
+      return {type = "VOID"}
+    end,
+    [RESULT_KINDS.ROWS] = function(body)
+      local metadata = parse_metadata(body)
+      local columns = metadata.columns
+      local columns_count = metadata.columns_count
+      local rows_count = body:read_int()
+
+      local rows = {
+        type = "ROWS",
+        meta = {
+          has_more_pages = metadata.has_more_pages,
+          paging_state = metadata.paging_state
+        }
+      }
+
+      for _ = 1, rows_count do
+        local row = {}
+        for i = 1, columns_count do
+          row[columns[i].name] = body:read_cql_value(columns[i].type)
+        end
+        rows[#rows+1] = row
+      end
+      return rows
+    end,
+    [RESULT_KINDS.SET_KEYSPACE] = function(body)
+      return {
+        type = "SET_KEYSPACE",
+        keyspace = body:read_string()
+      }
+    end,
+    [RESULT_KINDS.PREPARED] = function(body)
+      local query_id = body:read_short_bytes()
+      local metadata = parse_metadata(body)
+      local result_metadata = parse_metadata(body)
+      return {
+        type = "PREPARED",
+        meta = metadata,
+        query_id = query_id,
+        result = result_metadata
+      }
+    end,
+    [RESULT_KINDS.SCHEMA_CHANGE] = function(body)
+      local change_type = body:read_string()
+      local target = body:read_string()
+      local keyspace = body:read_string()
+      local name
+      if target == "TABLE" or target == "TYPE" then
+        name = body:read_string()
+      end
+      return {
+        type = "SCHEMA_CHANGE",
+        name = name,
+        target = target,
+        keyspace = keyspace,
+        change_type = change_type
+      }
+    end
+  }
+
+  local ready = {ready = true}
+
+  function frame_reader.read_body(header, bytes)
+    local op_code = header.op_code
+    local body = Buffer.new(header.version, bytes)
+
+    if op_code == OP_CODES.RESULT then
+      local result_kind = body:read_int()
+      local parser = results_parsers[result_kind]
+      return parser(body)
+    elseif op_code == OP_CODES.ERROR then
+      local code = body:read_int()
+      local message = body:read_string()
+      return nil, "["..ERROR_TRANSLATIONS[code].."] "..message, code
+    elseif op_code == OP_CODES.READY then
+      return ready
+    elseif op_code == OP_CODES.AUTHENTICATE then
+      local class_name = body:read_string()
+      return {must_authenticate = true, class_name = class_name}
+    elseif op_code == OP_CODES.AUTH_SUCCESS then
+      local token = body:read_bytes()
+      return {authenticated = true, token = token}
+    end
+  end
+end
 
 ----------
 -- Exposed
@@ -1039,5 +1208,7 @@ return {
   buffer = Buffer, -- for testing only
   requests = requests,
   cql_types = cql_types,
-  cql_t_unset = cql_t_unset
+  cql_t_unset = cql_t_unset,
+  frame_reader = frame_reader,
+  consistencies = consistencies
 }

@@ -1,4 +1,10 @@
-local t_utils = require "cassandra.utils.table"
+local t_utils = require 'cassandra.utils.table'
+local bit
+if jit then
+  bit = require 'bit'
+else
+  bit = require 'cassandra.bit'
+end
 
 local setmetatable = setmetatable
 local tonumber = tonumber
@@ -21,29 +27,12 @@ local gsub = string.gsub
 local rep = string.rep
 local sub = string.sub
 local fmt = string.format
+local band = bit.band
+local bor = bit.bor
 
 local QUERY_FLAGS = {
   COMPRESSION = 0x01, -- not implemented
   TRACING = 0x02
-}
-
-local OP_CODES = {
-  ERROR = 0x00,
-  STARTUP = 0x01,
-  READY = 0x02,
-  AUTHENTICATE = 0x03,
-  OPTIONS = 0x05,
-  SUPPORTED = 0x06,
-  QUERY = 0x07,
-  RESULT = 0x08,
-  PREPARE = 0x09,
-  EXECUTE = 0x0A,
-  REGISTER = 0x0B,
-  EVENT = 0x0C,
-  BATCH = 0x0D,
-  AUTH_CHALLENGE = 0x0E,
-  AUTH_RESPONSE = 0x0F,
-  AUTH_SUCCESS = 0x10
 }
 
 local ERRORS = {
@@ -65,23 +54,41 @@ local ERRORS = {
 }
 
 local ERROR_TRANSLATIONS = {
-  [ERRORS.SERVER] = "Server error",
-  [ERRORS.PROTOCOL] = "Protocol error",
-  [ERRORS.BAD_CREDENTIALS] = "Bad credentials",
-  [ERRORS.UNAVAILABLE_EXCEPTION] = "Unavailable exception",
-  [ERRORS.OVERLOADED] = "Overloaded",
-  [ERRORS.IS_BOOTSTRAPPING] = "Is bootstrapping",
-  [ERRORS.TRUNCATE_ERROR] = "Truncate error",
-  [ERRORS.WRITE_TIMEOUT] = "Write timeout",
-  [ERRORS.READ_TIMEOUT] = "Read timeout",
-  [ERRORS.SYNTAX_ERROR] = "Syntax error",
-  [ERRORS.UNAUTHORIZED] = "Unauthorized",
-  [ERRORS.INVALID] = "Invalid",
-  [ERRORS.CONFIG_ERROR] = "Config error",
-  [ERRORS.ALREADY_EXISTS] = "Already exists",
-  [ERRORS.UNPREPARED] = "Unprepared"
+  [ERRORS.SERVER] = 'Server error',
+  [ERRORS.PROTOCOL] = 'Protocol error',
+  [ERRORS.BAD_CREDENTIALS] = 'Bad credentials',
+  [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
+  [ERRORS.OVERLOADED] = 'Overloaded',
+  [ERRORS.IS_BOOTSTRAPPING] = 'Is bootstrapping',
+  [ERRORS.TRUNCATE_ERROR] = 'Truncate error',
+  [ERRORS.WRITE_TIMEOUT] = 'Write timeout',
+  [ERRORS.READ_TIMEOUT] = 'Read timeout',
+  [ERRORS.SYNTAX_ERROR] = 'Syntax error',
+  [ERRORS.UNAUTHORIZED] = 'Unauthorized',
+  [ERRORS.INVALID] = 'Invalid',
+  [ERRORS.CONFIG_ERROR] = 'Config error',
+  [ERRORS.ALREADY_EXISTS] = 'Already exists',
+  [ERRORS.UNPREPARED] = 'Unprepared'
 }
 
+local consistencies = {
+  any = 0x0000,
+  one = 0x0001,
+  two = 0x0002,
+  three = 0x0003,
+  quorum = 0x0004,
+  all = 0x0005,
+  local_quorum = 0x0006,
+  each_quorum = 0x0007,
+  serial = 0x0008,
+  local_serial = 0x0009,
+  local_one = 0x000a
+}
+
+
+local Buffer = {}
+
+local cql_t_unset = -1
 local cql_types = {
   custom    = 0x00,
   ascii     = 0x01,
@@ -107,610 +114,592 @@ local cql_types = {
   tuple     = 0x31
 }
 
-local cql_t_unset = -1
+do
+  ---------
+  -- Buffer
+  ---------
+  Buffer.__index = Buffer
 
-local consistencies = {
-  any = 0x0000,
-  one = 0x0001,
-  two = 0x0002,
-  three = 0x0003,
-  quorum = 0x0004,
-  all = 0x0005,
-  local_quorum = 0x0006,
-  each_quorum = 0x0007,
-  serial = 0x0008,
-  local_serial = 0x0009,
-  local_one = 0x000a
-}
+  function Buffer.new(version, str)
+    str = str or ''
+    local buf = {
+      version = version,
+      str = str,
+      len = #str,
+      pos = 1
+    }
 
----------
--- Buffer
----------
-
-local Buffer = {}
-Buffer.__index = Buffer
-
-function Buffer.new(version, str)
-  str = str or ""
-  local buf = {
-    version = version,
-    str = str,
-    len = #str,
-    pos = 1
-  }
-
-  return setmetatable(buf, Buffer)
-end
-
-function Buffer:write(bytes)
-  self.str = self.str..bytes
-  self.len = self.len + #bytes
-  self.pos = self.len
-end
-
-function Buffer:read(n)
-  if n < 1 then return "" end
-  local pos = self.pos
-
-  local last_index = n ~= nil and pos + n - 1 or -1
-  local bytes = sub(self.str, pos, last_index)
-  self.pos = pos + #bytes
-  return bytes
-end
-
-function Buffer:reset()
-  self.pos = 1
-end
-
-function Buffer:get()
-  return self.str
-end
-
---------
--- Utils
---------
-
-local function big_endian_representation(num, bytes)
-  if num < 0 then
-    -- 2's complement
-    num = pow(0x100, bytes) + num
+    return setmetatable(buf, Buffer)
   end
-  local t = {}
-  while num > 0 do
-    local rest = fmod(num, 0x100)
-    insert(t, 1, char(rest))
-    num = (num-rest) / 0x100
+
+  function Buffer:write(bytes)
+    self.str = self.str..bytes
+    self.len = self.len + #bytes
+    self.pos = self.len
   end
-  local padding = rep("\0", bytes - #t)
-  return padding..concat(t)
-end
 
-local function string_to_number(str, signed)
-  local number = 0
-  local exponent = 1
-  for i = #str, 1, -1 do
-    number = number + byte(str, i) * exponent
-    exponent = exponent * 256
+  function Buffer:read(n)
+    if n < 1 then return '' end
+    local pos = self.pos
+
+    local last_index = n ~= nil and pos + n - 1 or -1
+    local bytes = sub(self.str, pos, last_index)
+    self.pos = pos + #bytes
+    return bytes
   end
-  if signed and number > exponent / 2 then
-    -- 2's complement
-    number = number - exponent
+
+  function Buffer:reset()
+    self.pos = 1
   end
-  return number
-end
 
-------------
--- Raw types
-------------
-
-local function marsh_byte(val)
-  return char(val)
-end
-
-local function unmarsh_byte(buffer)
-  return byte(buffer:read(1))
-end
-
-local function marsh_int(val)
-  return big_endian_representation(val, 4)
-end
-
-local function marsh_unset()
-  return marsh_int(-2)
-end
-
-local function unmarsh_int(buffer)
-  return string_to_number(buffer:read(4), true)
-end
-
-local function marsh_long(val)
-  return big_endian_representation(val, 8)
-end
-
-local function unmarsh_long(buffer)
-  return string_to_number(buffer:read(8), true)
-end
-
-local function marsh_short(val)
-  return big_endian_representation(val, 2)
-end
-
-local function unmarsh_short(buffer)
-  return string_to_number(buffer:read(2), true)
-end
-
-local function marsh_string(val)
-  return marsh_short(#val)..val
-end
-
-local function unmarsh_string(buffer)
-  return buffer:read(buffer:read_short())
-end
-
-local function marsh_long_string(val)
-  return marsh_int(#val)..val
-end
-
-local function unmarsh_long_string(buffer)
-  return buffer:read(buffer:read_int())
-end
-
-local function marsh_bytes(val)
-  return marsh_int(#val)..val
-end
-
-local function unmarsh_bytes(buffer)
-  local n_bytes = buffer:read_int()
-  if n_bytes < 0 then return nil end -- NULL/unset
-  return buffer:read(n_bytes)
-end
-
-local function marsh_short_bytes(val)
-  return marsh_short(#val)..val
-end
-
-local function unmarsh_short_bytes(buffer)
-   return buffer:read(buffer:read_short())
-end
-
-local function marsh_uuid(val)
-  local repr = {}
-  local str = gsub(val, "-", "")
-  for i = 1, #str, 2 do
-    local byte_str = sub(str, i, i + 1)
-    repr[#repr+1] = marsh_byte(tonumber(byte_str, 16))
+  function Buffer:get()
+    return self.str
   end
-  return concat(repr)
-end
 
-local function unmarsh_uuid(buffer)
-  local uuid = {}
-  for i = 1, 16 do
-    uuid[i] = fmt("%02x", buffer:read_byte())
-  end
-  insert(uuid, 5, "-")
-  insert(uuid, 8, "-")
-  insert(uuid, 11, "-")
-  insert(uuid, 14, "-")
-  return concat(uuid)
-end
+  --------
+  -- Utils
+  --------
 
-local function marsh_inet(val)
-  local t, hexadectets = {}, {}
-  local ip = gsub(lower(val), "::", ":0000:")
-
-  if val:match ":" then
-    -- ipv6
-    for hdt in gmatch(ip, "[%x]+") do
-      -- fill up hexadectets with 0 so all are 4 digits long
-      hexadectets[#hexadectets + 1] = rep("0", 4 - #hdt)..hdt
+  local function big_endian_representation(num, bytes)
+    if num < 0 then
+      -- 2's complement
+      num = pow(0x100, bytes) + num
     end
-    for i, hdt in ipairs(hexadectets) do
-      while hdt == "0000" and #hexadectets < 8 do
-        insert(hexadectets, i + 1, "0000")
+    local t = {}
+    while num > 0 do
+      local rest = fmod(num, 0x100)
+      insert(t, 1, char(rest))
+      num = (num-rest) / 0x100
+    end
+    local padding = rep('\0', bytes - #t)
+    return padding..concat(t)
+  end
+
+  local function string_to_number(str, signed)
+    local number = 0
+    local exponent = 1
+    for i = #str, 1, -1 do
+      number = number + byte(str, i) * exponent
+      exponent = exponent * 256
+    end
+    if signed and number > exponent / 2 then
+      -- 2's complement
+      number = number - exponent
+    end
+    return number
+  end
+
+  ------------
+  -- Raw types
+  ------------
+
+  local function marsh_byte(val)
+    return char(val)
+  end
+
+  local function unmarsh_byte(buffer)
+    return byte(buffer:read(1))
+  end
+
+  local function marsh_int(val)
+    return big_endian_representation(val, 4)
+  end
+
+  local function marsh_unset()
+    return marsh_int(-2)
+  end
+
+  local function unmarsh_int(buffer)
+    return string_to_number(buffer:read(4), true)
+  end
+
+  local function marsh_long(val)
+    return big_endian_representation(val, 8)
+  end
+
+  local function unmarsh_long(buffer)
+    return string_to_number(buffer:read(8), true)
+  end
+
+  local function marsh_short(val)
+    return big_endian_representation(val, 2)
+  end
+
+  local function unmarsh_short(buffer)
+    return string_to_number(buffer:read(2), true)
+  end
+
+  local function marsh_string(val)
+    return marsh_short(#val)..val
+  end
+
+  local function unmarsh_string(buffer)
+    return buffer:read(buffer:read_short())
+  end
+
+  local function marsh_long_string(val)
+    return marsh_int(#val)..val
+  end
+
+  local function unmarsh_long_string(buffer)
+    return buffer:read(buffer:read_int())
+  end
+
+  local function marsh_bytes(val)
+    return marsh_int(#val)..val
+  end
+
+  local function unmarsh_bytes(buffer)
+    local n_bytes = buffer:read_int()
+    if n_bytes < 0 then return nil end -- NULL/unset
+    return buffer:read(n_bytes)
+  end
+
+  local function marsh_short_bytes(val)
+    return marsh_short(#val)..val
+  end
+
+  local function unmarsh_short_bytes(buffer)
+     return buffer:read(buffer:read_short())
+  end
+
+  local function marsh_uuid(val)
+    local repr = {}
+    local str = gsub(val, '-', '')
+    for i = 1, #str, 2 do
+      local byte_str = sub(str, i, i + 1)
+      repr[#repr+1] = marsh_byte(tonumber(byte_str, 16))
+    end
+    return concat(repr)
+  end
+
+  local function unmarsh_uuid(buffer)
+    local uuid = {}
+    for i = 1, 16 do
+      uuid[i] = fmt('%02x', buffer:read_byte())
+    end
+    insert(uuid, 5, '-')
+    insert(uuid, 8, '-')
+    insert(uuid, 11, '-')
+    insert(uuid, 14, '-')
+    return concat(uuid)
+  end
+
+  local function marsh_inet(val)
+    local t, hexadectets = {}, {}
+    local ip = gsub(lower(val), '::', ':0000:')
+
+    if val:match ':' then
+      -- ipv6
+      for hdt in gmatch(ip, '[%x]+') do
+        -- fill up hexadectets with 0 so all are 4 digits long
+        hexadectets[#hexadectets + 1] = rep('0', 4 - #hdt)..hdt
       end
-      for j = 1, 4, 2 do
-        t[#t+1] = marsh_byte(tonumber(sub(hdt, j, j + 1), 16))
+      for i, hdt in ipairs(hexadectets) do
+        while hdt == '0000' and #hexadectets < 8 do
+          insert(hexadectets, i + 1, '0000')
+        end
+        for j = 1, 4, 2 do
+          t[#t+1] = marsh_byte(tonumber(sub(hdt, j, j + 1), 16))
+        end
+      end
+    else
+      -- ipv4
+      for d in gmatch(val, '(%d+)') do
+        t[#t+1] = marsh_byte(d)
       end
     end
-  else
-    -- ipv4
-    for d in gmatch(val, "(%d+)") do
-      t[#t+1] = marsh_byte(d)
+
+    return concat(t)
+  end
+
+  local function unmarsh_inet(buffer)
+    local bytes = buffer:get()
+    local buf = {}
+
+    if #bytes == 16 then
+      -- ipv6
+      for i = 1, #bytes, 2 do
+        buf[#buf+1] = fmt('%02x', byte(bytes, i))..fmt('%02x', byte(bytes, i+1))
+      end
+      return concat(buf, ':')
+    else
+      -- ipv4
+      for i = 1, #bytes do
+        buf[#buf+1] = fmt('%d', byte(bytes, i))
+      end
+      return concat(buf, '.')
     end
   end
 
-  return concat(t)
-end
-
-local function unmarsh_inet(buffer)
-  local bytes = buffer:get()
-  local buf = {}
-
-  if #bytes == 16 then
-    -- ipv6
-    for i = 1, #bytes, 2 do
-      buf[#buf+1] = fmt("%02x", byte(bytes, i))..fmt("%02x", byte(bytes, i+1))
+  local function marsh_string_map(val)
+    local t = {}
+    local n = 0
+    for k, v in pairs(val) do
+      n = n + 1
+      t[#t+1] = marsh_string(k)
+      t[#t+1] = marsh_string(v)
     end
-    return concat(buf, ":")
-  else
-    -- ipv4
-    for i = 1, #bytes do
-      buf[#buf+1] = fmt("%d", byte(bytes, i))
+    insert(t, 1, marsh_short(n))
+    return concat(t)
+  end
+
+  local function unmarsh_string_map(buffer)
+    local map = {}
+    local n = buffer:read_short()
+    for _ = 1, n do
+      local key = buffer:read_string()
+      local value = buffer:read_string()
+      map[key] = value
     end
-    return concat(buf, ".")
+    return map
   end
-end
 
-local function marsh_string_map(val)
-  local t = {}
-  local n = 0
-  for k, v in pairs(val) do
-    n = n + 1
-    t[#t+1] = marsh_string(k)
-    t[#t+1] = marsh_string(v)
-  end
-  insert(t, 1, marsh_short(n))
-  return concat(t)
-end
+  local function unmarsh_udt_type(buffer)
+    local udt_ks_name = buffer:read_string()
+    local udt_name = buffer:read_string()
+    local n = buffer:read_short()
 
-local function unmarsh_string_map(buffer)
-  local map = {}
-  local n = buffer:read_short()
-  for _ = 1, n do
-    local key = buffer:read_string()
-    local value = buffer:read_string()
-    map[key] = value
-  end
-  return map
-end
+    local fields = {}
+    for _ = 1, n do
+      fields[#fields+1] = {
+        name = buffer:read_string(),
+        type = buffer:read_options()
+      }
+    end
 
-local function unmarsh_udt_type(buffer)
-  local udt_ks_name = buffer:read_string()
-  local udt_name = buffer:read_string()
-  local n = buffer:read_short()
-
-  local fields = {}
-  for _ = 1, n do
-    fields[#fields+1] = {
-      name = buffer:read_string(),
-      type = buffer:read_options()
+    return {
+      udt_keyspace = udt_ks_name,
+      udt_name = udt_name,
+      fields = fields
     }
   end
 
-  return {
-    udt_keyspace = udt_ks_name,
-    udt_name = udt_name,
-    fields = fields
-  }
-end
+  local function unmarsh_tuple_type(buffer)
+    local n = buffer:read_short()
 
-local function unmarsh_tuple_type(buffer)
-  local n = buffer:read_short()
+    local fields = {}
+    for _ = 1, n do
+      fields[#fields+1] = {buffer:read_options()}
+    end
 
-  local fields = {}
-  for _ = 1, n do
-    fields[#fields+1] = {buffer:read_options()}
+    return {fields = fields}
   end
 
-  return {fields = fields}
-end
+  do
+    local marshallers = {
+      byte = {marsh_byte, unmarsh_byte},
+      int = {marsh_int, unmarsh_int},
+      long = {marsh_long, unmarsh_long},
+      short = {marsh_short, unmarsh_short},
+      string = {marsh_string, unmarsh_string},
+      long_string = {marsh_long_string, unmarsh_long_string},
+      bytes = {marsh_bytes, unmarsh_bytes},
+      short_bytes = {marsh_short_bytes, unmarsh_short_bytes},
+      uuid = {marsh_uuid, unmarsh_uuid},
+      inet = {marsh_inet, unmarsh_inet},
+      string_map = {marsh_string_map, unmarsh_string_map},
+      udt_type = {nil, unmarsh_udt_type},
+      tuple_type = {nil, unmarsh_tuple_type}
+    }
 
-do
-  local marshallers = {
-    byte = {marsh_byte, unmarsh_byte},
-    int = {marsh_int, unmarsh_int},
-    long = {marsh_long, unmarsh_long},
-    short = {marsh_short, unmarsh_short},
-    string = {marsh_string, unmarsh_string},
-    long_string = {marsh_long_string, unmarsh_long_string},
-    bytes = {marsh_bytes, unmarsh_bytes},
-    short_bytes = {marsh_short_bytes, unmarsh_short_bytes},
-    uuid = {marsh_uuid, unmarsh_uuid},
-    inet = {marsh_inet, unmarsh_inet},
-    string_map = {marsh_string_map, unmarsh_string_map},
-    udt_type = {nil, unmarsh_udt_type},
-    tuple_type = {nil, unmarsh_tuple_type}
-  }
-
-  for name, t in pairs(marshallers) do
-    local marshaller, unmarshaller = t[1], t[2]
-    if marshaller then -- skip udt/tuple
-      Buffer["write_"..name] = function(self, ...)
-        self:write(marshaller(...))
+    for name, t in pairs(marshallers) do
+      local marshaller, unmarshaller = t[1], t[2]
+      if marshaller then -- skip udt/tuple
+        Buffer['write_'..name] = function(self, ...)
+          self:write(marshaller(...))
+        end
+      end
+      Buffer['read_'..name] = function(self)
+        return unmarshaller(self)
       end
     end
-    Buffer["read_"..name] = function(self)
-      return unmarshaller(self)
-    end
   end
-end
 
-------------
--- CQL types
-------------
+  ------------
+  -- CQL types
+  ------------
 
-local function marsh_raw(val)
-  return val
-end
-
-local function unmarsh_raw(buffer)
-  return buffer:get()
-end
-
-local function marsh_bigint(val)
-  local first_byte = val >= 0 and 0 or 0xFF
-  return char(first_byte, -- only 53 bits from double
-             floor(val / 0x1000000000000) % 0x100,
-             floor(val / 0x10000000000) % 0x100,
-             floor(val / 0x100000000) % 0x100,
-             floor(val / 0x1000000) % 0x100,
-             floor(val / 0x10000) % 0x100,
-             floor(val / 0x100) % 0x100,
-             val % 0x100)
-end
-
-local function unmarsh_bigint(buffer)
-  local bytes = buffer:read(8)
-  local b1, b2, b3, b4, b5, b6, b7, b8 = byte(bytes, 1, 8)
-  if b1 < 0x80 then
-    return ((((((b1 * 0x100 + b2) * 0x100 + b3) * 0x100 + b4)
-             * 0x100 + b5) * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
-  else
-    return ((((((((b1 - 0xFF) * 0x100 + (b2 - 0xFF)) * 0x100 + (b3 - 0xFF))
-             * 0x100 + (b4 - 0xFF)) * 0x100 + (b5 - 0xFF)) * 0x100 + (b6 - 0xFF))
-             * 0x100 + (b7 - 0xFF)) * 0x100 + (b8 - 0xFF)) - 1
+  local function marsh_raw(val)
+    return val
   end
-end
 
-local function marsh_boolean(val)
-  return marsh_byte(val and 1 or 0)
-end
-
-local function unmarsh_boolean(buffer)
-  return buffer:read_byte() == 1
-end
-
-local function marsh_double(val)
-  local sign = 0
-  if val < 0.0 then
-    sign = 0x80
-    val = -val
+  local function unmarsh_raw(buffer)
+    return buffer:get()
   end
-  local mantissa, exponent = frexp(val)
-  if mantissa ~= mantissa then
-    return char(0xFF, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- nan
-  elseif mantissa == huge then
-    if sign == 0 then
-      return char(0x7F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- +inf
+
+  local function marsh_bigint(val)
+    local first_byte = val >= 0 and 0 or 0xFF
+    return char(first_byte, -- only 53 bits from double
+               floor(val / 0x1000000000000) % 0x100,
+               floor(val / 0x10000000000) % 0x100,
+               floor(val / 0x100000000) % 0x100,
+               floor(val / 0x1000000) % 0x100,
+               floor(val / 0x10000) % 0x100,
+               floor(val / 0x100) % 0x100,
+               val % 0x100)
+  end
+
+  local function unmarsh_bigint(buffer)
+    local bytes = buffer:read(8)
+    local b1, b2, b3, b4, b5, b6, b7, b8 = byte(bytes, 1, 8)
+    if b1 < 0x80 then
+      return ((((((b1 * 0x100 + b2) * 0x100 + b3) * 0x100 + b4)
+               * 0x100 + b5) * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
     else
-      return char(0xFF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- -inf
+      return ((((((((b1 - 0xFF) * 0x100 + (b2 - 0xFF)) * 0x100 + (b3 - 0xFF))
+               * 0x100 + (b4 - 0xFF)) * 0x100 + (b5 - 0xFF)) * 0x100 + (b6 - 0xFF))
+               * 0x100 + (b7 - 0xFF)) * 0x100 + (b8 - 0xFF)) - 1
     end
-  elseif mantissa == 0.0 and exponent == 0 then
-    return char(sign, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- zero
   end
 
-  exponent = exponent + 0x3FE
-  mantissa = (mantissa * 2.0 - 1.0) * ldexp(0.5, 53)
-  return char(sign + floor(exponent / 0x10),
-             (exponent % 0x10) * 0x10 + floor(mantissa / 0x1000000000000),
-             floor(mantissa / 0x10000000000) % 0x100,
-             floor(mantissa / 0x100000000) % 0x100,
-             floor(mantissa / 0x1000000) % 0x100,
-             floor(mantissa / 0x10000) % 0x100,
-             floor(mantissa / 0x100) % 0x100,
-             mantissa % 0x100)
-end
-
-local function unmarsh_double(buffer)
-  local bytes = buffer:read(8)
-  local b1, b2, b3, b4, b5, b6, b7, b8 = byte(bytes, 1, 8)
-  local sign = b1 > 0x7F
-  local exponent = (b1 % 0x80) * 0x10 + floor(b2 / 0x10)
-  local mantissa = ((((((b2 % 0x10) * 0x100 + b3) * 0x100 + b4) * 0x100 + b5)
-                      * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
-  if sign then
-    sign = -1
-  else
-    sign = 1
+  local function marsh_boolean(val)
+    return marsh_byte(val and 1 or 0)
   end
 
-  if mantissa == 0 and exponent == 0 then
-    return sign * 0.0
-  elseif exponent == 0x7FF then
-    if mantissa == 0 then
-      return sign * huge
+  local function unmarsh_boolean(buffer)
+    return buffer:read_byte() == 1
+  end
+
+  local function marsh_double(val)
+    local sign = 0
+    if val < 0.0 then
+      sign = 0x80
+      val = -val
+    end
+    local mantissa, exponent = frexp(val)
+    if mantissa ~= mantissa then
+      return char(0xFF, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- nan
+    elseif mantissa == huge then
+      if sign == 0 then
+        return char(0x7F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- +inf
+      else
+        return char(0xFF, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- -inf
+      end
+    elseif mantissa == 0.0 and exponent == 0 then
+      return char(sign, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) -- zero
+    end
+
+    exponent = exponent + 0x3FE
+    mantissa = (mantissa * 2.0 - 1.0) * ldexp(0.5, 53)
+    return char(sign + floor(exponent / 0x10),
+               (exponent % 0x10) * 0x10 + floor(mantissa / 0x1000000000000),
+               floor(mantissa / 0x10000000000) % 0x100,
+               floor(mantissa / 0x100000000) % 0x100,
+               floor(mantissa / 0x1000000) % 0x100,
+               floor(mantissa / 0x10000) % 0x100,
+               floor(mantissa / 0x100) % 0x100,
+               mantissa % 0x100)
+  end
+
+  local function unmarsh_double(buffer)
+    local bytes = buffer:read(8)
+    local b1, b2, b3, b4, b5, b6, b7, b8 = byte(bytes, 1, 8)
+    local sign = b1 > 0x7F
+    local exponent = (b1 % 0x80) * 0x10 + floor(b2 / 0x10)
+    local mantissa = ((((((b2 % 0x10) * 0x100 + b3) * 0x100 + b4) * 0x100 + b5)
+                        * 0x100 + b6) * 0x100 + b7) * 0x100 + b8
+    if sign then
+      sign = -1
     else
-      return 0.0/0.0
+      sign = 1
     end
+
+    if mantissa == 0 and exponent == 0 then
+      return sign * 0.0
+    elseif exponent == 0x7FF then
+      if mantissa == 0 then
+        return sign * huge
+      else
+        return 0.0/0.0
+      end
+    end
+
+    return sign * ldexp(1.0 + mantissa / 0x10000000000000, exponent - 0x3FF)
   end
 
-  return sign * ldexp(1.0 + mantissa / 0x10000000000000, exponent - 0x3FF)
-end
+  local function marsh_float(val)
+    if val == 0 then
+      return char(0x00, 0x00, 0x00, 0x00)
+    elseif val ~= val then
+      return char(0xFF, 0xFF, 0xFF, 0xFF)
+    end
 
-local function marsh_float(val)
-  if val == 0 then
-    return char(0x00, 0x00, 0x00, 0x00)
-  elseif val ~= val then
-    return char(0xFF, 0xFF, 0xFF, 0xFF)
-  end
+    local sign = 0x00
+    if val < 0 then
+      sign = 0x80
+      val = -val
+    end
 
-  local sign = 0x00
-  if val < 0 then
-    sign = 0x80
-    val = -val
-  end
-
-  local mantissa, exponent = frexp(val)
-  exponent = exponent + 0x7F
-  if exponent <= 0 then
-    mantissa = ldexp(mantissa, exponent - 1)
-    exponent = 0
-  elseif exponent > 0 then
-    if exponent >= 0xFF then
-      return char(sign + 0x7F, 0x80, 0x00, 0x00)
-    elseif exponent == 1 then
+    local mantissa, exponent = frexp(val)
+    exponent = exponent + 0x7F
+    if exponent <= 0 then
+      mantissa = ldexp(mantissa, exponent - 1)
       exponent = 0
-    else
-      mantissa = mantissa * 2 - 1
-      exponent = exponent - 1
+    elseif exponent > 0 then
+      if exponent >= 0xFF then
+        return char(sign + 0x7F, 0x80, 0x00, 0x00)
+      elseif exponent == 1 then
+        exponent = 0
+      else
+        mantissa = mantissa * 2 - 1
+        exponent = exponent - 1
+      end
     end
+
+    mantissa = floor(ldexp(mantissa, 23) + 0.5)
+    return char(sign + floor(exponent / 2),
+               (exponent % 2) * 0x80 + floor(mantissa / 0x10000),
+               floor(mantissa / 0x100) % 0x100,
+               mantissa % 0x100)
   end
 
-  mantissa = floor(ldexp(mantissa, 23) + 0.5)
-  return char(sign + floor(exponent / 2),
-             (exponent % 2) * 0x80 + floor(mantissa / 0x10000),
-             floor(mantissa / 0x100) % 0x100,
-             mantissa % 0x100)
-end
-
-local function unmarsh_float(buffer)
-  local bytes = buffer:read(4)
-  local b1, b2, b3, b4 = byte(bytes, 1, 4)
-  local exponent = (b1 % 0x80) * 0x02 + floor(b2 / 0x80)
-  local mantissa = ldexp(((b2 % 0x80) * 0x100 + b3) * 0x100 + b4, -23)
-  if exponent == 0xFF then
-    if mantissa > 0 then
-      return 0 / 0
+  local function unmarsh_float(buffer)
+    local bytes = buffer:read(4)
+    local b1, b2, b3, b4 = byte(bytes, 1, 4)
+    local exponent = (b1 % 0x80) * 0x02 + floor(b2 / 0x80)
+    local mantissa = ldexp(((b2 % 0x80) * 0x100 + b3) * 0x100 + b4, -23)
+    if exponent == 0xFF then
+      if mantissa > 0 then
+        return 0 / 0
+      else
+        mantissa = huge
+        exponent = 0x7F
+      end
+    elseif exponent > 0 then
+      mantissa = mantissa + 1
     else
-      mantissa = huge
-      exponent = 0x7F
+      exponent = exponent + 1
     end
-  elseif exponent > 0 then
-    mantissa = mantissa + 1
-  else
-    exponent = exponent + 1
-  end
-  if b1 >= 0x80 then
-    mantissa = -mantissa
+    if b1 >= 0x80 then
+      mantissa = -mantissa
+    end
+
+    return ldexp(mantissa, exponent - 0x7F)
   end
 
-  return ldexp(mantissa, exponent - 0x7F)
-end
+  -------------------
+  -- Nested CQL types
+  -------------------
 
--------------------
--- Nested CQL types
--------------------
+  local marsh_cql_value
 
-local marsh_cql_value
-
--- values must be ordered as they are defined in the UDT declaration
-local function marsh_udt(val)
-  local repr = {}
-  for i = 1, #val do
-    repr[#repr+1] = marsh_cql_value(val[i])
-  end
-  return concat(repr)
-end
-
-local function unmarsh_udt(buffer, __cql_value_type)
-  local udt = {}
-  local fields = __cql_value_type.fields -- see unmarsh_udt_type
-  for n = 1, #fields do
-    local field = fields[n]
-    udt[field.name] = buffer:read_cql_value(field.type)
-  end
-  return udt
-end
-
-local marsh_tuple = marsh_udt
-
-local function unmarsh_tuple(buffer, __cql_value_type)
-  local tuple = {}
-  local fields = __cql_value_type.fields -- see unmarsh_tuple_type
-  for n = 1, #fields do
-    tuple[#tuple+1] = buffer:read_cql_value(fields[n])
-  end
-  return tuple
-end
-
-local function marsh_set(val, version)
-  local repr
-  if version < 3 then
-    repr = {marsh_short(#val)}
-  else
-    repr = {marsh_int(#val)}
-  end
-  for i = 1, #val do
-    repr[#repr+1] = marsh_cql_value(val[i])
-  end
-  return concat(repr)
-end
-
-local function unmarsh_set(buffer, __cql_type_value)
-  local set, n = {}
-  if buffer.version < 3 then
-    n = buffer:read_short()
-  else
-    n = buffer:read_int()
-  end
-  for _ = 1, n do
-    set[#set+1] = buffer:read_cql_value(__cql_type_value)
-  end
-  return set
-end
-
-local function marsh_map(val, version)
-  local repr = {}
-  local size = 0
-
-  for k, v in pairs(val) do
-    repr[#repr+1] = marsh_cql_value(k)
-    repr[#repr+1] = marsh_cql_value(v)
-    size = size + 1
+  -- values must be ordered as they are defined in the UDT declaration
+  local function marsh_udt(val)
+    local repr = {}
+    for i = 1, #val do
+      repr[#repr+1] = marsh_cql_value(val[i])
+    end
+    return concat(repr)
   end
 
-  if version < 3 then
-    insert(repr, 1, marsh_short(size))
-  else
-    insert(repr, 1, marsh_int(size))
+  local function unmarsh_udt(buffer, __cql_value_type)
+    local udt = {}
+    local fields = __cql_value_type.fields -- see unmarsh_udt_type
+    for n = 1, #fields do
+      local field = fields[n]
+      udt[field.name] = buffer:read_cql_value(field.type)
+    end
+    return udt
   end
 
-  return concat(repr)
-end
+  local marsh_tuple = marsh_udt
 
-local function unmarsh_map(buffer, __cql_type_value)
-  local key_t, value_t = __cql_type_value[1], __cql_type_value[2]
-  local map = {}
-
-  local n
-  if buffer.version < 3 then
-    n = buffer:read_short()
-  else
-    n = buffer:read_int()
+  local function unmarsh_tuple(buffer, __cql_value_type)
+    local tuple = {}
+    local fields = __cql_value_type.fields -- see unmarsh_tuple_type
+    for n = 1, #fields do
+      tuple[#tuple+1] = buffer:read_cql_value(fields[n])
+    end
+    return tuple
   end
 
-  for _ = 1, n do
-    local key = buffer:read_cql_value(key_t)
-    map[key] = buffer:read_cql_value(value_t)
+  local function marsh_set(val, version)
+    local repr
+    if version < 3 then
+      repr = {marsh_short(#val)}
+    else
+      repr = {marsh_int(#val)}
+    end
+    for i = 1, #val do
+      repr[#repr+1] = marsh_cql_value(val[i])
+    end
+    return concat(repr)
   end
 
-  return map
-end
-
-function Buffer:read_options()
-  local cql_t, cql_t_val = self:read_short()
-  if cql_t == cql_types.set or cql_t == cql_types.list then
-    cql_t_val = self:read_options()
-  elseif cql_t == cql_types.map then
-    cql_t_val = {self:read_options(), self:read_options()}
-  elseif cql_t == cql_types.udt then
-    cql_t_val = unmarsh_udt_type(self)
-  elseif cql_t == cql_types.tuple then
-    cql_t_val = unmarsh_tuple_type(self)
+  local function unmarsh_set(buffer, __cql_type_value)
+    local set, n = {}
+    if buffer.version < 3 then
+      n = buffer:read_short()
+    else
+      n = buffer:read_int()
+    end
+    for _ = 1, n do
+      set[#set+1] = buffer:read_cql_value(__cql_type_value)
+    end
+    return set
   end
 
-  return {
-    __cql_type = cql_t,
-    __cql_type_value = cql_t_val
-  }
-end
+  local function marsh_map(val, version)
+    local repr = {}
+    local size = 0
 
-------------------
--- CQL Marshalling
-------------------
+    for k, v in pairs(val) do
+      repr[#repr+1] = marsh_cql_value(k)
+      repr[#repr+1] = marsh_cql_value(v)
+      size = size + 1
+    end
 
-do
+    if version < 3 then
+      insert(repr, 1, marsh_short(size))
+    else
+      insert(repr, 1, marsh_int(size))
+    end
+
+    return concat(repr)
+  end
+
+  local function unmarsh_map(buffer, __cql_type_value)
+    local key_t, value_t = __cql_type_value[1], __cql_type_value[2]
+    local map = {}
+
+    local n
+    if buffer.version < 3 then
+      n = buffer:read_short()
+    else
+      n = buffer:read_int()
+    end
+
+    for _ = 1, n do
+      local key = buffer:read_cql_value(key_t)
+      map[key] = buffer:read_cql_value(value_t)
+    end
+
+    return map
+  end
+
+  function Buffer:read_options()
+    local cql_t, cql_t_val = self:read_short()
+    if cql_t == cql_types.set or cql_t == cql_types.list then
+      cql_t_val = self:read_options()
+    elseif cql_t == cql_types.map then
+      cql_t_val = {self:read_options(), self:read_options()}
+    elseif cql_t == cql_types.udt then
+      cql_t_val = unmarsh_udt_type(self)
+    elseif cql_t == cql_types.tuple then
+      cql_t_val = unmarsh_tuple_type(self)
+    end
+
+    return {
+      __cql_type = cql_t,
+      __cql_type_value = cql_t_val
+    }
+  end
+
+  ------------------
+  -- CQL Marshalling
+  ------------------
+
   local cql_marshallers = {
     -- custom = 0x00,
     [cql_types.ascii] = marsh_raw,
@@ -740,7 +729,7 @@ do
   marsh_cql_value = function(val, version)
     local cql_t
     local typ = type(val)
-    if typ == "table" then
+    if typ == 'table' then
       -- set by cassandra.uuid() or the likes
       if val.val and val.__cql_type then
         cql_t = val.__cql_type
@@ -750,13 +739,13 @@ do
       else
         cql_t = cql_types.map
       end
-    elseif typ == "number" then
+    elseif typ == 'number' then
       if floor(val) == val then
         cql_t = cql_types.int
       else
         cql_t = cql_types.float
       end
-    elseif typ == "boolean" then
+    elseif typ == 'boolean' then
       cql_t = cql_types.boolean
     else
       cql_t = cql_types.varchar
@@ -764,7 +753,7 @@ do
 
     local marshaller = cql_marshallers[cql_t]
     if not marshaller then
-      error("no marshaller for CQL type "..cql_t)
+      error('no marshaller for CQL type '..cql_t)
     end
     local marshalled = marshaller(val, version)
     return marsh_bytes(marshalled)
@@ -774,19 +763,10 @@ do
     self:write(marsh_cql_value(val, self.version))
   end
 
-  function Buffer:write_cql_values(values)
-    self:write_short(#values)
-    for i = 1, #values do
-      self:write(marsh_cql_value(values[i], self.version))
-    end
-  end
-end
+  --------------------
+  -- CQL Unmarshalling
+  --------------------
 
-------------------
--- CQL Unmarshalling
-------------------
-
-do
   local cql_unmarshaller = {
     -- custom = 0x00,
     [cql_types.ascii] = unmarsh_raw,
@@ -816,20 +796,248 @@ do
   function Buffer:read_cql_value(t)
     local unmarshaller = cql_unmarshaller[t.__cql_type]
     if not unmarshaller then
-      error("no unmarshaller for CQL type "..t.__cql_type)
+      error('no unmarshaller for CQL type '..t.__cql_type)
     end
     local bytes = self:read_bytes()
     local buffer = Buffer.new(self.version, bytes)
     return unmarshaller(buffer, t.__cql_type_value)
   end
+end -- do CQL encoding
+
+---------------
+-- CQL Requests
+---------------
+
+local requests = {}
+
+do
+  local CQL_VERSION = '3.0.0'
+  local OP_CODES = {
+    ERROR = 0x00,
+    STARTUP = 0x01,
+    READY = 0x02,
+    AUTHENTICATE = 0x03,
+    OPTIONS = 0x05,
+    SUPPORTED = 0x06,
+    QUERY = 0x07,
+    RESULT = 0x08,
+    PREPARE = 0x09,
+    EXECUTE = 0x0A,
+    REGISTER = 0x0B,
+    EVENT = 0x0C,
+    BATCH = 0x0D,
+    AUTH_CHALLENGE = 0x0E,
+    AUTH_RESPONSE = 0x0F,
+    AUTH_SUCCESS = 0x10
+  }
+
+  local request_mt = {}
+  request_mt.__index = request_mt
+
+  local function new_request(op_code)
+    return setmetatable({
+      flags = 0,
+      header = Buffer.new(),
+      body = Buffer.new(),
+      op_code = op_code
+    }, request_mt)
+  end
+
+  function request_mt:build_frame(version)
+    if self.frame then
+      return self.frame
+    end
+
+    local header, body = self.header, self.body
+    body.version = version
+    self:build_body(body)            -- build body (depends on protocol version)
+
+    if version == 2 then
+      header:write_byte(0x02)
+    else
+      header:write_byte(0x03)
+    end
+    header:write_byte(0)         -- flags
+    if version < 3 then
+      header:write_byte(0)       -- stream_id
+    else
+      header:write_short(0)      -- stream_id
+    end
+
+    header:write_byte(self.op_code)
+    header:write_int(self.body.len)
+
+    self.frame = header:get()..body:get()
+    return self.frame
+  end
+
+  local function build_args(body, args, opts)
+    local flags = 0x00
+    local buf = Buffer(body.version)
+    if args then
+      flags = bor(flags, 0x01)
+      buf:write_short(#args)
+      for i = 1, #args do
+        buf:write_cql_value(args[i])
+      end
+    end
+    if opts.page_size then
+      flags = bor(flags, 0x04)
+      buf:write_int(opts.page_size)
+    end
+    if opts.paging_state then
+      flags = bor(flags, 0x08)
+      buf:write_bytes(opts.paging_state)
+    end
+    if opts.serial_consistency then
+      flags = bor(flags, 0x10)
+      buf:write_short(opts.serial_consistency)
+    end
+
+    body:write_short(opts.consistency)
+    body:write_bytes(flags)
+    body:write(buf:get())
+  end
+
+  requests.startup = {
+    new = function()
+      return new_request(OP_CODES.STARTUP)
+    end,
+    build_body = function(_, body)
+      body:write_string_map {
+        ['CQL_VERSION'] = CQL_VERSION
+      }
+    end
+  }
+
+  requests.keyspace = {
+    new = function(keyspace)
+      local r = new_request(OP_CODES.QUERY)
+      r.keyspace = keyspace
+      return r
+    end,
+    build_body = function(self, body)
+      body:write_long_string(fmt([[USE "%s"]], self.keyspace))
+    end
+  }
+
+  requests.query = {
+    new = function(query, args, opts)
+      local r = new_request(OP_CODES.QUERY)
+      r.query = query
+      r.args = args
+      r.opts = opts
+      return r
+    end,
+    build_body = function(self, body)
+      body:write_long_string(self.query)
+      build_args(body, self.args, self.opts)
+    end
+  }
+
+  requests.prepare = {
+    new = function(query)
+      local r = new_request(OP_CODES.PREPARE)
+      r.query = query
+      return r
+    end,
+    build_body = function(self, body)
+      body:write_long_string(self.query)
+    end
+  }
+
+  requests.execute_prepared = {
+    new = function(query_id, args, opts)
+      local r = new_request(OP_CODES.EXECUTE)
+      r.query_id = query_id
+      r.args = args
+      r.opts = opts
+      return r
+    end,
+    build_body = function(self, body)
+      body:write_short_bytes(self.query_id)
+      build_args(body, self.args, self.opts)
+    end
+  }
+
+  requests.batch = {
+    new = function(queries, opts)
+      local r = new_request(OP_CODES.BATCH)
+      r.queries = queries
+      r.opts = opts
+      r.type = opts.logged and 0 or 1
+      r.type = opts.counter and 2 or r.type
+      return r
+    end,
+    build_body = function(self, body)
+      local queries = self.queries
+      local opts = self.opts
+      body:write_byte(self.type)
+      body:write_short(#queries)
+      for i = 1, #queries do
+        local qi = queries[i]
+        local q, q_args
+        if type(qi) == 'string' then
+          q = qi
+        else
+          q, q_args = qi[1], qi[2]
+        end
+        if opts.prepared then
+          body:write_byte(1)
+          body:write_short_bytes(q) -- query_id
+        else
+          body:write_byte(0)
+          body:write_long_string(q)
+        end
+        if q_args then
+          body:write_short(#q_args)
+          for i = 1, #q_args do
+            body:write_cql_value(q_args[i])
+          end
+        else
+          body:write_short(0)
+        end
+      end
+
+      body:write_short(opts.consistency)
+
+      if body.version > 2 then
+        local flags = 0x00
+        local buf = Buffer.new(body.version)
+        if opts.serial_consistency then
+          flags = bor(flags, 0x10)
+          buf:write_short(opts.serial_consistency)
+        end
+        if opts.timestamp then
+          flags = bor(flags, 0x20)
+          buf:write_long(opts.timestamp)
+        end
+        body:write_byte(flags)
+        body:write(buf:get())
+      end
+    end
+  }
+
+  requests.auth_response = {
+    new = function(token)
+      local r = new_request(OP_CODES.AUTH_RESPONSE)
+      r.token = token
+      return r
+    end,
+    build_body = function(self, body)
+      body:write_bytes(self.token)
+    end
+  }
 end
+
 
 ----------
 -- Exposed
 ----------
 
 return {
-  buffer = Buffer,
+  buffer = Buffer, -- for testing only
+  requests = requests,
   cql_types = cql_types,
   cql_t_unset = cql_t_unset
 }

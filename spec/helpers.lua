@@ -161,7 +161,7 @@ luassert:register("assertion", "fixture", fixture,
 
 --- Fixtures
 
-local types = require "cassandra.types"
+local cql_types = require("cassandra.frame").cql_types
 
 _M.cql_fixtures = {
   -- custom
@@ -181,7 +181,7 @@ _M.cql_fixtures = {
   -- list
   -- map
   -- set
-  -- uuid
+  uuid = {"1144bada-852c-11e3-89fb-e0b9a54a6d11"},
   timestamp = {1405356926},
   varchar = {"Hello world", ""},
   varint = {0, 4200, -42},
@@ -191,32 +191,77 @@ _M.cql_fixtures = {
 }
 
 _M.cql_list_fixtures = {
-  {value_type = types.cql_types.text, type_name = "text", value = {"abc", "def"}},
-  {value_type = types.cql_types.int, type_name = "int", value = {1, 2 , 0, -42, 42}}
+  {
+    val = {"abc", "def"},
+    __cql_type = cql_types.list,
+    __cql_type_value = {__cql_type = cql_types.text},
+  },
+  {
+    val = {1, 2 , 0, -42, 42},
+    __cql_type = cql_types.list,
+    __cql_type_value = {__cql_type = cql_types.int},
+  }
 }
 
 _M.cql_set_fixtures = _M.cql_list_fixtures
 
 _M.cql_map_fixtures = {
   {
-   key_type = types.cql_types.text,
-   key_type_name = "text",
-   value_type = types.cql_types.text,
-   value_type_name = "text",
-   value = {k1 = "v1", k2 = "v2"}
+    val = {k1 = "v1", k2 = "v2"},
+    __cql_type = cql_types.map,
+    __cql_type_value = {{__cql_type = cql_types.text}, {__cql_type = cql_types.text}}
   },
   {
-   key_type = types.cql_types.text,
-   key_type_name = "text",
-   value_type = types.cql_types.int,
-   value_type_name = "int",
-   value = {k1 = 1, k2 = 2}
+    val = {k1 = 1, k2 = 2},
+    __cql_type = cql_types.map,
+    __cql_type_value = {{__cql_type = cql_types.text}, {__cql_type = cql_types.int}}
   }
 }
 
 _M.cql_tuple_fixtures = {
-  {type = {"text", "text"}, value = {"hello", "world"}},
-  {type = {"text", "text"}, value = {"world", "hello"}}
+  {
+    val = {"world", "hello"},
+    __cql_type = cql_types.tuple,
+    __cql_type_value = {
+      fields = {
+        {__cql_type = cql_types.text}, {__cql_type = cql_types.text},
+      }
+    }
+  },
+  {
+    val = {"hello", "world"},
+    __cql_type = cql_types.tuple,
+    __cql_type_value = {
+      fields = {
+        {__cql_type = cql_types.text}, {__cql_type = cql_types.text},
+      }
+    }
+  },
+  {
+    val = {"hello", 1},
+    __cql_type = cql_types.tuple,
+    __cql_type_value = {
+      fields = {
+        {__cql_type = cql_types.text}, {__cql_type = cql_types.int},
+      }
+    }
+  }
+}
+
+_M.cql_udt_fixtures = {
+  {
+    val = {"v1", "v2"},
+    read = {field1 = "v1", field2 = "v2"},
+    __cql_type = cql_types.udt,
+    __cql_type_value = {
+      udt_keyspace = "",
+      udt_name = "",
+      fields = {
+        {name = "field1", type = {__cql_type = cql_types.text}},
+        {name = "field2", type = {__cql_type = cql_types.text}},
+      }
+    }
+  }
 }
 
 _M.keyspace = "lua_resty_specs"

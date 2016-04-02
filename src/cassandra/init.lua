@@ -278,23 +278,27 @@ function _Host:__tostring()
   return "<Cassandra socket: "..tostring(self.sock)..">"
 end
 
-local types_mt = {
+local frame = require "cassandra.frame"
+local cql_types = frame.cql_types
+
+local cql_marshallers = {
   __index = function(self, key)
-    if types.cql_types[key] ~= nil then
-      return function(value)
-        if value == nil then
+    local cql_t = cql_types[key]
+    if cql_t ~= nil then
+      return function(val)
+        if val == nil then
           error("bad argument #1 to '"..key.."' (got nil)", 2)
         end
-        return {value = value, type_id = types.cql_types[key]}
+        return {val = val, __cql_type = cql_t}
       end
     elseif key == "unset" then
-      return {value = "unset", type_id = "unset"}
+      return {__cql_type = frame.cql_t_unset}
     end
 
     return rawget(self, key)
   end
 }
 
-setmetatable(_Host, types_mt)
+setmetatable(_Host, cql_marshallers)
 
 return _Host

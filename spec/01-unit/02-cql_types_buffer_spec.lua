@@ -1,98 +1,130 @@
 local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
-local Buffer = require "cassandra.buffer"
-local types = require "cassandra.types"
-local CQL_TYPES = types.cql_types
+local frame = require "cassandra.frame"
+local Buffer = frame.buffer
+local cql_types = frame.cql_types
 
-for _, protocol_version in ipairs({2, 3}) do
+for protocol_version = 2, 3 do
 
-describe("CQL Types protocol v"..protocol_version, function()
-  it("[uuid] should be bufferable", function()
-    local fixture = "1144bada-852c-11e3-89fb-e0b9a54a6d11"
-    local buf = Buffer(protocol_version)
-    buf:write_cql_uuid(fixture)
-    buf:reset()
-    local decoded = buf:read_cql_uuid()
-    assert.equal(fixture, decoded)
-  end)
+describe("CQL marshalling v"..protocol_version, function()
+  for cql_t_name, fixtures in pairs(helpers.cql_fixtures) do
+    local cql_t = cql_types[cql_t_name]
+    local marshaller = cassandra[cql_t_name]
 
-  for fixture_type, fixture_values in pairs(helpers.cql_fixtures) do
-    it("["..fixture_type.."] should be bufferable", function()
-      for _, fixture in ipairs(fixture_values) do
-        local buf = Buffer(protocol_version)
-        buf["write_cql_"..fixture_type](buf, fixture)
+    it("["..cql_t_name.."]", function()
+      for i = 1, #fixtures do
+        local fixture = fixtures[i]
+        local buf, decoded
+
+        buf = Buffer.new(protocol_version)
+        buf:write_cql_value(marshaller(fixture))
         buf:reset()
-
-        local decoded = buf["read_cql_"..fixture_type](buf)
-        assert.fixture(fixture_type, fixture, decoded)
+        decoded = buf:read_cql_value({__cql_type = cql_t})
+        assert.fixture(cql_t_name, fixture, decoded)
       end
-    end)
-
-    describe("manual type infering", function()
-      it("["..fixture_type.."] should be possible to infer the type of a value through short-hand methods", function()
-        for _, fixture in ipairs(fixture_values) do
-          local infered_value = cassandra[fixture_type](fixture)
-          local buf = Buffer(protocol_version)
-          buf:write_cql_value(infered_value)
-          buf:reset()
-
-          local decoded = buf:read_cql_value({type_id = CQL_TYPES[fixture_type]})
-          assert.fixture(fixture_type, fixture, decoded)
-        end
-      end)
     end)
   end
 
-  it("[list<type>] should be bufferable", function()
-    for _, fixture in ipairs(helpers.cql_list_fixtures) do
-      local buf = Buffer(protocol_version)
-      buf:write_cql_set(fixture.value)
+  it("[list<T>]", function()
+    local fixtures = helpers.cql_list_fixtures
+    for i = 1, #fixtures do
+      local fixture = fixtures[i]
+      local buf, decoded
+
+      buf = Buffer.new(protocol_version)
+      buf:write_cql_value(fixture)
       buf:reset()
-      local decoded = buf:read_cql_list({type_id = fixture.value_type})
-      assert.same(fixture.value, decoded)
+      decoded = buf:read_cql_value(fixture)
+      assert.same(fixture.val, decoded)
     end
   end)
 
-  it("[map<type, type>] should be bufferable", function()
-    for _, fixture in ipairs(helpers.cql_map_fixtures) do
-      local buf = Buffer(protocol_version)
-      buf:write_cql_map(fixture.value)
+  it("[set<T>]", function()
+    local fixtures = helpers.cql_set_fixtures
+    for i = 1, #fixtures do
+      local fixture = fixtures[i]
+      local buf, decoded
+
+      buf = Buffer.new(protocol_version)
+      buf:write_cql_value(fixture)
       buf:reset()
-      local decoded = buf:read_cql_map({{type_id = fixture.key_type}, {type_id = fixture.value_type}})
-      assert.same(fixture.value, decoded)
+      decoded = buf:read_cql_value(fixture)
+      assert.same(fixture.val, decoded)
     end
   end)
 
-  it("[set<type>] should be bufferable", function()
-    for _, fixture in ipairs(helpers.cql_set_fixtures) do
-      local buf = Buffer(protocol_version)
-      buf:write_cql_set(fixture.value)
+  it("[map<T, T>]", function()
+    local fixtures = helpers.cql_map_fixtures
+    for i = 1, #fixtures do
+      local fixture = fixtures[i]
+      local buf, decoded
+
+      buf = Buffer.new(protocol_version)
+      buf:write_cql_value(fixture)
       buf:reset()
-      local decoded = buf:read_cql_set({type_id = fixture.value_type})
-      assert.same(fixture.value, decoded)
+      decoded = buf:read_cql_value(fixture)
+      assert.same(fixture.val, decoded)
     end
   end)
 
-  describe("write_cql_values", function()
-    it("should loop over given values and infer their types", function()
+  it("[tuple<T, T>]", function()
+    local fixtures = helpers.cql_tuple_fixtures
+    for i = 1, #fixtures do
+      local fixture = fixtures[i]
+      local buf, decoded
+
+      buf = Buffer.new(protocol_version)
+      buf:write_cql_value(fixture)
+      buf:reset()
+      decoded = buf:read_cql_value(fixture)
+      assert.same(fixture.val, decoded)
+    end
+  end)
+
+  it("[udt]", function()
+    local fixtures = helpers.cql_udt_fixtures
+    for i = 1, #fixtures do
+      local fixture = fixtures[i]
+      local buf, decoded
+
+      buf = Buffer.new(protocol_version)
+      buf:write_cql_value(fixture)
+      buf:reset()
+      decoded = buf:read_cql_value(fixture)
+      assert.same(fixture.read, decoded) -- read is different from write
+    end
+  end)
+
+  describe("write_cql_values()", function()
+    it("writes given values and infer their types", function()
       local values = {
+        true,
         42,
+        "hello world",
         {"hello", "world"},
-        {hello = "world"},
-        "hello world"
+        {hello = "world"}
       }
 
-      local buf = Buffer(protocol_version)
+      local buf = Buffer.new(protocol_version)
       buf:write_cql_values(values)
       buf:reset()
+
       assert.equal(#values, buf:read_short())
-      assert.equal(values[1], buf:read_cql_int())
-      assert.same(values[2], buf:read_cql_set({type_id = CQL_TYPES.text}))
-      assert.same(values[3], buf:read_cql_map({{type_id = CQL_TYPES.text}, {type_id = CQL_TYPES.text}}))
-      assert.same(values[4], buf:read_cql_raw())
+      assert.True(buf:read_cql_value             {__cql_type = cql_types.boolean})
+      assert.equal(values[2], buf:read_cql_value {__cql_type = cql_types.int})
+      assert.equal(values[3], buf:read_cql_value {__cql_type = cql_types.text})
+      assert.same(values[4], buf:read_cql_value  {__cql_type = cql_types.set,
+                                                  __cql_type_value =
+                                                    {__cql_type = cql_types.text}
+                                                 })
+      assert.same(values[5], buf:read_cql_value  {__cql_type = cql_types.map,
+                                                  __cql_type_value = {
+                                                    {__cql_type = cql_types.text},
+                                                    {__cql_type = cql_types.text}
+                                                  }
+                                                 })
     end)
   end)
 end)
 
 end
-

@@ -1,20 +1,14 @@
-local FrameHeader = require "cassandra.types.frame_header"
-local FrameReader = require "cassandra.frame_reader"
-local Requests = require "cassandra.requests"
 local socket = require "cassandra.socket"
-local types = require "cassandra.types"
-
-local protocol = require "cassandra.protocol"
-local cql_types = protocol.cql_types
-local cql_errors = protocol.cql_errors
+local cql = require "cassandra.cql"
 
 local setmetatable = setmetatable
+local requests = cql.requests
 local pairs = pairs
 local find = string.find
 
 local _Host = {
-  cql_errors = cql_errors,
-  consistencies = protocol.consistencies,
+  cql_errors = cql.errors,
+  consistencies = cql.consistencies,
   auth_providers = require "cassandra.auth"
 }
 
@@ -30,7 +24,7 @@ function _Host.new(opts)
     host = opts.host or "127.0.0.1",
     port = opts.port or 9042,
     keyspace = opts.keyspace,
-    protocol_version = opts.protocol_version or protocol.def_protocol_version,
+    protocol_version = opts.protocol_version or cql.def_protocol_version,
     ssl = opts.ssl,
     verify = opts.verify,
     cert = opts.cert,
@@ -47,9 +41,7 @@ function _Host:send(request)
     return nil, "no socket created"
   end
 
-  request:set_version(self.protocol_version)
-
-  local frame = request:get_full_frame()
+  local frame = request:build_frame(self.protocol_version)
   local sent, err = self.sock:send(frame)
   if not sent then return nil, err end
 
@@ -58,35 +50,33 @@ function _Host:send(request)
   if not v_byte then return nil, err end
 
   -- -1 because of the v_byte we just read
-  local n_bytes = FrameHeader.size_from_byte(v_byte) - 1
+  local version, n_bytes = cql.frame_reader.version(v_byte)
 
   -- receive frame header
   local header_bytes, err = self.sock:receive(n_bytes)
   if not header_bytes then return nil, err end
 
-  local frame_header = FrameHeader.from_raw_bytes(v_byte, header_bytes)
+  local header = cql.frame_reader.read_header(version, header_bytes)
 
   -- receive frame body
   local body_bytes
-  if frame_header.body_length > 0 then
-    body_bytes, err = self.sock:receive(frame_header.body_length)
+  if header.body_length > 0 then
+    body_bytes, err = self.sock:receive(header.body_length)
     if not body_bytes then return nil, err end
   end
 
-  local frame_reader = FrameReader(frame_header, body_bytes)
-
   -- res, err, cql_err_code
-  return frame_reader:parse()
+  return cql.frame_reader.read_body(header, body_bytes)
 end
 
 local function send_startup(self)
-  local startup_req = Requests.StartupRequest()
+  local startup_req = requests.startup.new()
   return self:send(startup_req)
 end
 
 local function send_auth(self)
   local token = self.auth:initial_response()
-  local auth_request = Requests.AuthResponse(token)
+  local auth_request = requests.auth_response.new(token)
   local res, err = self:send(auth_request)
   if not res then
     return nil, err
@@ -125,12 +115,12 @@ function _Host:connect()
     -- startup request on first connection
     local res, err, code = send_startup(self)
     if not res then
-      if code == cql_errors.PROTOCOL and
+      if code == cql.errors.PROTOCOL and
          find(err, "Invalid or unsupported protocol version", nil, true) then
         -- too high protocol version
         self.sock:close()
         self.protocol_version = self.protocol_version - 1
-        if self.protocol_version < protocol.min_protocol_version then
+        if self.protocol_version < cql.min_protocol_version then
           return nil, "could not find a supported protocol version"
         end
         return self:connect()
@@ -182,18 +172,18 @@ function _Host:close(...)
 end
 
 function _Host:set_keyspace(keyspace)
-  local keyspace_req = Requests.KeyspaceRequest(keyspace)
+  local keyspace_req = requests.keyspace.new(keyspace)
   return self:send(keyspace_req)
 end
 
 function _Host:prepare(query)
-  local prepare_request = Requests.PrepareRequest(query)
+  local prepare_request = requests.prepare.new(query)
   return self:send(prepare_request)
 end
 
 local query_options = {
-  consistency = protocol.consistencies.one,
-  serial_consistency = protocol.consistencies.serial,
+  consistency = cql.consistencies.one,
+  serial_consistency = cql.consistencies.serial,
   page_size = 1000,
   paging_state = nil,
   auto_paging = false,
@@ -229,9 +219,9 @@ _Host.get_request_opts = get_opts
 local function execute(self, query, args, opts)
   local request = opts.prepared and
     -- query is the prepared queryid
-    Requests.ExecutePreparedRequest(query, args, opts)
+    requests.execute_prepared.new(query, args, opts)
     or
-    Requests.QueryRequest(query, args, opts)
+    requests.query.new(query, args, opts)
 
   return self:send(request)
 end
@@ -270,7 +260,7 @@ function _Host:iterate(query, args, options)
 end
 
 function _Host:batch(queries, options)
-  local batch_request = Requests.BatchRequest(queries, get_opts(options))
+  local batch_request = requests.batch.new(queries, get_opts(options))
   return self:send(batch_request)
 end
 
@@ -280,7 +270,7 @@ end
 
 local cql_marshallers = {
   __index = function(self, key)
-    local cql_t = cql_types[key]
+    local cql_t = cql.types[key]
     if cql_t ~= nil then
       return function(val)
         if val == nil then
@@ -289,7 +279,7 @@ local cql_marshallers = {
         return {val = val, __cql_type = cql_t}
       end
     elseif key == "unset" then
-      return {__cql_type = protocol.cql_t_unset}
+      return cql.t_unset
     end
 
     return rawget(self, key)

@@ -1,10 +1,11 @@
-local cassandra = require "cassandra"
-local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
+local cassandra = require "cassandra"
+local cql = require "cassandra.cql"
+local requests = cql.requests
+local cql_errors = cql.errors
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
-local cql_errors = cassandra.cql_errors
 local tonumber = tonumber
 local concat = table.concat
 local ipairs = ipairs
@@ -383,8 +384,8 @@ local function get_or_prepare(self, coordinator, query, force)
   return query_id
 end
 
-local local_query = Requests.QueryRequest "SELECT schema_version FROM system.local"
-local peers_query = Requests.QueryRequest "SELECT schema_version FROM system.peers"
+local local_query = requests.query.new "SELECT schema_version FROM system.local"
+local peers_query = requests.query.new "SELECT schema_version FROM system.peers"
 
 local function check_schema_consensus(coordinator)
   local local_res, err = coordinator:send(local_query)
@@ -394,8 +395,8 @@ local function check_schema_consensus(coordinator)
   if not peers_res then return nil, err end
 
   if #peers_res > 0 and #local_res > 0 then
-    for _, peer_row in ipairs(peers_res) do
-      if peer_row.schema_version ~= local_res[1].schema_version then
+    for i = 1, #peers_res do
+      if peers_res[i].schema_version ~= local_res[1].schema_version then
         return false
       end
     end
@@ -567,11 +568,11 @@ function _Cluster:execute(query, args, query_options)
   if opts.prepared then
     local query_id, err = get_or_prepare(self, coordinator, query)
     if not query_id then return nil, err end
-    request = Requests.ExecutePreparedRequest(query_id, args, opts)
+    request = requests.execute_prepared.new(query_id, args, opts)
     request_infos.query_id = query_id
     request_infos.orig_query = query
   else
-    request = Requests.QueryRequest(query, args, opts)
+    request = requests.query.new(query, args, opts)
   end
 
   return inner_execute(self, coordinator, request, request_infos)
@@ -596,7 +597,7 @@ function _Cluster:batch(queries, query_options)
     request_infos.prepared = true
   end
 
-  local request = Requests.BatchRequest(queries, opts)
+  local request = requests.batch.new(queries, opts)
 
   return inner_execute(self, coordinator, request, request_infos)
 end

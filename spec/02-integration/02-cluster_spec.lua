@@ -400,7 +400,7 @@ describe("cluster", function()
       it("timeouts", function()
         local cluster = assert(Cluster.new {
           keyspace = helpers.keyspace,
-          max_schema_consensus_wait = 1000
+          max_schema_consensus_wait = 10 -- ms
         })
         finally(function()
           cluster:execute "DROP TABLE consensus"

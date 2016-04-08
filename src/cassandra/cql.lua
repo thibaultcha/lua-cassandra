@@ -34,7 +34,7 @@ local Buffer = {}
 local requests = {}
 local frame_reader = {}
 
-local cql_t_unset = -1
+local cql_t_unset = {}
 local cql_types = {
   custom    = 0x00,
   ascii     = 0x01,
@@ -136,12 +136,12 @@ do
   end
 
   function Buffer:read(n)
-    if n < 1 then return '' end
-    local pos = self.pos
+    n = n or self.len
+    if n < 0 then return end
 
-    local last_index = n ~= nil and pos + n - 1 or -1
-    local bytes = sub(self.str, pos, last_index)
-    self.pos = pos + #bytes
+    local last_index = n ~= nil and self.pos + n - 1 or -1
+    local bytes = sub(self.str, self.pos, last_index)
+    self.pos = self.pos + #bytes
     return bytes
   end
 
@@ -248,7 +248,6 @@ do
 
   local function unmarsh_bytes(buffer)
     local n_bytes = buffer:read_int()
-    if n_bytes < 0 then return nil end -- NULL/unset
     return buffer:read(n_bytes)
   end
 
@@ -377,7 +376,7 @@ do
 
     local fields = {}
     for _ = 1, n do
-      fields[#fields+1] = {buffer:read_options()}
+      fields[#fields+1] = buffer:read_options()
     end
 
     return {fields = fields}
@@ -422,7 +421,7 @@ do
   end
 
   local function unmarsh_raw(buffer)
-    return buffer:get()
+    return buffer:read()
   end
 
   local function marsh_bigint(val)
@@ -719,16 +718,19 @@ do
     [cql_types.varint] = marsh_int,
     [cql_types.timeuuid] = marsh_uuid,
     [cql_types.udt] = marsh_udt,
-    [cql_types.tuple] = marsh_tuple,
-    [cql_t_unset] = marsh_unset
+    [cql_types.tuple] = marsh_tuple
   }
 
   marsh_cql_value = function(val, version)
+    if val == cql_t_unset then
+      return marsh_unset()
+    end
+
     local cql_t
     local typ = type(val)
     if typ == 'table' then
       -- set by cassandra.uuid() or the likes
-      if val.val and val.__cql_type then
+      if val.__cql_type then
         cql_t = val.__cql_type
         val = val.val
       elseif t_utils.is_array(val) then
@@ -752,8 +754,8 @@ do
     if not marshaller then
       error('no marshaller for CQL type '..cql_t)
     end
-    local marshalled = marshaller(val, version)
-    return marsh_bytes(marshalled)
+
+    return marsh_bytes(marshaller(val, version))
   end
 
   function Buffer:write_cql_value(val)
@@ -796,8 +798,10 @@ do
       error('no unmarshaller for CQL type '..t.__cql_type)
     end
     local bytes = self:read_bytes()
-    local buffer = Buffer.new(self.version, bytes)
-    return unmarshaller(buffer, t.__cql_type_value)
+    if bytes then
+      local buffer = Buffer.new(self.version, bytes)
+      return unmarshaller(buffer, t.__cql_type_value)
+    end
   end
 end -- do CQL encoding
 
@@ -833,7 +837,7 @@ do
 
     local header, body = self.header, self.body
     body.version = version
-    self:build_body(body)            -- build body (depends on protocol version)
+    self:build_body(body)        -- build body (depends on protocol version)
 
     if version == 2 then
       header:write_byte(0x02)
@@ -854,9 +858,11 @@ do
     return self.frame
   end
 
+  local default_opts = {consistency = consistencies.one}
   local function build_args(body, args, opts)
+    opts = opts or default_opts
     local flags = 0x00
-    local buf = Buffer(body.version)
+    local buf = Buffer.new(body.version)
     if args then
       flags = bor(flags, 0x01)
       buf:write_short(#args)
@@ -878,11 +884,13 @@ do
     end
 
     body:write_short(opts.consistency)
-    body:write_bytes(flags)
+    body:write_byte(flags)
     body:write(buf:get())
   end
 
-  requests.startup = {
+  local req_mts = {}
+
+  req_mts.startup = {
     new = function()
       return new_request(OP_CODES.STARTUP)
     end,
@@ -893,7 +901,7 @@ do
     end
   }
 
-  requests.keyspace = {
+  req_mts.keyspace = {
     new = function(keyspace)
       local r = new_request(OP_CODES.QUERY)
       r.keyspace = keyspace
@@ -901,10 +909,11 @@ do
     end,
     build_body = function(self, body)
       body:write_long_string(fmt([[USE "%s"]], self.keyspace))
+      build_args(body)
     end
   }
 
-  requests.query = {
+  req_mts.query = {
     new = function(query, args, opts)
       local r = new_request(OP_CODES.QUERY)
       r.query = query
@@ -918,7 +927,7 @@ do
     end
   }
 
-  requests.prepare = {
+  req_mts.prepare = {
     new = function(query)
       local r = new_request(OP_CODES.PREPARE)
       r.query = query
@@ -929,7 +938,7 @@ do
     end
   }
 
-  requests.execute_prepared = {
+  req_mts.execute_prepared = {
     new = function(query_id, args, opts)
       local r = new_request(OP_CODES.EXECUTE)
       r.query_id = query_id
@@ -943,7 +952,7 @@ do
     end
   }
 
-  requests.batch = {
+  req_mts.batch = {
     new = function(queries, opts)
       local r = new_request(OP_CODES.BATCH)
       r.queries = queries
@@ -1001,7 +1010,7 @@ do
     end
   }
 
-  requests.auth_response = {
+  req_mts.auth_response = {
     new = function(token)
       local r = new_request(OP_CODES.AUTH_RESPONSE)
       r.token = token
@@ -1011,6 +1020,16 @@ do
       body:write_bytes(self.token)
     end
   }
+
+  for k, v in pairs(req_mts) do
+    requests[k] = {
+      new = function(...)
+        local r = v.new(...)
+        r.build_body = v.build_body
+        return r
+      end
+    }
+  end
 end
 
 ---------------
@@ -1053,12 +1072,12 @@ do
   function frame_reader.version(b)
     local version = band(byte(b), 0x7F) -- string.byte
     local header_size = version < 3 and 8 or 9
-    return version, header_size
+    return version, header_size - 1 -- -1 because b was our first byte
   end
 
   function frame_reader.read_header(version, bytes)
     local buf = Buffer.new(version, bytes)
-    local flags = buf:read_bytes()
+    local flags = buf:read_byte()
     local stream_id
     if version < 3 then
       stream_id = buf:read_byte()
@@ -1206,10 +1225,10 @@ end
 
 return {
   buffer = Buffer, -- for testing only
-  errors = errors,
+  errors = ERRORS,
   requests = requests,
-  cql_types = cql_types,
-  cql_t_unset = cql_t_unset,
+  types = cql_types,
+  t_unset = cql_t_unset,
   frame_reader = frame_reader,
   consistencies = consistencies,
   min_protocol_version = 2,

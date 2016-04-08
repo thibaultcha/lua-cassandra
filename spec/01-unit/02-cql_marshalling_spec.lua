@@ -1,14 +1,13 @@
 local helpers = require "spec.helpers"
 local cassandra = require "cassandra"
-local protocol = require "cassandra.protocol"
-local Buffer = protocol.buffer
-local cql_types = protocol.cql_types
+local cql = require "cassandra.cql"
+local Buffer = cql.buffer
 
 for protocol_version = 2, 3 do
 
 describe("CQL marshalling v"..protocol_version, function()
   for cql_t_name, fixtures in pairs(helpers.cql_fixtures) do
-    local cql_t = cql_types[cql_t_name]
+    local cql_t = cql.types[cql_t_name]
     local marshaller = cassandra[cql_t_name]
 
     it("["..cql_t_name.."]", function()
@@ -113,17 +112,17 @@ describe("CQL marshalling v"..protocol_version, function()
       buf:reset()
 
       assert.equal(#values, buf:read_short())
-      assert.True(buf:read_cql_value             {__cql_type = cql_types.boolean})
-      assert.equal(values[2], buf:read_cql_value {__cql_type = cql_types.int})
-      assert.equal(values[3], buf:read_cql_value {__cql_type = cql_types.text})
-      assert.same(values[4], buf:read_cql_value  {__cql_type = cql_types.set,
+      assert.True(buf:read_cql_value             {__cql_type = cql.types.boolean})
+      assert.equal(values[2], buf:read_cql_value {__cql_type = cql.types.int})
+      assert.equal(values[3], buf:read_cql_value {__cql_type = cql.types.text})
+      assert.same(values[4], buf:read_cql_value  {__cql_type = cql.types.set,
                                                   __cql_type_value =
-                                                    {__cql_type = cql_types.text}
+                                                    {__cql_type = cql.types.text}
                                                  })
-      assert.same(values[5], buf:read_cql_value  {__cql_type = cql_types.map,
+      assert.same(values[5], buf:read_cql_value  {__cql_type = cql.types.map,
                                                   __cql_type_value = {
-                                                    {__cql_type = cql_types.text},
-                                                    {__cql_type = cql_types.text}
+                                                    {__cql_type = cql.types.text},
+                                                    {__cql_type = cql.types.text}
                                                   }
                                                  })
     end)

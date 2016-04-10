@@ -14,7 +14,7 @@ local gsub = string.gsub
 local fmt = string.format
 
 local get_shm, new_lock, mutex, release, log_warn
-if ngx ~= nil then
+if ngx then
   local shared = ngx.shared
   local log, WARN = ngx.log, ngx.WARN
   local resty_lock = require "resty.lock"
@@ -51,16 +51,19 @@ _Cluster.__index = _Cluster
 
 function _Cluster.new(opts)
   opts = opts or {}
-  local shm = get_shm(opts.shm or "cassandra")
-  if not shm then return nil, "no shm named "..shm end
+  opts.shm = opts.shm or "cassandra"
+  opts.shm_prepared = opts.shm_prepared or "cassandra_prepared"
 
-  local shm_prepared = get_shm(opts.shm_prepared or "cassandra_prepared")
-  if not shm_prepared then return nil, "no shm named "..shm end
+  local shm = get_shm(opts.shm)
+  if not shm then return nil, "no shm named "..opts.shm end
+
+  local shm_prepared = get_shm(opts.shm_prepared)
+  if not shm_prepared then return nil, "no shm named "..opts.shm_prepared end
 
   local cluster = {
     shm = shm,
     shm_prepared = shm_prepared,
-    lock = new_lock(shm),
+    lock = new_lock(opts.shm),
 
     keyspace = opts.keyspace,
     contact_points = opts.contact_points or {"127.0.0.1"},
@@ -184,7 +187,7 @@ end
 --- Peer health stuff
 
 local function set_peer_down(self, address, peer_infos)
-  local elapsed, err = mutex(self.lock)
+  local elapsed, err = mutex(self.lock, "down_"..address)
   if not elapsed then return nil, err
   elseif elapsed == 0 then
     if not peer_infos then
@@ -314,7 +317,7 @@ SELECT peer,data_center,rack,rpc_address FROM system.peers
 ]]
 
 function _Cluster:refresh()
-  local elapsed, err = mutex(self.lock)
+  local elapsed, err = mutex(self.lock, "refresh")
   if not elapsed then return nil, err
   elseif elapsed == 0 then
     local coordinator, err = self:get_first_coordinator(self.contact_points)
@@ -327,9 +330,9 @@ function _Cluster:refresh()
 
     rows[#rows + 1] = {rpc_address = coordinator.host}
     local hosts = {}
-    for _, row in ipairs(rows) do
-      hosts[#hosts + 1] = row.rpc_address
-      local ok, err = set_peer_up(self, row.rpc_address)
+    for i = 1, #rows do
+      hosts[#hosts + 1] = rows[i].rpc_address
+      local ok, err = set_peer_up(self, rows[i].rpc_address)
       if not ok then return nil, err end
     end
 
@@ -360,7 +363,7 @@ local function get_or_prepare(self, coordinator, query, force)
   end
 
   if query_id == nil then
-    local elapsed, err = mutex(self.lock)
+    local elapsed, err = mutex(self.lock, "prepare_"..query)
     if not elapsed then return nil, err
     elseif elapsed == 0 then
       local res, err = coordinator:prepare(query)

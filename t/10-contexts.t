@@ -18,13 +18,10 @@ lua_shared_dict test 128k;
 init_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
-    local session, err = cassandra.new {
+    local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
-    if not session then
-        ngx.say(ngx.ERR, err)
-    end
 
     local rows = session:execute 'SELECT key FROM system.local'
     dict:set('type', rows.type)
@@ -59,14 +56,10 @@ lua_shared_dict test 128k;
 init_worker_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
-    local session, err = cassandra.new {
+    local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
-    if not session then
-        ngx.say(ngx.ERR, err)
-        ngx.exit(500)
-    end
 
     local rows = session:execute 'SELECT key FROM system.local'
     dict:set('type', rows.type)
@@ -100,15 +93,10 @@ local
     location /t {
         set_by_lua_block $res {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
-
             local rows = session:execute "SELECT key FROM system.local"
             return rows[1].key
         }
@@ -132,15 +120,10 @@ local
         set $res "";
         rewrite_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
-
             local rows = session:execute "SELECT key FROM system.local"
             ngx.var.res = rows[1].key
         }
@@ -163,14 +146,10 @@ local
     location /t {
         access_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             ngx.say(rows[1].key)
@@ -192,14 +171,10 @@ local
     location /t {
         content_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             ngx.say(rows[1].key)
@@ -223,14 +198,10 @@ local
 
         header_filter_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             ngx.log(ngx.ERR, "header_filter "..rows[1].key)
@@ -255,14 +226,10 @@ qr/\[error\].*?header_filter local/
 
         body_filter_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             ngx.log(ngx.DEBUG, "body_filter "..rows[1].key)
@@ -278,7 +245,6 @@ qr/\[debug\].*?body_filter local/
 
 
 === TEST 9: support in log
---- wait: 1
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -287,14 +253,10 @@ qr/\[debug\].*?body_filter local/
 
         log_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
                 contact_points = {"127.0.0.1"}
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             ngx.log(ngx.ERR, "log "..rows[1].key)
@@ -310,7 +272,6 @@ qr/\[error\].*?log local/
 
 
 === TEST 10: support in timer
---- wait: 1
 --- http_config eval
 "$t::Utils::HttpConfig"
 --- config
@@ -320,14 +281,10 @@ qr/\[error\].*?log local/
         log_by_lua_block {
             ngx.timer.at(0, function()
                 local cassandra = require "cassandra"
-                local session, err = cassandra.new {
+                local session = cassandra.spawn_session {
                     shm = "cassandra",
                     contact_points = {"127.0.0.1"}
                 }
-                if not session then
-                    ngx.say(ngx.ERR, err)
-                    ngx.exit(500)
-                end
 
                 local rows = session:execute "SELECT key FROM system.local"
                 ngx.log(ngx.ERR, "timer "..rows[1].key)
@@ -351,13 +308,10 @@ init_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
     local socket = require 'cassandra.socket'
-    local session, err = cassandra.new {
+    local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
-    if not session then
-        ngx.say(ngx.ERR, err)
-    end
 
     local rows = session:execute 'SELECT key FROM system.local'
     local sock = session.hosts[1].socket
@@ -371,14 +325,9 @@ init_by_lua_block {
             local socket = require 'cassandra.socket'
             local dict = ngx.shared.test
 
-            local session, err = cassandra.new {
-                shm = "cassandra",
-                contact_points = {"127.0.0.1"}
+            local session = cassandra.spawn_session {
+                shm = "cassandra"
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             local sock = session.hosts[1].socket
@@ -405,13 +354,10 @@ init_worker_by_lua_block {
     local dict = ngx.shared.test
     local cassandra = require 'cassandra'
     local socket = require 'cassandra.socket'
-    local session, err = cassandra.new {
+    local session = cassandra.spawn_session {
         shm = 'cassandra',
         contact_points = {'127.0.0.1'}
     }
-    if not session then
-        ngx.say(ngx.ERR, err)
-    end
 
     local rows = session:execute 'SELECT key FROM system.local'
     local sock = session.hosts[1].socket
@@ -425,14 +371,9 @@ init_worker_by_lua_block {
             local socket = require 'cassandra.socket'
             local dict = ngx.shared.test
 
-            local session, err = cassandra.new {
-                shm = "cassandra",
-                contact_points = {"127.0.0.1"}
+            local session = cassandra.spawn_session {
+                shm = "cassandra"
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
 
             local rows = session:execute "SELECT key FROM system.local"
             local sock = session.hosts[1].socket

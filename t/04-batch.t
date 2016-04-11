@@ -13,31 +13,25 @@ __DATA__
 
 === TEST 1: session:execute()
 --- http_config eval
-"$t::Utils::HttpConfig"
+"$t::Utils::HttpConfig
+ $t::Utils::SpawnCluster"
 --- config
     location /t {
         content_by_lua_block {
             local cassandra = require "cassandra"
-            local session, err = cassandra.new {
+            local session = cassandra.spawn_session {
                 shm = "cassandra",
-                contact_points = {"127.0.0.1"},
                 socket_options = {
                     connect_timeout = 5000,
                     read_timeout = 10000
                 }
             }
-            if not session then
-                ngx.say(ngx.ERR, err)
-                ngx.exit(500)
-            end
-
             local res, err = session:execute [[
                 CREATE KEYSPACE IF NOT EXISTS resty_t_keyspace
                 WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
             ]]
             if err then
                 ngx.log(ngx.ERR, err)
-                ngx.exit(500)
             end
 
             res, err = session:execute [[
@@ -50,7 +44,6 @@ __DATA__
             ]]
             if err then
                 ngx.log(ngx.ERR, err)
-                ngx.exit(500)
             end
 
             local _UUID = "ca002f0a-8fe4-11e5-9663-43d80ec97d3e"
@@ -61,7 +54,6 @@ __DATA__
             })
             if err then
                 ngx.log(ngx.ERR, err)
-                ngx.exit(500)
             end
 
             local rows, err = session:execute([[
@@ -69,7 +61,6 @@ __DATA__
             ]], {cassandra.uuid(_UUID)})
             if err then
                 ngx.log(ngx.ERR, err)
-                ngx.exit(500)
             end
 
             for _, row in ipairs(rows) do

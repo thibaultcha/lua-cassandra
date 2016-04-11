@@ -8,7 +8,7 @@ describe("CQL types integration", function()
     local _, err
     local hosts, shm = utils.ccm_start()
 
-    session, err = cassandra.new {
+    session, err = cassandra.spawn_session {
       shm = shm,
       contact_points = hosts
     }

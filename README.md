@@ -48,7 +48,7 @@ http {
       content_by_lua_block {
         local cassandra = require "cassandra"
 
-        local session, err = cassandra.new {
+        local session, err = cassandra.spawn_session {
           shm = "cassandra", -- defined by "lua_shared_dict"
           contact_points = {"127.0.0.1", "127.0.0.2"}
         }
@@ -85,7 +85,7 @@ With plain Lua:
 ```lua
 local cassandra = require "cassandra"
 
-local session, err = cassandra.new {
+local session, err = cassandra.spawn_session {
   shm = "cassandra",
   contact_points = {"127.0.0.1", "127.0.0.2"}
 }
@@ -122,7 +122,7 @@ Once you have a local copy of this module's `src/` directory, add it to your `LU
 /path/to/src/?.lua;/path/to/src/?/init.lua;
 ```
 
-**Note**: When used *outside* of ngx_lua, this module requires additional dependencies:
+**Note**: When used *outside* of ngx_lua, this module requires:
 
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
 - If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)

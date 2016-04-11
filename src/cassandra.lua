@@ -25,6 +25,7 @@ local FrameReader = require "cassandra.frame_reader"
 
 local CQL_Errors = types.ERRORS
 local string_find = string.find
+local table_insert = table.insert
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
@@ -63,6 +64,14 @@ end
 
 local MIN_PROTOCOL_VERSION = 2
 local DEFAULT_PROTOCOL_VERSION = 3
+
+--- Cassandra
+
+local Cassandra = {
+  _VERSION = "0.5.0",
+  DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
+  MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
+}
 
 --- Host
 -- A connection to a single host.
@@ -159,9 +168,9 @@ local function do_ssl_handshake(self)
   local ssl_options = self.options.ssl_options
 
   local luasec_opts = {
+    ca = ssl_options.ca,
     key = ssl_options.key,
-    cafile = ssl_options.ca,
-    cert = ssl_options.certificate
+    certificate = ssl_options.certificate
   }
 
   -- returns a boolean since `reused_session` is false.
@@ -213,47 +222,52 @@ function Host:connect()
 
   log.debug("session connected to "..self.address)
 
-  if self:get_reused_times() < 1 then
-    -- Startup request on first connection
-    local res, err = startup(self)
-    if err then
-      log.err("Startup request failed. "..err)
-      -- Check for incorrect protocol version
-      if err and err.code == CQL_Errors.PROTOCOL then
-        if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
-          self:close()
-          self:decrease_version()
-          if self.protocol_version < MIN_PROTOCOL_VERSION then
-            log.err "could not find a supported protocol version"
-          else
-            log.debug("decreasing protocol version to v"..self.protocol_version)
-            return self:connect()
-          end
-        end
-      end
-
-      return false, err, true
-    elseif res.must_authenticate then
-      log.debug("host at "..self.address.." asked for authentication")
-      if self.options.auth == nil then
-        return false, "Host at "..self.address..
-          " required authentication but no auth provider was configured on the session"
-      end
-
-      local ok, err = send_auth(self, self.options.auth)
-      if not ok then
-        return false, err
-      else
-        log.debug("successfully authenticated to host at "..self.address)
-      end
-    elseif not res.ready then
-      return false, "host is not ready"
-    end
+  if self:get_reused_times() > 0 then
+    -- No need for startup request
+    return true
   end
 
-  -- it could be that the socket comes from the connection pool, but this Host
-  -- instance is fresh new, in which case we need to go in there.
-  if not self.connected then
+  -- Startup request on first connection
+  local ready = false
+  local res, err = startup(self)
+  if err then
+    log.err("Startup request failed. "..err)
+    -- Check for incorrect protocol version
+    if err and err.code == CQL_Errors.PROTOCOL then
+      if string_find(err.message, "Invalid or unsupported protocol version:", nil, true) then
+        self:close()
+        self:decrease_version()
+        if self.protocol_version < MIN_PROTOCOL_VERSION then
+          log.err("could not find a supported protocol version")
+        else
+          log.debug("decreasing protocol version to v"..self.protocol_version)
+          return self:connect()
+        end
+      end
+    end
+
+    return false, err, true
+  elseif res.must_authenticate then
+    log.debug("host at "..self.address.." asked for authentication")
+    if self.options.auth == nil then
+      return false, "Host at "..self.address..
+        " required authentication but no auth provider was configured for session"
+    end
+
+    local ok, err = send_auth(self, self.options.auth)
+    if not ok then
+      return false, err
+    else
+      log.debug("successfully authenticated to host at "..self.address)
+      ready = true
+    end
+  elseif res.ready then
+    ready = true
+  end
+
+  if ready then
+    log.debug("host at "..self.address.." is ready with protocol v"..self.protocol_version)
+
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
       if err then
@@ -262,15 +276,14 @@ function Host:connect()
     end
 
     self.connected = true
-    log.debug("host at "..self.address.." is ready with protocol v"..self.protocol_version)
+    return true
   end
-
-  return true
 end
 
 function Host:change_keyspace(keyspace)
-  self.options.keyspace = keyspace
   if self.connected then
+    self.options.keyspace = keyspace
+
     return change_keyspace(self, keyspace)
   end
 end
@@ -337,7 +350,7 @@ end
 function Host:set_down()
   local lock, locked = lock(self.options.shm, "downing_"..self.address)
   if locked then
-    local host_infos, err = cache.get_host(self.options.shm, self.host)
+    local host_infos, err = cache.get_host(self.options.shm, self.address)
     if err then
       return err
     end
@@ -355,7 +368,7 @@ function Host:set_down()
 end
 
 function Host:set_up()
-  local host_infos, err = cache.get_host(self.options.shm, self.host)
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
     return false, err
   end
@@ -373,7 +386,7 @@ function Host:set_up()
 end
 
 function Host:can_be_considered_up()
-  local host_infos, err = cache.get_host(self.options.shm, self.host)
+  local host_infos, err = cache.get_host(self.options.shm, self.address)
   if err then
     return nil, err
   end
@@ -615,7 +628,39 @@ end
 -- @section session
 
 local Session = {}
-Session.__index = Session
+
+function Session:new(options)
+  local session_options, err = opts.parse_session(options)
+  if err then
+    return nil, err
+  end
+
+  local s = {
+    options = session_options,
+    hosts = {}
+  }
+
+  local host_addresses, err = cache.get_hosts(session_options.shm)
+  if err then
+    return nil, err
+  elseif host_addresses == nil then
+    log.warn("no cluster infos in shared dict "..session_options.shm)
+    if session_options.contact_points ~= nil then
+      host_addresses, err = Cassandra.refresh_hosts(session_options)
+      if not host_addresses then
+        return nil, err
+      end
+    else
+      return nil, Errors.options "options must contain contact_points to spawn session or cluster"
+    end
+  end
+
+  for _, addr in ipairs(host_addresses) do
+    table_insert(s.hosts, Host:new(addr, session_options))
+  end
+
+  return setmetatable(s, {__index = self})
+end
 
 local function prepare_query(request_handler, query)
   -- If the query is found in the cache, all workers can access it.
@@ -754,8 +799,7 @@ function Session:execute(query, args, query_options)
   if self.terminated then
     return nil, "cannot reuse a session that has been shut down"
   elseif type(query) ~= "string" then
-    local msg = "bad argument #1 to 'execute' (string expected, got "..type(query)..")"
-    error(msg, 2)
+    error("argument #1 must be a string", 2)
   end
 
   query_options = self.options:extend_query_options(query_options)
@@ -810,11 +854,6 @@ end
 -- @treturn table `result`: A table describing the result. Batch results are always `VOID` results. If an error occurred, this value will be `nil` and a second value describing the error is returned.
 -- @treturn string `err`: A string describing the error that occurred.
 function Session:batch(queries, query_options)
-  if type(queries) ~= "table" then
-    local msg = "bad argument #1 to 'batch' (table expected, got "..type(queries)..")"
-    error(msg, 2)
-  end
-
   query_options = self.options:extend_query_options({logged = true}, query_options)
 
   local request_handler = RequestHandler:new(self.hosts, self.options, query_options)
@@ -901,63 +940,6 @@ end
 --- Cassandra
 -- @section cassandra
 
-local Cassandra = {
-  _VERSION = "0.5.0",
-  DEFAULT_PROTOCOL_VERSION = DEFAULT_PROTOCOL_VERSION,
-  MIN_PROTOCOL_VERSION = MIN_PROTOCOL_VERSION
-}
-
-local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
-
-local function refresh_hosts(options)
-  local lock, ok = lock(options.shm, "refresh_hosts")
-  if ok then
-    log.debug "refreshing cluster infos"
-    local addresses, cp_hosts = {}, {}
-    for _, contact_point in ipairs(options.contact_points) do
-      cp_hosts[#cp_hosts + 1] = Host:new(contact_point, options)
-    end
-
-    local coordinator, err = RequestHandler.get_first_coordinator(cp_hosts)
-    if err then
-      return nil, err
-    end
-
-    local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
-    local rows, err = coordinator:send(peers_query)
-    if err then
-      return nil, err
-    end
-
-    coordinator:set_keep_alive()
-
-    -- add local (coordinator) to cluster infos
-    rows[#rows + 1] = {rpc_address = coordinator.host}
-
-    -- add peers to cluster infos
-    for _, row in ipairs(rows) do
-      log.debug("adding host "..row.rpc_address)
-      addresses[#addresses + 1] = row.rpc_address
-      local ok, err = cache.set_host(options.shm, row.rpc_address, {unhealthy_at = 0, reconnection_delay = 0})
-      if not ok then
-        return nil, err
-      end
-    end
-
-    local ok, err = cache.set_hosts(options.shm, addresses)
-    if not ok then
-      return nil, err
-    end
-
-    log.debug("cluster infos retrieved in shm "..options.shm)
-
-    unlock(lock)
-    return addresses
-  else
-    return cache.get_hosts(options.shm)
-  end
-end
-
 --- Spawn a session to connect to the cluster.
 -- Sessions are meant to be short-lived and many can be created in parallel. In the context
 -- of ngx_lua, it makes perfect sense for a session to be spawned in a phase handler, and
@@ -972,7 +954,7 @@ end
 -- @usage
 -- access_by_lua_block {
 --     local cassandra = require "cassandra"
---     local session, err = cassandra.new {
+--     local session, err = cassandra.spawn_session {
 --         shm = "cassandra",
 --         contact_points = {"127.0.0.1", "127.0.0.2"}
 --     }
@@ -988,31 +970,126 @@ end
 -- @param[type=table] options The session's options, including the shared dict name and **optionally* the contact points
 -- @treturn table `session`: A instanciated session, ready to be used. If an error occurred, this value will be `nil` and a second value is returned describing the error.
 -- @treturn string `err`: A string describing the error that occurred.
-function Cassandra.new(options)
-  local s_opts, err = opts.parse(options)
-  if err then
-    return nil, err
-  end
+function Cassandra.spawn_session(options)
+  return Session:new(options)
+end
 
-  local host_addresses, err = cache.get_hosts(s_opts.shm)
-  if err then
-    return nil, err
-  elseif not host_addresses then
-    host_addresses, err = refresh_hosts(s_opts)
-    if not host_addresses then
+local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
+
+-- Retrieve cluster informations from a connected contact_point
+function Cassandra.refresh_hosts(options)
+  local addresses = {}
+
+  local lock, ok = lock(options.shm, "refresh_hosts")
+  if ok then
+    log.debug "refreshing local and peers infos"
+    local contact_points_hosts = {}
+    for _, contact_point in ipairs(options.contact_points) do
+      local address = options.policies.address_resolution(contact_point)
+      table_insert(contact_points_hosts, Host:new(address, options))
+    end
+
+    local coordinator, err = RequestHandler.get_first_coordinator(contact_points_hosts)
+    if err then
       return nil, err
+    end
+
+    local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
+    local hosts = {}
+
+    local local_host = {
+      unhealthy_at = 0,
+      reconnection_delay = 0
+    }
+    hosts[coordinator.address] = local_host
+    log.debug "local info retrieved"
+
+    local rows, err = coordinator:send(peers_query)
+    if err then
+      return nil, err
+    end
+
+    for _, row in ipairs(rows) do
+      local address = options.policies.address_resolution(row["rpc_address"], options.protocol_options.default_port)
+      log.debug("Adding host "..address)
+      hosts[address] = {
+        unhealthy_at = 0,
+        reconnection_delay = 0
+      }
+    end
+    log.debug "peers info retrieved"
+
+    coordinator:close()
+
+    log.debug("cluster infos retrieved in shared dict "..options.shm)
+    -- Store cluster mapping for future sessions
+    for addr, host in pairs(hosts) do
+      table_insert(addresses, addr)
+      local ok, cache_err = cache.set_host(options.shm, addr, host)
+      if not ok then
+        return nil, cache_err
+      end
+    end
+
+    local ok, cache_err = cache.set_hosts(options.shm, addresses)
+    if not ok then
+      return nil, cache_err
+    end
+  else
+    local cache_err
+    addresses, cache_err = cache.get_hosts(options.shm)
+    if cache_err then
+      return nil, cache_err
     end
   end
 
-  local hosts = {}
-  for _, addr in ipairs(host_addresses) do
-    hosts[#hosts + 1] = Host:new(addr, s_opts)
+  unlock(lock)
+
+  return addresses
+end
+
+--- Load the cluster topology.
+-- Iterate over the given `contact_points` and connects to the first one available
+-- to load the cluster topology. All peers of the chosen contact point will be
+-- retrieved and stored locally so that the load balancing policy can chose one
+-- on each request that will be executed.
+--
+-- Use this function if you want to retrieve the cluster topology sooner than when
+-- you will create your first `Session`.
+--
+-- @usage
+-- init_worker_by_lua_block {
+--     local cassandra = require "cassandra"
+--     local cluster, err = cassandra.spawn_cluster {
+--          shm = "cassandra",
+--          contact_points = {"127.0.0.1"}
+--     }
+-- }
+--
+-- access_by_lua_block {
+--     local cassandra = require "cassandra"
+--     -- The cluster topology is already loaded at this point,
+--     -- avoiding latency on your first request.
+--     local session, err = cassandra.spawn_session {
+--         shm = "cassandra"
+--     }
+-- }
+--
+-- @param[type=table] options The cluster's options, including the shared dict name and the contact points.
+-- @treturn boolean `ok`: Success of the cluster topology retrieval. If false, a second value will be returned describing the error.
+-- @treturn string `err`: A string describing the error that occurred.
+function Cassandra.spawn_cluster(options)
+  local cluster_options, err = opts.parse_cluster(options)
+  if err then
+    return false, err
   end
 
-  return setmetatable({
-    options = s_opts,
-    hosts = hosts
-  }, Session)
+  local addresses, err = Cassandra.refresh_hosts(cluster_options)
+  if not addresses then
+    return false, err
+  end
+
+  return true
 end
 
 --- Type serializer shorthands.
@@ -1080,7 +1157,7 @@ local types_mt = {
     if types.cql_types[key] ~= nil then
       return function(value)
         if value == nil then
-          error("bad argument #1 to '"..key.."' (got nil)", 2)
+          error("argument #1 required for '"..key.."' type shorthand", 2)
         end
         return {value = value, type_id = types.cql_types[key]}
       end

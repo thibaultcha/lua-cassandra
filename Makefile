@@ -20,8 +20,7 @@ busted:
 
 prove:
 	@util/prove_ccm.sh
-	@util/reindex t/*
-	@prove
+	@util/reindex t/* && prove
 
 test: busted prove
 

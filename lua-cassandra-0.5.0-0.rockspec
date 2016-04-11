@@ -9,6 +9,9 @@ description = {
   homepage = "http://thibaultcha.github.io/lua-cassandra",
   license = "MIT"
 }
+dependencies = {
+  "luasocket ~> 3.0-rc1"
+}
 build = {
   type = "builtin",
   modules = {
@@ -32,7 +35,6 @@ build = {
 
     ["cassandra.auth.plain_text_provider"] = "src/cassandra/auth/plain_text_provider.lua",
 
-    ["cassandra.utils.shm"] = "src/cassandra/utils/shm.lua",
     ["cassandra.utils.bit"] = "src/cassandra/utils/bit.lua",
     ["cassandra.utils.time"] = "src/cassandra/utils/time.lua",
     ["cassandra.utils.table"] = "src/cassandra/utils/table.lua",

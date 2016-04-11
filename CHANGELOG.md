@@ -1,5 +1,11 @@
 ### [Unreleased][unreleased]
 
+### [0.5.1] - 2016/04/11
+
+##### Fixed
+
+- Use the `default_port` option when connecting to peers instead of the CQL default (`9042`). [#49](https://github.com/thibaultCha/lua-cassandra/pull/49)
+
 ### [0.5.0] - 2016/02/02
 
 ##### Changed

@@ -1136,7 +1136,7 @@ function Cassandra.refresh_hosts(options)
     end
 
     for _, row in ipairs(rows) do
-      local address = options.policies.address_resolution(row["rpc_address"])
+      local address = options.policies.address_resolution(row["rpc_address"], options.protocol_options.default_port)
       log.info("Adding host "..address)
       hosts[address] = {
         unhealthy_at = 0,

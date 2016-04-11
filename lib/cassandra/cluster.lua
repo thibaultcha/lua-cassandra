@@ -1,4 +1,5 @@
 local time_utils = require "cassandra.utils.time"
+local resty_lock = require "resty.lock"
 local cassandra = require "cassandra"
 local cql = require "cassandra.cql"
 local requests = cql.requests
@@ -6,44 +7,29 @@ local cql_errors = cql.errors
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
+local log, warn = ngx.log, ngx.WARN
 local tonumber = tonumber
+local shared = ngx.shared
 local concat = table.concat
 local ipairs = ipairs
 local pairs = pairs
 local gsub = string.gsub
 local fmt = string.format
 
-local get_shm, new_lock, mutex, release, log_warn
-if ngx then
-  local shared = ngx.shared
-  local log, WARN = ngx.log, ngx.WARN
-  local resty_lock = require "resty.lock"
+local get_shm, new_lock, mutex, release
 
-  get_shm = function(name)
-    return shared[name]
-  end
-  new_lock = function(shm)
-    return resty_lock:new(shm)
-  end
-  mutex = function(lock, key)
-    local elapsed, err = lock:lock(key)
-    if err then err = "could not acquire lock: "..err end
-    return elapsed, err
-  end
-  release = function(lock)
-    local ok, err = lock:unlock()
-    if not ok then return nil, "could not release lock: "..err end
-    return ok
-  end
-  log_warn = function(...)
-    log(WARN, ...)
-  end
-else
-  local shared = require "cassandra.utils.shm"
-  get_shm = function()return shared.new() end
-  new_lock = function()end
-  mutex = function()return 0 end
-  release = function()end
+new_lock = function(shm)
+  return resty_lock:new(shm)
+end
+mutex = function(lock, key)
+  local elapsed, err = lock:lock(key)
+  if err then err = "could not acquire lock: "..err end
+  return elapsed, err
+end
+release = function(lock)
+  local ok, err = lock:unlock()
+  if not ok then return nil, "could not release lock: "..err end
+  return ok
 end
 
 local _Cluster = {}
@@ -54,10 +40,10 @@ function _Cluster.new(opts)
   opts.shm = opts.shm or "cassandra"
   opts.shm_prepared = opts.shm_prepared or "cassandra_prepared"
 
-  local shm = get_shm(opts.shm)
+  local shm = shared[opts.shm]
   if not shm then return nil, "no shm named "..opts.shm end
 
-  local shm_prepared = get_shm(opts.shm_prepared)
+  local shm_prepared = shared[opts.shm_prepared]
   if not shm_prepared then return nil, "no shm named "..opts.shm_prepared end
 
   local cluster = {
@@ -169,8 +155,8 @@ function _Cluster:set_prepared(query, query_id)
   local ok, err, forcible = self.shm_prepared:set(key, query_id)
   if not ok then
     return nil, "cannot set prepared query id: "..err
-  elseif forcible and log_warn then
-    log_warn("prepared shm is running out of memory, consider increasing its size")
+  elseif forcible then
+    log(warn, "prepared shm is running out of memory, consider increasing its size")
   end
   return ok
 end

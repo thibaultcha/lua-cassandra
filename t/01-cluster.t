@@ -145,16 +145,8 @@ GET /t
             end
 
             -- insert fake peers
-            cluster:set_shm_peer('127.0.0.253', {
-                reconn_delay = 0,
-                unhealthy_at = 0,
-                port = 9042
-            })
-            cluster:set_shm_peer('127.0.0.254', {
-                reconn_delay = 0,
-                unhealthy_at = 0,
-                port = 9042
-            })
+            cluster:set_shm_peer('127.0.0.253', 0, 0)
+            cluster:set_shm_peer('127.0.0.254', 0, 0)
 
             local ok, err = cluster:refresh()
             if not ok then
@@ -208,3 +200,59 @@ GET /t
 --- error_log
 corrupted shm
 
+
+
+=== TEST 7: is_peer_up()
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local peers, err = cluster:get_shm_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+            end
+
+            for i = 1, #peers do
+                ok, err = cluster:is_peer_up(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say(peers[i].host, ' ', ok)
+
+                ok, err = cluster:set_peer_down(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ok, err = cluster:is_peer_up(peers[i].host)
+                if not ok then
+                    ngx.say(peers[i].host, ' ', ok)
+                end
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+127.0.0.3 true
+127.0.0.3 false
+127.0.0.2 true
+127.0.0.2 false
+127.0.0.1 true
+127.0.0.1 false
+--- no_error_log
+[error]

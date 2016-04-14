@@ -10,6 +10,8 @@ local requests = cql.requests
 local tonumber = tonumber
 local concat = table.concat
 local shared = ngx.shared
+local pairs = pairs
+local now = ngx.now
 local type = type
 local log = ngx.log
 local ERR = ngx.ERR
@@ -23,6 +25,10 @@ ffi.cdef [[
 local rec_peer_const = ffi.typeof('const struct peer_rec*')
 local rec_peer_size = ffi.sizeof('struct peer_rec')
 local rec_peer_cdata = ffi.new('struct peer_rec')
+
+local function get_now()
+  return now() * 1000
+end
 
 local function lock(self, k)
   local elapsed, err = self.lock:lock(k)
@@ -46,9 +52,9 @@ local function spawn_peer(host, port)
   }
 end
 
-local function set_peer(self, host, peer_rec)
-  rec_peer_cdata.reconn_delay = peer_rec.reconn_delay
-  rec_peer_cdata.unhealthy_at = peer_rec.unhealthy_at
+local function set_peer(self, host, reconn_delay, unhealthy_at)
+  rec_peer_cdata.reconn_delay = reconn_delay
+  rec_peer_cdata.unhealthy_at = unhealthy_at
   return self.shm:set(host, ffi_str(rec_peer_cdata, rec_peer_size))
 end
 
@@ -58,11 +64,11 @@ local function get_peer(self, host)
     return nil, 'corrupted shm'
   end
 
-  rec_peer_cdata = ffi_cast(rec_peer_const, v)
+  local peer_rec = ffi_cast(rec_peer_const, v)
   return {
     host = host,
-    reconn_delay = tonumber(rec_peer_cdata.reconn_delay),
-    unhealthy_at = tonumber(rec_peer_cdata.unhealthy_at)
+    reconn_delay = tonumber(peer_rec.reconn_delay),
+    unhealthy_at = tonumber(peer_rec.unhealthy_at)
   }
 end
 
@@ -77,12 +83,22 @@ local function get_peers(self)
   return peers
 end
 
-local function set_peer_down(host)
+local function set_peer_down(self, host)
+  local peer, err = get_peer(self, host)
+  if not peer then return nil, err end
 
+  return set_peer(self, host, peer.reconn_delay, get_now())
 end
 
-local function set_peer_up(host)
+local function set_peer_up(self, host)
+  return set_peer(self, host, 0, 0)
+end
 
+local function is_peer_up(self, host)
+  local peer, err = get_peer(self, host)
+  if not peer then return nil, err end
+
+  return peer.unhealthy_at == 0
 end
 
 local _Cluster = {}
@@ -143,7 +159,9 @@ function _Cluster.new(opts)
     timeout_read = opts.timeout_read or 2000,
     timeout_connect = opts.timeout_connect or 1000,
     retry_on_timeout = opts.retry_on_timeout ~= nil and true or opts.retry_on_timeout,
-    max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000
+    max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000,
+
+    lb_policy = opts.lb_policy or require('resty.cassandra.policies.lb.rr').new()
   }, _Cluster)
 end
 
@@ -179,13 +197,9 @@ local function first_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
-local function get_next_coordinator(self)
+local function next_coordinator(self)
 
 end
-
-local _select_peers = [[
-SELECT peer,data_center,rack,rpc_address FROM system.peers
-]]
 
 function _Cluster:refresh()
   local elapsed = lock(self, 'refresh')
@@ -193,8 +207,11 @@ function _Cluster:refresh()
     local coordinator, err = first_coordinator(self)
     if not coordinator then return nil, err end
 
-    local rows, err = coordinator:execute(_select_peers)
+    local rows, err = coordinator:execute [[
+      SELECT peer,data_center,rpc_address FROM system.peers
+    ]]
     if not rows then return nil, err end
+
     coordinator:setkeepalive()
 
     self.shm:flush_all()
@@ -202,10 +219,7 @@ function _Cluster:refresh()
     rows[#rows+1] = {rpc_address = coordinator.host}
 
     for i = 1, #rows do
-      set_peer(self, rows[i].rpc_address, {
-        reconn_delay = 0,
-        unhealthy_at = 0
-      })
+      set_peer(self, rows[i].rpc_address, 0, 0)
     end
 
     release(self)
@@ -214,12 +228,26 @@ function _Cluster:refresh()
   local peers, err = get_peers(self)
   if not peers then return nil, err end
 
-  self.peers = peers
+  self.lb_policy:init(peers)
 
   return true
 end
 
+function _Cluster:execute(query, args, opts)
+  local coordinator, err = first_coordinator(self)
+  if not coordinator then return nil, err end
+
+  local res, err = coordinator:execute(query, args, opts)
+
+  coordinator:setkeepalive()
+
+  return res, err
+end
+
 _Cluster.get_shm_peers = get_peers
 _Cluster.set_shm_peer = set_peer
+_Cluster.set_peer_up = set_peer_up
+_Cluster.set_peer_down = set_peer_down
+_Cluster.is_peer_up = is_peer_up
 
 return _Cluster

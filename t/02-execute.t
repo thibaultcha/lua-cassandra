@@ -12,7 +12,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: cluster.execute() sanity
+=== TEST 1: cluster.execute()
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -20,20 +20,24 @@ __DATA__
             local Cluster = require 'resty.cassandra.cluster'
             local cluster, err = Cluster.new()
             if not cluster then
-                ngx.say(err)
+                ngx.log(ngx.ERR, err)
+                return
             end
 
             local rows, err = cluster:execute("SELECT * FROM system.peers")
             if not rows then
                 ngx.log(ngx.ERR, err)
+                return
             end
 
+            ngx.say('init: ', cluster.init)
             ngx.say(#rows)
         }
     }
 --- request
 GET /t
 --- response_body
+init: true
 2
 --- no_error_log
 [error]

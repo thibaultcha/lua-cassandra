@@ -118,22 +118,55 @@ qr/\[error\] .*? connect timed out/
 
             for i = 1, #peers do
                 local p = peers[i]
-                ngx.say(p.host..' '..p.unhealthy_at..' '..p.reconn_delay)
+                local up = ngx.shared.cassandra:get(p.host)
+                ngx.say(p.host..' '..p.unhealthy_at..' '..p.reconn_delay, ' ', up)
             end
         }
     }
 --- request
 GET /t
 --- response_body
-127.0.0.3 0 0
-127.0.0.2 0 0
-127.0.0.1 0 0
+127.0.0.3 0 0 true
+127.0.0.2 0 0 true
+127.0.0.1 0 0 true
 --- no_error_log
 [error]
 
 
 
-=== TEST 5: cluster.refresh() removes old peers
+=== TEST 5: cluster.refresh() inits cluster
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, 'could not spawn cluster: ', err)
+            end
+
+            if cluster.init then
+                ngx.log(ngx.ERR, 'cluster already init')
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, 'could not refresh: ', err)
+            end
+
+            ngx.say('init: ', cluster.init)
+        }
+    }
+--- request
+GET /t
+--- response_body
+init: true
+--- no_error_log
+[error]
+
+
+
+=== TEST 6: cluster.refresh() removes old peers
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -174,7 +207,7 @@ GET /t
 
 
 
-=== TEST 6: get_peers() corrupted shm
+=== TEST 7: get_peers() corrupted shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -185,7 +218,7 @@ GET /t
                 ngx.log(ngx.ERR, err)
             end
 
-            cluster.shm:set('127.0.0.1', 'foobar')
+            cluster.shm:set('host:rec:127.0.0.1', 'foobar')
 
             local peers, err = cluster:get_shm_peers()
             if not peers then
@@ -202,7 +235,7 @@ corrupted shm
 
 
 
-=== TEST 7: is_peer_up()
+=== TEST 8: is_peer_up() / set_peer_down() / set_peer_up()
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -224,13 +257,8 @@ corrupted shm
             end
 
             for i = 1, #peers do
-                ok, err = cluster:is_peer_up(peers[i].host)
-                if not ok then
-                    ngx.log(ngx.ERR, err)
-                    return
-                end
-
-                ngx.say(peers[i].host, ' ', ok)
+                ok = cluster:is_peer_up(peers[i].host)
+                ngx.say(peers[i].host, ' default: ', ok)
 
                 ok, err = cluster:set_peer_down(peers[i].host)
                 if not ok then
@@ -238,21 +266,156 @@ corrupted shm
                     return
                 end
 
-                ok, err = cluster:is_peer_up(peers[i].host)
+                ok = cluster:is_peer_up(peers[i].host)
+                ngx.say(peers[i].host, ' after down: ', ok)
+
+                ok, err = cluster:set_peer_up(peers[i].host)
                 if not ok then
-                    ngx.say(peers[i].host, ' ', ok)
+                    ngx.log(ngx.ERR, err)
+                    return
                 end
+
+                ok = cluster:is_peer_up(peers[i].host)
+                ngx.say(peers[i].host, ' after up: ', ok)
             end
         }
     }
 --- request
 GET /t
 --- response_body
-127.0.0.3 true
-127.0.0.3 false
-127.0.0.2 true
-127.0.0.2 false
-127.0.0.1 true
-127.0.0.1 false
+127.0.0.3 default: true
+127.0.0.3 after down: false
+127.0.0.3 after up: true
+127.0.0.2 default: true
+127.0.0.2 after down: false
+127.0.0.2 after up: true
+127.0.0.1 default: true
+127.0.0.1 after down: false
+127.0.0.1 after up: true
+--- no_error_log
+[error]
+
+
+
+=== TEST 9: next_coordinator() uses load balancing policy
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local coordinator = cluster:next_coordinator()
+            ngx.say('coordinator 1: ', coordinator.host)
+
+            coordinator = cluster:next_coordinator()
+            ngx.say('coordinator 2: ', coordinator.host)
+
+            coordinator = cluster:next_coordinator()
+            ngx.say('coordinator 3: ', coordinator.host)
+        }
+    }
+--- request
+GET /t
+--- response_body
+coordinator 1: 127.0.0.3
+coordinator 2: 127.0.0.2
+coordinator 3: 127.0.0.1
+--- no_error_log
+[error]
+
+
+
+=== TEST 10: next_coordinator() returns errors
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local peers, err = cluster:get_shm_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+            end
+
+            for i = 1, #peers do
+                local ok, err = cluster:set_peer_down(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+            end
+
+            local coordinator, err = cluster:next_coordinator()
+            if not coordinator then
+                ngx.say(err)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+all hosts tried for query failed. 127.0.0.2: host is down 127.0.0.3: host is down 127.0.0.1: host is down
+--- no_error_log
+[error]
+
+
+
+=== TEST 11: next_coordinator() avoids down hosts
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+
+---[[
+            local ok, err = cluster:set_peer_down('127.0.0.1')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+--]]
+            for i = 1, 3 do
+                local coordinator, err = cluster:next_coordinator()
+                if not coordinator then
+                    ngx.say(err)
+                end
+                ngx.say(i, ' ', coordinator.host)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+1 127.0.0.3
+2 127.0.0.2
+3 127.0.0.3
 --- no_error_log
 [error]

@@ -2,7 +2,7 @@ local _rr_lb = require('resty.cassandra.policies.lb').new_policy('round_robin')
 
 function _rr_lb:init(peers)
   self.peers = peers
-  self.idx = -2
+  self.start_idx = -2
 end
 
 local function next_peer(state, i)
@@ -16,8 +16,8 @@ local function next_peer(state, i)
 end
 
 function _rr_lb:iter()
-  local idx = self.idx
-  self.idx = idx + 1
+  self.idx = (self.start_idx % #self.peers) + 1
+  self.start_idx = self.start_idx + 1
   return next_peer, self, 0
 end
 

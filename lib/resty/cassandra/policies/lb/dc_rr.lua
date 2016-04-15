@@ -17,8 +17,8 @@ function _M:init(peers)
     end
   end
 
-  self.local_idx = -2
-  self.remote_idx = -2
+  self.start_local_idx = -2
+  self.start_remote_idx = -2
   self.local_peers = local_peers
   self.remote_peers = remote_peers
 end
@@ -40,8 +40,10 @@ end
 function _M:iter()
   self.local_tried = 0
   self.remote_tried = 0
-  self.local_idx = self.local_idx + 1
-  self.remote_idx = self.remote_idx + 1
+  self.local_idx = (self.start_local_idx % #self.local_peers) + 1
+  self.remote_idx = (self.start_remote_idx % #self.remote_peers) + 1
+  self.start_remote_idx = self.start_remote_idx + 1
+  self.start_local_idx = self.start_local_idx + 1
   return next_peer, self, 0
 end
 

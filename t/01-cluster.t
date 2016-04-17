@@ -54,6 +54,7 @@ no shared dict invalid_shm
             local cluster, err = Cluster.new()
             if not cluster then
                 ngx.log(ngx.ERR, err)
+                return
             end
         }
     }
@@ -66,7 +67,46 @@ GET /t
 
 
 
-=== TEST 3: cluster.refresh() with invalid contact_points
+=== TEST 3: cluster.init() retry_on_timeout opts
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('default: ', cluster.retry_on_timeout)
+
+            cluster, err = Cluster.new({retry_on_timeout = false})
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('false opt: ', cluster.retry_on_timeout)
+
+            cluster, err = Cluster.new({retry_on_timeout = true})
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('true opt: ', cluster.retry_on_timeout)
+        }
+    }
+--- request
+GET /t
+--- response_body
+default: true
+false opt: false
+true opt: true
+--- no_error_log
+[error]
+
+
+
+=== TEST 4: cluster.refresh() with invalid contact_points
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -95,7 +135,7 @@ qr/\[error\] .*? connect timed out/
 
 
 
-=== TEST 4: cluster.refresh() sets hosts in shm
+=== TEST 5: cluster.refresh() sets hosts in shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -134,7 +174,7 @@ GET /t
 
 
 
-=== TEST 5: cluster.refresh() inits cluster
+=== TEST 6: cluster.refresh() inits cluster
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -166,7 +206,7 @@ init: true
 
 
 
-=== TEST 6: cluster.refresh() removes old peers
+=== TEST 7: cluster.refresh() removes old peers
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -207,7 +247,7 @@ GET /t
 
 
 
-=== TEST 7: get_peers() corrupted shm
+=== TEST 8: get_peers() corrupted shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -235,7 +275,7 @@ corrupted shm
 
 
 
-=== TEST 8: is_peer_up() / set_peer_down() / set_peer_up()
+=== TEST 9: is_peer_up()/set_peer_down()/set_peer_up()
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -297,7 +337,53 @@ GET /t
 
 
 
-=== TEST 9: next_coordinator() uses load balancing policy
+=== TEST 10: is_peer_up()/set_peer_down()/set_peer_up() take reconnection policy in account
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ok, err = cluster:set_peer_down('127.0.0.1')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ok = cluster:is_peer_up('127.0.0.1')
+            ngx.say('until delay: ', ok)
+
+            ok, err = cluster:set_shm_peer('127.0.0.1', 1000, 1460780710809)
+            if not ok then
+                ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
+                return
+            end
+            ok = cluster:is_peer_up('127.0.0.1')
+            ngx.say('after delay: ', ok)
+        }
+    }
+--- request
+GET /t
+--- response_body
+until delay: false
+after delay: true
+--- no_error_log
+[error]
+
+
+
+=== TEST 11: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -334,7 +420,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 10: next_coordinator() returns errors
+=== TEST 12: next_coordinator() returns errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -378,7 +464,7 @@ all hosts tried for query failed. 127.0.0.2: host is down 127.0.0.3: host is dow
 
 
 
-=== TEST 11: next_coordinator() avoids down hosts
+=== TEST 13: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -394,14 +480,12 @@ all hosts tried for query failed. 127.0.0.2: host is down 127.0.0.3: host is dow
                 ngx.log(ngx.ERR, err)
             end
 
-
----[[
             local ok, err = cluster:set_peer_down('127.0.0.1')
             if not ok then
                 ngx.log(ngx.ERR, err)
                 return
             end
---]]
+
             for i = 1, 3 do
                 local coordinator, err = cluster:next_coordinator()
                 if not coordinator then

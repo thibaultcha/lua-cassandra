@@ -81,7 +81,7 @@ local function set_peer_down(self, host)
   if not peer then return nil, err end
 
   self.shm:set(host, false)
-  return set_peer_rec(self, host, peer.reconn_delay, get_now())
+  return set_peer_rec(self, host, 1000, get_now())
 end
 
 local function set_peer_up(self, host)
@@ -90,7 +90,15 @@ local function set_peer_up(self, host)
 end
 
 local function is_peer_up(self, host)
-  return self.shm:get(host)
+  local ok, err = self.shm:get(host)
+  if ok then return ok
+  elseif err then return nil, err
+  else
+    -- reconnection policy steps in before making a decision
+    local peer_rec, err = get_peer_rec(self, host)
+    if not peer_rec then return nil, err end
+    return get_now() - peer_rec.unhealthy_at >= peer_rec.reconn_delay
+  end
 end
 
 ----------------------------
@@ -196,10 +204,13 @@ function _Cluster.new(opts)
     contact_points = opts.contact_points or {'127.0.0.1'},
     timeout_read = opts.timeout_read or 2000,
     timeout_connect = opts.timeout_connect or 1000,
-    retry_on_timeout = opts.retry_on_timeout ~= nil and true or opts.retry_on_timeout,
+    retry_on_timeout = opts.retry_on_timeout == nil and true or opts.retry_on_timeout,
     max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000,
 
-    lb_policy = opts.lb_policy or require('resty.cassandra.policies.lb.rr').new()
+    lb_policy = opts.lb_policy
+                or require('resty.cassandra.policies.lb.rr').new(),
+    reconn_policy = opts.reconn_policy
+                or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000)
   }, _Cluster)
 end
 

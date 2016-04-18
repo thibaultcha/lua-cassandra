@@ -19,8 +19,7 @@ busted:
 	@busted -v -o gtest
 
 prove:
-	@util/prove_ccm.sh
-	@util/reindex t/*
+	@t/reindex t/*
 	@prove
 
 test: busted prove

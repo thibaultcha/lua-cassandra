@@ -734,7 +734,7 @@ do
         cql_t = val.__cql_type
         val = val.val
       elseif t_utils.is_array(val) then
-        cql_t = cql_types.set
+        cql_t = cql_types.list
       else
         cql_t = cql_types.map
       end

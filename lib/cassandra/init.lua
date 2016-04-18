@@ -101,7 +101,7 @@ function _Host:connect()
   end
 
   local ok, err = self.sock:connect(self.host, self.port)
-  if not ok then return nil, err end
+  if not ok then return nil, err, true end
 
   if self.ssl then
     ok, err = ssl_handshake(self)
@@ -216,16 +216,6 @@ end
 
 _Host.get_request_opts = get_opts
 
-local function execute(self, query, args, opts)
-  local request = opts.prepared and
-    -- query is the prepared queryid
-    requests.execute_prepared.new(query, args, opts)
-    or
-    requests.query.new(query, args, opts)
-
-  return self:send(request)
-end
-
 local function page_iterator(self, query, args, opts)
   local page = 0
   return function(_, p_rows)
@@ -252,7 +242,14 @@ end
 _Host.page_iterator = page_iterator
 
 function _Host:execute(query, args, options)
-  return execute(self, query, args, get_opts(options))
+  local opts = get_opts(options)
+  local request = opts.prepared and
+    -- query is the prepared queryid
+    requests.execute_prepared.new(query, args, opts)
+    or
+    requests.query.new(query, args, opts)
+
+  return self:send(request)
 end
 
 function _Host:iterate(query, args, options)
@@ -270,19 +267,24 @@ end
 
 local cql_marshallers = {
   __index = function(self, key)
+    local f = rawget(self, key)
+    if f then return f end
+
+    if key == "unset" then
+      return cql.t_unset
+    end
+
     local cql_t = cql.types[key]
-    if cql_t ~= nil then
-      return function(val)
+    if cql_t then
+      f = function(val)
         if val == nil then
           error("bad argument #1 to '"..key.."' (got nil)", 2)
         end
         return {val = val, __cql_type = cql_t}
       end
-    elseif key == "unset" then
-      return cql.t_unset
+      rawset(self, key, f)
+      return f
     end
-
-    return rawget(self, key)
   end
 }
 

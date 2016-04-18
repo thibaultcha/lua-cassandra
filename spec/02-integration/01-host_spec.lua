@@ -83,6 +83,16 @@ describe("cassandra (host)", function()
       local peer = assert(cassandra.new())
       assert(peer:connect())
     end)
+    it("3rd return value indicates potential down host", function()
+      local peer = assert(cassandra.new {
+        host = "127.0.0.9"
+      })
+      peer:settimeout(100)
+      local ok, err, maybe_down = peer:connect()
+      assert.is_nil(ok)
+      assert.equal("timeout", err)
+      assert.True(maybe_down)
+    end)
   end)
 
   describe("close()", function()

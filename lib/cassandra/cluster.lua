@@ -1,4 +1,5 @@
 local time_utils = require "cassandra.utils.time"
+local resty_lock = require "resty.lock"
 local cassandra = require "cassandra"
 local cql = require "cassandra.cql"
 local requests = cql.requests
@@ -6,44 +7,29 @@ local cql_errors = cql.errors
 
 local unpack = rawget(table, "unpack") or unpack
 local setmetatable = setmetatable
+local log, warn = ngx.log, ngx.WARN
 local tonumber = tonumber
+local shared = ngx.shared
 local concat = table.concat
 local ipairs = ipairs
 local pairs = pairs
 local gsub = string.gsub
 local fmt = string.format
 
-local get_shm, new_lock, mutex, release, log_warn
-if ngx ~= nil then
-  local shared = ngx.shared
-  local log, WARN = ngx.log, ngx.WARN
-  local resty_lock = require "resty.lock"
+local get_shm, new_lock, mutex, release
 
-  get_shm = function(name)
-    return shared[name]
-  end
-  new_lock = function(shm)
-    return resty_lock:new(shm)
-  end
-  mutex = function(lock, key)
-    local elapsed, err = lock:lock(key)
-    if err then err = "could not acquire lock: "..err end
-    return elapsed, err
-  end
-  release = function(lock)
-    local ok, err = lock:unlock()
-    if not ok then return nil, "could not release lock: "..err end
-    return ok
-  end
-  log_warn = function(...)
-    log(WARN, ...)
-  end
-else
-  local shared = require "cassandra.utils.shm"
-  get_shm = function()return shared.new() end
-  new_lock = function()end
-  mutex = function()return 0 end
-  release = function()end
+new_lock = function(shm)
+  return resty_lock:new(shm)
+end
+mutex = function(lock, key)
+  local elapsed, err = lock:lock(key)
+  if err then err = "could not acquire lock: "..err end
+  return elapsed, err
+end
+release = function(lock)
+  local ok, err = lock:unlock()
+  if not ok then return nil, "could not release lock: "..err end
+  return ok
 end
 
 local _Cluster = {}
@@ -51,16 +37,19 @@ _Cluster.__index = _Cluster
 
 function _Cluster.new(opts)
   opts = opts or {}
-  local shm = get_shm(opts.shm or "cassandra")
-  if not shm then return nil, "no shm named "..shm end
+  opts.shm = opts.shm or "cassandra"
+  opts.shm_prepared = opts.shm_prepared or "cassandra_prepared"
 
-  local shm_prepared = get_shm(opts.shm_prepared or "cassandra_prepared")
-  if not shm_prepared then return nil, "no shm named "..shm end
+  local shm = shared[opts.shm]
+  if not shm then return nil, "no shm named "..opts.shm end
+
+  local shm_prepared = shared[opts.shm_prepared]
+  if not shm_prepared then return nil, "no shm named "..opts.shm_prepared end
 
   local cluster = {
     shm = shm,
     shm_prepared = shm_prepared,
-    lock = new_lock(shm),
+    lock = new_lock(opts.shm),
 
     keyspace = opts.keyspace,
     contact_points = opts.contact_points or {"127.0.0.1"},
@@ -166,8 +155,8 @@ function _Cluster:set_prepared(query, query_id)
   local ok, err, forcible = self.shm_prepared:set(key, query_id)
   if not ok then
     return nil, "cannot set prepared query id: "..err
-  elseif forcible and log_warn then
-    log_warn("prepared shm is running out of memory, consider increasing its size")
+  elseif forcible then
+    log(warn, "prepared shm is running out of memory, consider increasing its size")
   end
   return ok
 end
@@ -184,7 +173,7 @@ end
 --- Peer health stuff
 
 local function set_peer_down(self, address, peer_infos)
-  local elapsed, err = mutex(self.lock)
+  local elapsed, err = mutex(self.lock, "down_"..address)
   if not elapsed then return nil, err
   elseif elapsed == 0 then
     if not peer_infos then
@@ -314,7 +303,7 @@ SELECT peer,data_center,rack,rpc_address FROM system.peers
 ]]
 
 function _Cluster:refresh()
-  local elapsed, err = mutex(self.lock)
+  local elapsed, err = mutex(self.lock, "refresh")
   if not elapsed then return nil, err
   elseif elapsed == 0 then
     local coordinator, err = self:get_first_coordinator(self.contact_points)
@@ -327,9 +316,9 @@ function _Cluster:refresh()
 
     rows[#rows + 1] = {rpc_address = coordinator.host}
     local hosts = {}
-    for _, row in ipairs(rows) do
-      hosts[#hosts + 1] = row.rpc_address
-      local ok, err = set_peer_up(self, row.rpc_address)
+    for i = 1, #rows do
+      hosts[#hosts + 1] = rows[i].rpc_address
+      local ok, err = set_peer_up(self, rows[i].rpc_address)
       if not ok then return nil, err end
     end
 
@@ -360,7 +349,7 @@ local function get_or_prepare(self, coordinator, query, force)
   end
 
   if query_id == nil then
-    local elapsed, err = mutex(self.lock)
+    local elapsed, err = mutex(self.lock, "prepare_"..query)
     if not elapsed then return nil, err
     elseif elapsed == 0 then
       local res, err = coordinator:prepare(query)
@@ -502,7 +491,7 @@ handle_error = function(self, coordinator, request, request_infos, err, cql_code
          -- always retry, we will hit another node
          return retry(self, request, request_infos)
 
-      -- Decisions taken by the retry policy
+      -- decisions taken by the retry policy
       elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
         try_again = self.retry_policy:on_unavailable(request_infos)
       elseif cql_code == cql_errors.READ_TIMEOUT then

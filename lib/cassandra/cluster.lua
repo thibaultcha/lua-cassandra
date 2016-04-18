@@ -491,7 +491,7 @@ handle_error = function(self, coordinator, request, request_infos, err, cql_code
          -- always retry, we will hit another node
          return retry(self, request, request_infos)
 
-      -- Decisions taken by the retry policy
+      -- decisions taken by the retry policy
       elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
         try_again = self.retry_policy:on_unavailable(request_infos)
       elseif cql_code == cql_errors.READ_TIMEOUT then

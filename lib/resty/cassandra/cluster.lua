@@ -18,6 +18,7 @@ local log = ngx.log
 local ERR = ngx.ERR
 
 local _rec_key = 'host:rec:'
+local _prepared_key = 'prepared:id:'
 
 ffi.cdef [[
     struct peer_rec {
@@ -70,7 +71,10 @@ local function get_peers(self)
       peers[#peers+1] = peer
     end
   end
-  return peers
+
+  if #peers > 0 then
+    return peers
+  end
 end
 
 -----------------------------
@@ -104,30 +108,17 @@ end
 -- utils
 ----------------------------
 
-local function lock(self, k)
-  local elapsed, err = self.lock:lock(k)
-  if err then
-    log(ERR, 'could not acquire lock: ', err)
-  end
-  return elapsed
-end
-
-local function release(self)
-  local ok, err = self.lock:unlock()
-  if not ok then
-    log(ERR, 'could not release lock: ', err)
-  end
-end
-
-local function spawn_peer(host, port)
-  return cassandra.new {
-    host = host,
-    port = port
-  }
+local function spawn_peer(host, port, opts)
+  opts = opts or {}
+  opts.host = host
+  opts.port = port
+  return cassandra.new(opts)
 end
 
 local function check_peer_health(self, host, retry)
-  local peer, err = spawn_peer(host, self.default_port)
+  -- TODO: maybe we ought not to care about the keyspace set in
+  -- peers_opts when simply checking the connction to a node.
+  local peer, err = spawn_peer(host, self.default_port, self.peers_opts)
   if not peer then return nil, err
   else
     peer:settimeout(self.timeout_connect)
@@ -166,6 +157,7 @@ function _Cluster.new(opts)
     return nil, 'opts must be a table'
   end
 
+  local peers_opts = {}
   local dict_name = opts.shm or 'cassandra'
   if type(dict_name) ~= 'string' then
     return nil, 'shm must be a string'
@@ -178,6 +170,22 @@ function _Cluster.new(opts)
       if type(v) ~= 'string' then
         return nil, 'keyspace must be a string'
       end
+      peers_opts.keyspace = v
+    elseif k == 'ssl' then
+      if type(v) ~= 'boolean' then
+        return nil, 'ssl must be a boolean'
+      end
+      peers_opts.ssl = v
+    elseif k == 'verify' then
+      if type(v) ~= 'boolean' then
+        return nil, 'verify must be a boolean'
+      end
+      peers_opts.verify = v
+    elseif k == 'auth' then
+      if type(v) ~= 'table' then
+        return nil, 'auth seems not to be an auth provider'
+      end
+      peers_opts.auth = v
     elseif k == 'default_port' then
       if type(v) ~= 'number' then
         return nil, 'default_port must be a number'
@@ -207,8 +215,9 @@ function _Cluster.new(opts)
 
   return setmetatable({
     shm = shared[dict_name],
-    lock = resty_lock:new(dict_name),
-    keyspace = opts.keyspace,
+    dict_name = dict_name,
+    prepared_ids = {},
+    peers_opts = peers_opts,
     default_port = opts.default_port or 9042,
     contact_points = opts.contact_points or {'127.0.0.1'},
     timeout_read = opts.timeout_read or 2000,
@@ -270,8 +279,15 @@ local function next_coordinator(self)
 end
 
 function _Cluster:refresh()
-  local elapsed = lock(self, 'refresh')
-  if elapsed and elapsed == 0 then
+  local lock = resty_lock:new(self.dict_name)
+  local elapsed, err = lock:lock('refresh')
+  if not elapsed then return nil, 'failed to acquire lock: '..err end
+
+  -- did someone else got the hosts
+  local peers, err = get_peers(self)
+  if err then return nil, err
+  elseif not peers then
+    -- we are the first ones to get there
     local coordinator, err = first_coordinator(self)
     if not coordinator then return nil, err end
 
@@ -282,36 +298,93 @@ function _Cluster:refresh()
 
     coordinator:setkeepalive()
 
-    self.shm:flush_all()
+    -- TODO flush old entries
+    --self.shm:flush_all()
 
     rows[#rows+1] = {rpc_address = coordinator.host}
 
     for i = 1, #rows do
-      set_peer_up(self, rows[i].rpc_address)
+      local ok, err = set_peer_up(self, rows[i].rpc_address)
+      if not ok then return nil, 'could not set host in shm: '..err end
     end
 
-    release(self)
+    peers, err = get_peers(self)
+    if err then return nil, err end
   end
 
-  local peers, err = get_peers(self)
-  if not peers then return nil, err end
+  local ok, err = lock:unlock()
+  if not ok then return nil, 'failed to unlock: '..err end
 
   self.lb_policy:init(peers)
   self.init = true
-
   return true
+end
+
+--------------------
+-- queries execution
+--------------------
+
+local function get_or_prepare(self, coordinator, query)
+  -- worker memory check
+  local query_id = self.prepared_ids[query]
+  if not query_id then
+    -- worker cache miss
+    -- shm cache?
+    local shm = self.shm
+    local key = _prepared_key .. query
+    local err
+    query_id, err = shm:get(key)
+    if err then return nil, 'could not get query id from shm:'..err
+    elseif not query_id then
+      -- shm cache miss
+      -- query not prepared yet, must prepare in mutex
+      local lock = resty_lock:new(self.dict_name)
+      local elapsed, err = lock:lock('prepare:' .. query)
+      if not elapsed then return nil, 'failed to acquire lock: '..err end
+
+      -- someone else prepared query?
+      query_id, err = shm:get(key)
+      if err then return nil, 'could not get query id from shm:'..err
+      elseif not query_id then
+        -- we are the ones preparing the query
+        local res, err = coordinator:prepare(query)
+        if not res then return nil, err end
+
+        query_id = res.query_id
+
+        local ok, err = shm:set(key, query_id)
+        if not ok then return nil, 'could not set query id in shm: '..err end
+      end
+
+      local ok, err = lock:unlock()
+      if not ok then return nil, 'failed to unlock: '..err end
+    end
+
+    -- set worker cache
+    self.prepared_ids[query] = query_id
+  end
+
+  return query_id
 end
 
 function _Cluster:execute(query, args, opts)
   if not self.init then
     local ok, err = self:refresh()
-    if not ok then return nil, err end
+    if not ok then return nil, 'could not refresh cluster: '..err end
   end
 
   local coordinator, err = next_coordinator(self)
   if not coordinator then return nil, err end
 
-  local res, err = coordinator:execute(query, args, opts)
+  local res
+  if opts and opts.prepared then
+    local query_id, err = get_or_prepare(self, coordinator, query)
+    if not query_id then return nil, 'could not prepare query: '..err end
+
+    res, err = coordinator:execute(query_id, args, opts)
+  else
+    res, err = coordinator:execute(query, args, opts)
+  end
 
   coordinator:setkeepalive()
 
@@ -325,5 +398,6 @@ _Cluster.set_peer_up = set_peer_up
 _Cluster.set_peer_down = set_peer_down
 _Cluster.can_try_peer = can_try_peer
 _Cluster.next_coordinator = next_coordinator
+_Cluster.get_or_prepare = get_or_prepare
 
 return _Cluster

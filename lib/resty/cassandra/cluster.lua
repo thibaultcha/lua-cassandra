@@ -60,10 +60,11 @@ end
 local function get_peers(self)
   local peers = {}
   local keys = self.shm:get_keys() -- 1024 keys
+  -- we shall have a relatively small number of keys, but in any case this
+  -- function is not to be called in hot paths anyways.
   for i = 1, #keys do
-    local key_prefix = sub(keys[i], 1, #_rec_key)
-    if key_prefix == _rec_key then
-      local host = sub(keys[i], #key_prefix + 1)
+    if sub(keys[i], 1, #_rec_key) == _rec_key then
+      local host = sub(keys[i], #_rec_key + 1)
       local peer, err = get_peer_rec(self, host)
       if not peer then return nil, err end
       peers[#peers+1] = peer
@@ -77,19 +78,17 @@ end
 -----------------------------
 
 local function set_peer_down(self, host)
-  local peer, err = get_peer_rec(self, host)
-  if not peer then return nil, err end
-
   self.shm:set(host, false)
-  return set_peer_rec(self, host, 1000, get_now())
+  return set_peer_rec(self, host, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
   self.shm:set(host, true)
+  self.reconn_policy:reset(host)
   return set_peer_rec(self, host, 0, 0)
 end
 
-local function is_peer_up(self, host)
+local function can_try_peer(self, host)
   local ok, err = self.shm:get(host)
   if ok then return ok
   elseif err then return nil, err
@@ -97,7 +96,7 @@ local function is_peer_up(self, host)
     -- reconnection policy steps in before making a decision
     local peer_rec, err = get_peer_rec(self, host)
     if not peer_rec then return nil, err end
-    return get_now() - peer_rec.unhealthy_at >= peer_rec.reconn_delay
+    return get_now() - peer_rec.unhealthy_at >= peer_rec.reconn_delay, nil, true
   end
 end
 
@@ -127,16 +126,27 @@ local function spawn_peer(host, port)
   }
 end
 
-local function is_peer_healthy(self, host)
+local function check_peer_health(self, host, retry)
   local peer, err = spawn_peer(host, self.default_port)
   if not peer then return nil, err
   else
     peer:settimeout(self.timeout_connect)
     local ok, err, maybe_down = peer:connect()
     if ok then
+      -- host is healthy
+      if retry then
+        -- node seems healthy after being down, back up!
+        local ok, err = set_peer_up(self, host)
+        if not ok then return nil, 'error setting host back up: '..err end
+      end
+
       return peer
     elseif maybe_down then
-      return nil, 'host seems unhealthy: '..err
+      -- host is not (or still not) responsive
+      local ok, shm_err = set_peer_down(self, host)
+      if not ok then return nil, 'error setting host down: '..shm_err end
+
+      return nil, 'host seems unhealthy, considering it down ('..err..')'
     else
       return nil, err
     end
@@ -196,7 +206,6 @@ function _Cluster.new(opts)
   end
 
   return setmetatable({
-    peers = {},
     shm = shared[dict_name],
     lock = resty_lock:new(dict_name),
     keyspace = opts.keyspace,
@@ -215,11 +224,11 @@ function _Cluster.new(opts)
 end
 
 local function no_host_available_error(errors)
-  local buf = {"all hosts tried for query failed."}
+  local buf = {'all hosts tried for query failed'}
   for address, err in pairs(errors) do
-    buf[#buf+1] = address..": "..err
+    buf[#buf+1] = address..': '..err
   end
-  return concat(buf, " ")
+  return concat(buf, '. ')
 end
 
 local function first_coordinator(self)
@@ -227,7 +236,7 @@ local function first_coordinator(self)
   local cp = self.contact_points
 
   for i = 1, #cp do
-    local peer, err = is_peer_healthy(self, cp[i])
+    local peer, err = check_peer_health(self, cp[i])
     if not peer then
       errors[cp[i]] = err
     else
@@ -242,16 +251,18 @@ local function next_coordinator(self)
   local errors = {}
 
   for _, peer_rec in self.lb_policy:iter() do
-    local ok, err = is_peer_up(self, peer_rec.host)
+    local ok, err, retry = can_try_peer(self, peer_rec.host)
     if ok then
-      local peer, err = is_peer_healthy(self, peer_rec.host)
+      local peer, err = check_peer_health(self, peer_rec.host, retry)
       if peer then
         return peer
       else
         errors[peer_rec.host] = err
       end
+    elseif err then
+      return nil, err
     else
-      errors[peer_rec.host] = 'host is down'
+      errors[peer_rec.host] = 'host still considered down'
     end
   end
 
@@ -308,10 +319,11 @@ function _Cluster:execute(query, args, opts)
 end
 
 _Cluster.get_shm_peers = get_peers
+_Cluster.get_shm_peer = get_peer_rec
 _Cluster.set_shm_peer = set_peer_rec
 _Cluster.set_peer_up = set_peer_up
 _Cluster.set_peer_down = set_peer_down
-_Cluster.is_peer_up = is_peer_up
+_Cluster.can_try_peer = can_try_peer
 _Cluster.next_coordinator = next_coordinator
 
 return _Cluster

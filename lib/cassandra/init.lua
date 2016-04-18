@@ -101,7 +101,7 @@ function _Host:connect()
   end
 
   local ok, err = self.sock:connect(self.host, self.port)
-  if not ok then return nil, err end
+  if not ok then return nil, err, true end
 
   if self.ssl then
     ok, err = ssl_handshake(self)

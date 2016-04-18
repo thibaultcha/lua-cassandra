@@ -4,6 +4,7 @@ use Test::Nginx::Socket::Lua;
 our $HttpConfig = <<_EOC_;
     lua_package_path 'lib/?.lua;lib/?/init.lua;;';
     lua_shared_dict cassandra 1m;
+    lua_socket_log_errors off;
 _EOC_
 
 plan tests => repeat_each() * blocks() * 3;
@@ -45,7 +46,7 @@ no shared dict invalid_shm
 
 
 
-=== TEST 2: cluster.init() default opts
+=== TEST 2: cluster.new() default opts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -67,7 +68,7 @@ GET /t
 
 
 
-=== TEST 3: cluster.init() retry_on_timeout opts
+=== TEST 3: cluster.new() retry_on_timeout opts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -129,9 +130,9 @@ true opt: true
 GET /t
 --- response_body
 nil
-all hosts tried for query failed. 127.0.0.255: timeout
---- error_log eval
-qr/\[error\] .*? connect timed out/
+all hosts tried for query failed. 127.0.0.255: host seems unhealthy, considering it down (timeout)
+--- no_error_log
+[error]
 
 
 
@@ -275,7 +276,7 @@ corrupted shm
 
 
 
-=== TEST 9: is_peer_up()/set_peer_down()/set_peer_up()
+=== TEST 9: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes health
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -297,7 +298,7 @@ corrupted shm
             end
 
             for i = 1, #peers do
-                ok = cluster:is_peer_up(peers[i].host)
+                ok = cluster:can_try_peer(peers[i].host)
                 ngx.say(peers[i].host, ' default: ', ok)
 
                 ok, err = cluster:set_peer_down(peers[i].host)
@@ -306,7 +307,7 @@ corrupted shm
                     return
                 end
 
-                ok = cluster:is_peer_up(peers[i].host)
+                ok = cluster:can_try_peer(peers[i].host)
                 ngx.say(peers[i].host, ' after down: ', ok)
 
                 ok, err = cluster:set_peer_up(peers[i].host)
@@ -315,7 +316,7 @@ corrupted shm
                     return
                 end
 
-                ok = cluster:is_peer_up(peers[i].host)
+                ok = cluster:can_try_peer(peers[i].host)
                 ngx.say(peers[i].host, ' after up: ', ok)
             end
         }
@@ -337,7 +338,93 @@ GET /t
 
 
 
-=== TEST 10: is_peer_up()/set_peer_down()/set_peer_up() take reconnection policy in account
+=== TEST 10: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+         local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local delay = cluster.reconn_policy:next_delay('foo')
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ok, err = cluster:set_peer_down('127.0.0.1')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local peer_rec, err = cluster:get_shm_peer('127.0.0.1')
+            if not peer_rec then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say('down')
+            ngx.say('unhealthy_at: ', peer_rec.unhealthy_at > 0)
+            ngx.say('reconn_delay: ', peer_rec.reconn_delay == delay)
+
+            local ok, err = cluster:set_peer_up('127.0.0.1')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            peer_rec, err = cluster:get_shm_peer('127.0.0.1')
+            if not peer_rec then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say('up')
+            ngx.say('unhealthy_at: ', peer_rec.unhealthy_at)
+            ngx.say('reconn_delay: ', peer_rec.reconn_delay)
+
+            ok, err = cluster:set_peer_down('127.0.0.1')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            peer_rec, err = cluster:get_shm_peer('127.0.0.1')
+            if not peer_rec then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say('down again')
+            ngx.say('unhealthy_at: ', peer_rec.unhealthy_at > 0)
+            ngx.say('reconn_delay: ', peer_rec.reconn_delay == delay)
+        }
+    }
+--- request
+GET /t
+--- response_body
+down
+unhealthy_at: true
+reconn_delay: true
+up
+unhealthy_at: 0
+reconn_delay: 0
+down again
+unhealthy_at: true
+reconn_delay: true
+--- no_error_log
+[error]
+
+
+
+=== TEST 11: can_try_peer() use reconnection policy to decide when node is down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -355,35 +442,52 @@ GET /t
                 return
             end
 
+            local ok, err, is_retry = cluster:can_try_peer('127.0.0.1')
+            if err then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('before down: ', ok, ' ', is_retry)
+
             ok, err = cluster:set_peer_down('127.0.0.1')
             if not ok then
                 ngx.log(ngx.ERR, err)
                 return
             end
 
-            ok = cluster:is_peer_up('127.0.0.1')
-            ngx.say('until delay: ', ok)
+            ok, err, is_retry = cluster:can_try_peer('127.0.0.1')
+            if err then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('until delay: ', ok, ' ', is_retry)
 
             ok, err = cluster:set_shm_peer('127.0.0.1', 1000, 1460780710809)
             if not ok then
                 ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
                 return
             end
-            ok = cluster:is_peer_up('127.0.0.1')
-            ngx.say('after delay: ', ok)
+
+            ok, err, is_retry = cluster:can_try_peer('127.0.0.1')
+            if err then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ngx.say('after delay: ', ok, ' ', is_retry)
         }
     }
 --- request
 GET /t
 --- response_body
-until delay: false
-after delay: true
+before down: true nil
+until delay: false true
+after delay: true true
 --- no_error_log
 [error]
 
 
 
-=== TEST 11: next_coordinator() uses load balancing policy
+=== TEST 12: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -420,7 +524,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 12: next_coordinator() returns errors
+=== TEST 13: next_coordinator() returns no host available errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -458,13 +562,13 @@ coordinator 3: 127.0.0.1
 --- request
 GET /t
 --- response_body
-all hosts tried for query failed. 127.0.0.2: host is down 127.0.0.3: host is down 127.0.0.1: host is down
+all hosts tried for query failed. 127.0.0.2: host still considered down. 127.0.0.3: host still considered down. 127.0.0.1: host still considered down
 --- no_error_log
 [error]
 
 
 
-=== TEST 13: next_coordinator() avoids down hosts
+=== TEST 14: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -486,7 +590,7 @@ all hosts tried for query failed. 127.0.0.2: host is down 127.0.0.3: host is dow
                 return
             end
 
-            for i = 1, 3 do
+            for i = 1, 5 do
                 local coordinator, err = cluster:next_coordinator()
                 if not coordinator then
                     ngx.say(err)
@@ -501,5 +605,140 @@ GET /t
 1 127.0.0.3
 2 127.0.0.2
 3 127.0.0.3
+4 127.0.0.3
+5 127.0.0.2
+--- no_error_log
+[error]
+
+
+
+=== TEST 15: next_coordinator() marks nodes as down
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new {
+                timeout_connect = 100
+            }
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            -- insert fake nodes
+            local ok, err = cluster:set_peer_up('127.0.0.8')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+            ok, err = cluster:set_peer_up('127.0.0.9')
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local peers, err = cluster:get_shm_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            -- init cluster as if it was refreshed
+            cluster.lb_policy:init(peers)
+            cluster.init = true
+
+            -- attempt to get next coordinator
+            local coordinator, err = cluster:next_coordinator()
+            if not coordinator then
+                ngx.say('all down: ', err)
+            end
+
+            -- verify they were marked down
+            for i = 1, #peers do
+                local ok, err = cluster:can_try_peer(peers[i].host)
+                if err then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say('can try peer ', peers[i].host, ': ', ok)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+all down: all hosts tried for query failed. 127.0.0.8: host seems unhealthy, considering it down (timeout). 127.0.0.9: host seems unhealthy, considering it down (timeout)
+can try peer 127.0.0.8: false
+can try peer 127.0.0.9: false
+--- no_error_log
+[error]
+
+
+
+=== TEST 16: next_coordinator() retries down host as per reconnection policy and ups them back
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new {
+                timeout_connect = 100
+            }
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local peers, err = cluster:get_shm_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            -- mark all nodes as down
+            for i = 1, #peers do
+                local ok, err = cluster:set_peer_down(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                -- simulate delay for retry from reconnection policy
+                ok, err = cluster:set_shm_peer(peers[i].host, 1000, 1460780710809)
+                if not ok then
+                    ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
+                    return
+                end
+            end
+
+            -- try to get some coordinators
+            for i = 1, #peers do
+                local coordinator, err = cluster:next_coordinator()
+                if not coordinator then
+                    ngx.log(ngx.ERR, 'could not get coordinator: ', err)
+                    return
+                end
+            end
+
+            for i = 1, #peers do
+                local ok, err = cluster:can_try_peer(peers[i].host)
+                if not ok then
+                     ngx.log(ngx.ERR, peers[i].host..': ', err)
+                end
+                ngx.say(peers[i].host .. ' is back up: ', ok)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+127.0.0.3 is back up: true
+127.0.0.2 is back up: true
+127.0.0.1 is back up: true
 --- no_error_log
 [error]

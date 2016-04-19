@@ -36,7 +36,10 @@ local ERROR_TYPES = {
     end
   },
   SSLError = {
-    info = "Represents an error happening during the SSL handshake."
+    info = "Represents an error happening during the SSL handshake.",
+    message = function(address, message)
+      return "Error during SSL handshake with host at "..address..": "..message
+    end
   },
   TimeoutError = {
     info = "Represents a client-side error that is raised when the client didn't hear back from the server within {client_options.socket_options.read_timeout}.",
@@ -45,7 +48,10 @@ local ERROR_TYPES = {
     end
   },
   AuthenticationError = {
-    info = "Represents an error happening during the authentication flow."
+    info = "Represents an error happening during the authentication flow.",
+    message = function(message)
+      return "Error during authentication: "..message
+    end
   },
   SharedDictError = {
     info = "Represents an error with the lua_shared_dict in use.",

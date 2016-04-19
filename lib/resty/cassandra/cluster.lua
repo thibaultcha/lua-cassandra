@@ -34,24 +34,37 @@ local function get_now()
   return now() * 1000
 end
 
-------------------------------
--- Hosts details stored in shm
-------------------------------
+-----------------------------
+-- Hosts health stored in shm
+-----------------------------
 
-local function set_peer_rec(self, host, reconn_delay, unhealthy_at)
+local function set_peer(self, host, up, reconn_delay, unhealthy_at)
+  -- status
+  local ok, err = self.shm:set(host, up)
+  if not ok then return nil, 'could not set host status in shm: '..err end
+  -- health details
   rec_peer_cdata.reconn_delay = reconn_delay
   rec_peer_cdata.unhealthy_at = unhealthy_at
-  return self.shm:set(_rec_key .. host, ffi_str(rec_peer_cdata, rec_peer_size))
+  ok, err = self.shm:set(_rec_key .. host, ffi_str(rec_peer_cdata, rec_peer_size))
+  if not ok then return nil, 'could not set host info in shm: '..err end
+  return true
 end
 
-local function get_peer_rec(self, host)
-  local v = self.shm:get(_rec_key .. host)
-  if type(v) ~= 'string' or #v ~= rec_peer_size then
+local function get_peer(self, host, status)
+  local v, err = self.shm:get(_rec_key .. host)
+  if err then return nil, 'could not get host details in shm: '..err
+  elseif type(v) ~= 'string' or #v ~= rec_peer_size then
     return nil, 'corrupted shm'
+  end
+
+  if status == nil then
+    status, err = self.shm:get(host)
+    if err then return nil, 'could not get host status in shm: '..err end
   end
 
   local peer_rec = ffi_cast(rec_peer_const, v)
   return {
+    up = status,
     host = host,
     reconn_delay = tonumber(peer_rec.reconn_delay),
     unhealthy_at = tonumber(peer_rec.unhealthy_at)
@@ -66,7 +79,7 @@ local function get_peers(self)
   for i = 1, #keys do
     if sub(keys[i], 1, #_rec_key) == _rec_key then
       local host = sub(keys[i], #_rec_key + 1)
-      local peer, err = get_peer_rec(self, host)
+      local peer, err = get_peer(self, host)
       if not peer then return nil, err end
       peers[#peers+1] = peer
     end
@@ -77,28 +90,23 @@ local function get_peers(self)
   end
 end
 
------------------------------
--- Hosts health stored in shm
------------------------------
 
 local function set_peer_down(self, host)
-  self.shm:set(host, false)
-  return set_peer_rec(self, host, self.reconn_policy:next_delay(host), get_now())
+  return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
-  self.shm:set(host, true)
   self.reconn_policy:reset(host)
-  return set_peer_rec(self, host, 0, 0)
+  return set_peer(self, host, true, 0, 0)
 end
 
 local function can_try_peer(self, host)
-  local ok, err = self.shm:get(host)
-  if ok then return ok
+  local up, err = self.shm:get(host)
+  if up then return up
   elseif err then return nil, err
   else
     -- reconnection policy steps in before making a decision
-    local peer_rec, err = get_peer_rec(self, host)
+    local peer_rec, err = get_peer(self, host, up)
     if not peer_rec then return nil, err end
     return get_now() - peer_rec.unhealthy_at >= peer_rec.reconn_delay, nil, true
   end
@@ -279,11 +287,27 @@ local function next_coordinator(self)
 end
 
 function _Cluster:refresh()
+  local old_peers, err = get_peers(self)
+  if err then return nil, err
+  elseif old_peers then
+    -- we need to first flush the existing peers from the shm,
+    -- so that our lock can work properly. we keep old peers in
+    -- our local for later.
+    for i = 1, #old_peers do
+      local host = old_peers[i].host
+      old_peers[host] = old_peers[i] -- alias as a hash
+      self.shm:delete(_rec_key .. host)
+      self.shm:delete(host)
+    end
+  else
+    old_peers = {} -- no previous peers
+  end
+
   local lock = resty_lock:new(self.dict_name)
   local elapsed, err = lock:lock('refresh')
   if not elapsed then return nil, 'failed to acquire lock: '..err end
 
-  -- did someone else got the hosts
+  -- did someone else got the hosts?
   local peers, err = get_peers(self)
   if err then return nil, err
   elseif not peers then
@@ -298,14 +322,22 @@ function _Cluster:refresh()
 
     coordinator:setkeepalive()
 
-    -- TODO flush old entries
-    --self.shm:flush_all()
+    rows[#rows+1] = {rpc_address = coordinator.host} -- local host
 
-    rows[#rows+1] = {rpc_address = coordinator.host}
-
+    -- insert peers
     for i = 1, #rows do
-      local ok, err = set_peer_up(self, rows[i].rpc_address)
-      if not ok then return nil, 'could not set host in shm: '..err end
+      local host = rows[i].rpc_address
+      local old_peer = old_peers[host]
+      local reconn_delay, unhealthy_at = 0, 0
+      local up = true
+      if old_peer then
+        up = old_peer.up
+        reconn_delay = old_peer.reconn_delay
+        unhealthy_at = old_peer.unhealthy_at
+      end
+
+      local ok, err = set_peer(self, host, up, reconn_delay, unhealthy_at)
+      if not ok then return nil, err end
     end
 
     peers, err = get_peers(self)
@@ -391,9 +423,9 @@ function _Cluster:execute(query, args, opts)
   return res, err
 end
 
-_Cluster.get_shm_peers = get_peers
-_Cluster.get_shm_peer = get_peer_rec
-_Cluster.set_shm_peer = set_peer_rec
+_Cluster.set_peer = set_peer
+_Cluster.get_peer = get_peer
+_Cluster.get_peers = get_peers
 _Cluster.set_peer_up = set_peer_up
 _Cluster.set_peer_down = set_peer_down
 _Cluster.can_try_peer = can_try_peer

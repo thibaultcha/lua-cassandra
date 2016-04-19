@@ -1,3 +1,4 @@
+local tostring = tostring
 local pairs = pairs
 local type = type
 
@@ -55,7 +56,16 @@ local proxy_mt = {
   end
 }
 
+proxy_mt.__tostring = function(self)
+  return tostring(self.sock)
+end
+
 proxy_mt.__index = function(self, key)
+  local override = proxy_mt[key]
+  if override then
+    return override
+  end
+
   local orig = self.sock[key]
   if type(orig) == 'function' then
     local f = function(_, ...)
@@ -66,8 +76,6 @@ proxy_mt.__index = function(self, key)
   elseif orig then
     return orig
   end
-
-  return proxy_mt[key]
 end
 
 -----------------------

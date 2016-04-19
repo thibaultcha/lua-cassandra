@@ -87,7 +87,7 @@ describe("cassandra (host)", function()
       local peer = assert(cassandra.new {
         host = "127.0.0.9"
       })
-      peer:settimeout(100)
+      peer:settimeout(1000)
       local ok, err, maybe_down = peer:connect()
       assert.is_nil(ok)
       assert.equal("timeout", err)

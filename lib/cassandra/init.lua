@@ -265,29 +265,19 @@ function _Host:__tostring()
   return "<Cassandra socket: "..tostring(self.sock)..">"
 end
 
-local cql_marshallers = {
-  __index = function(self, key)
-    local f = rawget(self, key)
-    if f then return f end
+------------------
+-- CQL serializers
+------------------
 
-    if key == "unset" then
-      return cql.t_unset
+for cql_t_name, cql_t in pairs(cql.types) do
+  _Host[cql_t_name] = function(val)
+    if val == nil then
+      error("bad argument #1 to '"..cql_t_name.."' (got nil)", 2)
     end
-
-    local cql_t = cql.types[key]
-    if cql_t then
-      f = function(val)
-        if val == nil then
-          error("bad argument #1 to '"..key.."' (got nil)", 2)
-        end
-        return {val = val, __cql_type = cql_t}
-      end
-      rawset(self, key, f)
-      return f
-    end
+    return {val = val, __cql_type = cql_t}
   end
-}
+end
 
-setmetatable(_Host, cql_marshallers)
+_Host.unset = cql.t_unset
 
 return _Host

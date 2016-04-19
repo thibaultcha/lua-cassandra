@@ -244,7 +244,7 @@ _Host.page_iterator = page_iterator
 function _Host:execute(query, args, options)
   local opts = get_opts(options)
   local request = opts.prepared and
-    -- query is the prepared queryid
+    -- query is the prepared query id
     requests.execute_prepared.new(query, args, opts)
     or
     requests.query.new(query, args, opts)

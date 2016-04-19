@@ -1133,7 +1133,7 @@ do
 
   local results_parsers = {
     [RESULT_KINDS.VOID] = function()
-      return {type = "VOID"}
+      return {type = 'VOID'}
     end,
     [RESULT_KINDS.ROWS] = function(body)
       local metadata = parse_metadata(body)
@@ -1142,7 +1142,7 @@ do
       local rows_count = body:read_int()
 
       local rows = {
-        type = "ROWS",
+        type = 'ROWS',
         meta = {
           has_more_pages = metadata.has_more_pages,
           paging_state = metadata.paging_state
@@ -1160,7 +1160,7 @@ do
     end,
     [RESULT_KINDS.SET_KEYSPACE] = function(body)
       return {
-        type = "SET_KEYSPACE",
+        type = 'SET_KEYSPACE',
         keyspace = body:read_string()
       }
     end,
@@ -1169,7 +1169,7 @@ do
       local metadata = parse_metadata(body)
       local result_metadata = parse_metadata(body)
       return {
-        type = "PREPARED",
+        type = 'PREPARED',
         meta = metadata,
         query_id = query_id,
         result = result_metadata
@@ -1180,11 +1180,11 @@ do
       local target = body:read_string()
       local keyspace = body:read_string()
       local name
-      if target == "TABLE" or target == "TYPE" then
+      if target == 'TABLE' or target == 'TYPE' then
         name = body:read_string()
       end
       return {
-        type = "SCHEMA_CHANGE",
+        type = 'SCHEMA_CHANGE',
         name = name,
         target = target,
         keyspace = keyspace,
@@ -1206,7 +1206,7 @@ do
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()
       local message = body:read_string()
-      return nil, "["..ERROR_TRANSLATIONS[code].."] "..message, code
+      return nil, '['..ERROR_TRANSLATIONS[code]..'] '..message, code
     elseif op_code == OP_CODES.READY then
       return ready
     elseif op_code == OP_CODES.AUTHENTICATE then

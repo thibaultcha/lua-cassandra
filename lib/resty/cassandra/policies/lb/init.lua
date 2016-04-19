@@ -1,23 +1,21 @@
 local _M = {}
 
 function _M.new_policy(name)
-  local _lb_mt = {
+  local lb_mt = {
     name = name,
     init = function() error('init() not implemented') end,
     next_peer = function() error('next_peer() not implemented') end,
   }
 
-  _lb_mt.__index = _lb_mt
+  lb_mt.__index = lb_mt
 
-  _lb_mt.super = {
+  lb_mt.super = {
     new = function()
-      return setmetatable({}, _lb_mt)
+      return setmetatable({}, lb_mt)
     end
   }
 
-  return setmetatable(_lb_mt, {
-    __index = _lb_mt.super
-  })
+  return setmetatable(lb_mt, {__index = lb_mt.super})
 end
 
 return _M

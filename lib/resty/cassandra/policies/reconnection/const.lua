@@ -12,9 +12,7 @@ function _M.new(delay)
   return self
 end
 
-function _M:reset()
-
-end
+function _M:reset()end
 
 function _M:next_delay()
   return self.delay

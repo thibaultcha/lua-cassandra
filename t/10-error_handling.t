@@ -12,8 +12,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: cluster.handle_error() called in execute()
---- SKIP
+=== TEST 1: handle UNPREPARED
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

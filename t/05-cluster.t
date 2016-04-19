@@ -784,11 +784,13 @@ can try peer 127.0.0.9: false
             }
             if not cluster then
                 ngx.log(ngx.ERR, err)
+                return
             end
 
             local ok, err = cluster:refresh()
             if not ok then
                 ngx.log(ngx.ERR, err)
+                return
             end
 
             local peers, err = cluster:get_peers()
@@ -826,6 +828,7 @@ can try peer 127.0.0.9: false
                 local ok, err = cluster:can_try_peer(peers[i].host)
                 if not ok then
                      ngx.log(ngx.ERR, peers[i].host..': ', err)
+                     return
                 end
                 ngx.say(peers[i].host .. ' is back up: ', ok)
             end

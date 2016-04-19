@@ -41,18 +41,25 @@ end
 local function set_peer(self, host, up, reconn_delay, unhealthy_at)
   -- status
   local ok, err = self.shm:set(host, up)
-  if not ok then return nil, 'could not set host status in shm: '..err end
+  if not ok then
+    return nil, 'could not set host status in shm: '..err
+  end
+
   -- health details
   rec_peer_cdata.reconn_delay = reconn_delay
   rec_peer_cdata.unhealthy_at = unhealthy_at
-  ok, err = self.shm:set(_rec_key .. host, ffi_str(rec_peer_cdata, rec_peer_size))
-  if not ok then return nil, 'could not set host info in shm: '..err end
+  ok, err = self.shm:set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
+  if not ok then
+    return nil, 'could not set host info in shm: '..err
+  end
+
   return true
 end
 
 local function get_peer(self, host, status)
   local v, err = self.shm:get(_rec_key .. host)
-  if err then return nil, 'could not get host details in shm: '..err
+  if err then
+    return nil, 'could not get host details in shm: '..err
   elseif type(v) ~= 'string' or #v ~= rec_peer_size then
     return nil, 'corrupted shm'
   end
@@ -63,6 +70,7 @@ local function get_peer(self, host, status)
   end
 
   local peer_rec = ffi_cast(rec_peer_const, v)
+
   return {
     up = status,
     host = host,
@@ -300,7 +308,7 @@ function _Cluster:refresh()
       self.shm:delete(host)
     end
   else
-    old_peers = {} -- no previous peers
+    old_peers = {} -- empty shm
   end
 
   local lock = resty_lock:new(self.dict_name)
@@ -324,7 +332,6 @@ function _Cluster:refresh()
 
     rows[#rows+1] = {rpc_address = coordinator.host} -- local host
 
-    -- insert peers
     for i = 1, #rows do
       local host = rows[i].rpc_address
       local old_peer = old_peers[host]
@@ -399,28 +406,94 @@ local function get_or_prepare(self, coordinator, query)
   return query_id
 end
 
-function _Cluster:execute(query, args, opts)
-  if not self.init then
-    local ok, err = self:refresh()
-    if not ok then return nil, 'could not refresh cluster: '..err end
+------------
+-- execute()
+------------
+
+do
+  local function check_schema_consensus(coordinator)
+    local local_res, err = coordinator:execute('SELECT schema_version FROM system.local')
+    if not local_res then return nil, err end
+
+    local peers_res, err = coordinator:execute('SELECT schema_version FROM system.peers')
+    if not peers_res then return nil, err end
+
+    if #peers_res > 0 and #local_res > 0 then
+      for i = 1, #peers_res do
+        if peers_res[i].schema_version ~= local_res[1].schema_version then
+          return nil
+        end
+      end
+    end
+
+    return local_res[1].schema_version
   end
 
-  local coordinator, err = next_coordinator(self)
-  if not coordinator then return nil, err end
+  local function wait_schema_consensus(self, coordinator)
+    local peers, err = get_peers(self)
+    if err then return nil, err
+    elseif not peers then return nil, 'no peers in shm'
+    elseif #peers < 2 then return true end
 
-  local res
-  if opts and opts.prepared then
-    local query_id, err = get_or_prepare(self, coordinator, query)
-    if not query_id then return nil, 'could not prepare query: '..err end
+    local ok, err, tdiff
+    local tstart = get_now()
 
-    res, err = coordinator:execute(query_id, args, opts)
-  else
-    res, err = coordinator:execute(query, args, opts)
+    repeat
+      ngx.sleep(0.5)
+      ok, err = check_schema_consensus(coordinator)
+      tdiff = get_now() - tstart
+    until ok or err or tdiff >= self.max_schema_consensus_wait
+
+    if ok then
+      return ok
+    elseif err then
+      return nil, err
+    else
+      return nil, 'timeout'
+    end
   end
 
-  coordinator:setkeepalive()
+  local get_request_opts = cassandra.get_request_opts
+  local query_req = requests.query.new
+  local prep_req = requests.execute_prepared.new
 
-  return res, err
+  function _Cluster:execute(query, args, options)
+    if not self.init then
+      local ok, err = self:refresh()
+      if not ok then return nil, 'could not refresh cluster: '..err end
+    end
+
+    local coordinator, err = next_coordinator(self)
+    if not coordinator then return nil, err end
+
+    local request
+    local opts = get_request_opts(options)
+
+    if opts.prepared then
+      local query_id
+      query_id, err = get_or_prepare(self, coordinator, query)
+      if not query_id then return nil, 'could not prepare query: '..err end
+
+      request = prep_req(query_id, args, opts)
+    else
+      request = query_req(query, args, opts)
+    end
+
+    local res, err = coordinator:send(request)
+
+    if res and res.type == 'SCHEMA_CHANGE' then
+      local schema_version, err = wait_schema_consensus(self, coordinator)
+      if not schema_version then
+        return nil, 'could not check schema consensus: '..err
+      end
+
+      res.schema_version = schema_version
+    end
+
+    coordinator:setkeepalive()
+
+    return res, err
+  end
 end
 
 _Cluster.set_peer = set_peer

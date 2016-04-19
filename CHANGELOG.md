@@ -1,5 +1,11 @@
 ### [Unreleased][unreleased]
 
+### [0.5.2] - 2016/04/19
+
+##### Added
+
+- Better error messages for SSL and authentication errors.
+
 ### [0.5.1] - 2016/04/11
 
 ##### Fixed

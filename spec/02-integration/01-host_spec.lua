@@ -381,7 +381,7 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
-      it("execute prepared queries", function()
+      it("executes prepared queries", function()
         local res1 = assert(peer:prepare "INSERT INTO things(id,n) VALUES(?,?)")
         local res2 = assert(peer:prepare "UPDATE things set n = ? WHERE id = ?")
 

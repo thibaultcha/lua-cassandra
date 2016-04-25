@@ -12,7 +12,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: handle UNPREPARED
+=== TEST 1: handle_error() re-prepares UNPREPARED errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -24,18 +24,22 @@ __DATA__
                 return
             end
 
-            local rows, err = cluster:execute("SELECT * FROM system.peers")
-            if not rows then
-                ngx.log(ngx.ERR, err)
-                return
+            math.randomseed(ngx.now()*1000)
+            local r = math.random(10^8)
+            local query = "SELECT * FROM system.local WHERE key = '"..r.."'"
+
+            for i = 1, 3 do
+                local rows, err = cluster:execute(query, nil, {prepared = true})
+                if not rows then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
             end
-
-
         }
     }
 --- request
 GET /t
 --- response_body
 
---- no_error_log
-[error]
+--- error_log eval
+qr/\[notice\] .*? preparing and retrying/

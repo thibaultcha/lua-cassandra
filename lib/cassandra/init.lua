@@ -203,7 +203,7 @@ local function get_opts(o)
       paging_state = o.paging_state,
       timestamp = o.timestamp
     }
-    for k,v in pairs(query_options) do
+    for k, v in pairs(query_options) do
       if o[k] == nil then
         opts[k] = v
       else

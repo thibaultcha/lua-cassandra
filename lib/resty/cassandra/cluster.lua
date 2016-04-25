@@ -16,6 +16,8 @@ local now = ngx.now
 local type = type
 local log = ngx.log
 local ERR = ngx.ERR
+local DEBUG = ngx.DEBUG
+local NOTICE = ngx.NOTICE
 
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
@@ -363,6 +365,61 @@ end
 -- queries execution
 --------------------
 
+local get_request_opts = cassandra.get_request_opts
+local query_req = requests.query.new
+local batch_req = requests.batch.new
+local prep_req = requests.execute_prepared.new
+
+local function check_schema_consensus(coordinator)
+  local local_res, err = coordinator:execute('SELECT schema_version FROM system.local')
+  if not local_res then return nil, err end
+
+  local peers_res, err = coordinator:execute('SELECT schema_version FROM system.peers')
+  if not peers_res then return nil, err end
+
+  if #peers_res > 0 and #local_res > 0 then
+    for i = 1, #peers_res do
+      if peers_res[i].schema_version ~= local_res[1].schema_version then
+        return nil
+      end
+    end
+  end
+
+  return local_res[1].schema_version
+end
+
+local function wait_schema_consensus(self, coordinator)
+  local peers, err = get_peers(self)
+  if err then return nil, err
+  elseif not peers then return nil, 'no peers in shm'
+  elseif #peers < 2 then return true end
+
+  local ok, err, tdiff
+  local tstart = get_now()
+
+  repeat
+    --ngx.sleep(0.5)
+    ok, err = check_schema_consensus(coordinator)
+    tdiff = get_now() - tstart
+  until ok or err or tdiff >= self.max_schema_consensus_wait
+
+  if ok then
+    return ok
+  elseif err then
+    return nil, err
+  else
+    return nil, 'timeout'
+  end
+end
+
+local function prepare(self, coordinator, query)
+  log(DEBUG, 'preparing ', query, ' on host ', coordinator.host)
+  -- we are the ones preparing the query
+  local res, err = coordinator:prepare(query)
+  if not res then return nil, 'could not prepare query: '..err end
+  return res.query_id
+end
+
 local function get_or_prepare(self, coordinator, query)
   -- worker memory check
   local query_id = self.prepared_ids[query]
@@ -385,11 +442,8 @@ local function get_or_prepare(self, coordinator, query)
       query_id, err = shm:get(key)
       if err then return nil, 'could not get query id from shm:'..err
       elseif not query_id then
-        -- we are the ones preparing the query
-        local res, err = coordinator:prepare(query)
-        if not res then return nil, err end
-
-        query_id = res.query_id
+        query_id, err = prepare(self, coordinator, query)
+        if not query_id then return nil, err end
 
         local ok, err = shm:set(key, query_id)
         if not ok then return nil, 'could not set query id in shm: '..err end
@@ -406,94 +460,105 @@ local function get_or_prepare(self, coordinator, query)
   return query_id
 end
 
+local inner_send
+
+local function prepare_and_retry(self, query, args, opts, coordinator)
+  local query_id, err = prepare(self, coordinator, query)
+  if not query_id then return nil, err end
+
+  local req = prep_req(query_id, args, opts)
+
+  return inner_send(self, coordinator, req, query, args, opts)
+end
+
+local function handle_error(self, err, cql_code, coordinator, query, args, opts)
+  if cql_code and cql_code == cql_errors.UNPREPARED then
+    log(NOTICE, query, ' not prepared on host ', coordinator.host, ',',
+                ' preparing and retrying')
+    return prepare_and_retry(self, query, args, opts, coordinator)
+  end
+
+  coordinator:setkeepalive()
+
+  return nil, err, cql_code
+end
+
+inner_send = function(self, coordinator, request, query, args, opts)
+  local res, err, cql_code = coordinator:send(request)
+  if not res then
+    return handle_error(self, err, cql_code, coordinator, query, args, opts)
+  elseif res.type == 'SCHEMA_CHANGE' then
+    local schema_version, err = wait_schema_consensus(self, coordinator)
+    if not schema_version then
+      return nil, 'could not check schema consensus: '..err
+    end
+
+    res.schema_version = schema_version
+  end
+
+  coordinator:setkeepalive()
+
+  return res
+end
+
 ------------
 -- execute()
 ------------
 
-do
-  local function check_schema_consensus(coordinator)
-    local local_res, err = coordinator:execute('SELECT schema_version FROM system.local')
-    if not local_res then return nil, err end
+function _Cluster:execute(query, args, options)
+  if not self.init then
+    local ok, err = self:refresh()
+    if not ok then return nil, 'could not refresh cluster: '..err end
+  end
 
-    local peers_res, err = coordinator:execute('SELECT schema_version FROM system.peers')
-    if not peers_res then return nil, err end
+  local coordinator, err = next_coordinator(self)
+  if not coordinator then return nil, err end
 
-    if #peers_res > 0 and #local_res > 0 then
-      for i = 1, #peers_res do
-        if peers_res[i].schema_version ~= local_res[1].schema_version then
-          return nil
-        end
+  local request
+  local opts = get_request_opts(options)
+
+  if opts.prepared then
+    local query_id, err = get_or_prepare(self, coordinator, query)
+    if not query_id then return nil, err end
+
+    request = prep_req(query_id, args, opts)
+  else
+    request = query_req(query, args, opts)
+  end
+
+  return inner_send(self, coordinator, request, query, args, opts)
+end
+
+function _Cluster:batch(queries, options)
+  if not self.init then
+    local ok, err = self:refresh()
+    if not ok then return nil, 'could not refresh cluster: '..err end
+  end
+
+  local coordinator, err = next_coordinator(self)
+  if not coordinator then return nil, err end
+
+  local request
+  local opts = get_request_opts(options)
+
+  if opts.prepared then
+    local queries_ids = {}
+    for i = 1, #queries do
+      local query, args = queries[i]
+      if type(query) == 'table' then
+        query, args = query[1], query[2]
       end
+      print(query)
+      local query_id, err = get_or_prepare(self, coordinator, query)
+      if not query_id then return nil, err end
+      queries_ids[i] = {query_id, args}
     end
-
-    return local_res[1].schema_version
+    request = batch_req(queries_ids, opts)
+  else
+    request = batch_req(queries, opts)
   end
 
-  local function wait_schema_consensus(self, coordinator)
-    local peers, err = get_peers(self)
-    if err then return nil, err
-    elseif not peers then return nil, 'no peers in shm'
-    elseif #peers < 2 then return true end
-
-    local ok, err, tdiff
-    local tstart = get_now()
-
-    repeat
-      ngx.sleep(0.5)
-      ok, err = check_schema_consensus(coordinator)
-      tdiff = get_now() - tstart
-    until ok or err or tdiff >= self.max_schema_consensus_wait
-
-    if ok then
-      return ok
-    elseif err then
-      return nil, err
-    else
-      return nil, 'timeout'
-    end
-  end
-
-  local get_request_opts = cassandra.get_request_opts
-  local query_req = requests.query.new
-  local prep_req = requests.execute_prepared.new
-
-  function _Cluster:execute(query, args, options)
-    if not self.init then
-      local ok, err = self:refresh()
-      if not ok then return nil, 'could not refresh cluster: '..err end
-    end
-
-    local coordinator, err = next_coordinator(self)
-    if not coordinator then return nil, err end
-
-    local request
-    local opts = get_request_opts(options)
-
-    if opts.prepared then
-      local query_id
-      query_id, err = get_or_prepare(self, coordinator, query)
-      if not query_id then return nil, 'could not prepare query: '..err end
-
-      request = prep_req(query_id, args, opts)
-    else
-      request = query_req(query, args, opts)
-    end
-
-    local res, err = coordinator:send(request)
-
-    if res and res.type == 'SCHEMA_CHANGE' then
-      local schema_version, err = wait_schema_consensus(self, coordinator)
-      if not schema_version then
-        return nil, 'could not check schema consensus: '..err
-      end
-
-      res.schema_version = schema_version
-    end
-
-    coordinator:setkeepalive()
-
-    return res, err
-  end
+  return inner_send(self, coordinator, request, queries, args, opts)
 end
 
 _Cluster.set_peer = set_peer

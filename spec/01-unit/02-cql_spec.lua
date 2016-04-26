@@ -136,7 +136,17 @@ for protocol_version = 2, 3 do
         local r = requests.query.new("SELECT * FROM peers")
         local frame = r:build_frame(protocol_version)
         assert.is_string(frame)
-        assert.equal(frame, r.frame)
+      end)
+      it("rebuilds the frame if called multiple times", function()
+        local r = requests.query.new("SELECT * FROM local")
+        local frame1 = r:build_frame(protocol_version)
+        local frame2 = r:build_frame(protocol_version)
+        assert.equal(frame1, frame2)
+        assert.matches("SELECT * FROM local", frame1, nil, true)
+
+        r.query = "SELECT key FROM local"
+        local frame3 = r:build_frame(protocol_version)
+        assert.matches("SELECT key FROM local", frame3, nil, true)
       end)
     end)
 

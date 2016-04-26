@@ -831,14 +831,9 @@ do
   end
 
   function request_mt:build_frame(version)
-    if self.frame then
-      return self.frame
-    end
+    local header, body = Buffer.new(version), Buffer.new(version)
 
-    local header = self.header
-    header.version = version
-    self.body.version = version
-    self:build_body(self.body)        -- build body (depends on protocol version)
+    self:build_body(body)        -- build body (depends on protocol version)
 
     if version == 2 then
       header:write_byte(0x02)
@@ -853,10 +848,9 @@ do
     end
 
     header:write_byte(self.op_code)
-    header:write_int(self.body.len)
+    header:write_int(body.len)
 
-    self.frame = header:get()..self.body:get()
-    return self.frame
+    return header:get()..body:get()
   end
 
   local default_opts = {consistency = consistencies.one}

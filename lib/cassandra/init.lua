@@ -171,16 +171,6 @@ function _Host:close(...)
   return self.sock:close(...)
 end
 
-function _Host:set_keyspace(keyspace)
-  local keyspace_req = requests.keyspace.new(keyspace)
-  return self:send(keyspace_req)
-end
-
-function _Host:prepare(query)
-  local prepare_request = requests.prepare.new(query)
-  return self:send(prepare_request)
-end
-
 local query_options = {
   consistency = cql.consistencies.one,
   serial_consistency = cql.consistencies.serial,
@@ -241,6 +231,16 @@ end
 
 _Host.page_iterator = page_iterator
 
+function _Host:set_keyspace(keyspace)
+  local keyspace_req = requests.keyspace.new(keyspace)
+  return self:send(keyspace_req)
+end
+
+function _Host:prepare(query)
+  local prepare_request = requests.prepare.new(query)
+  return self:send(prepare_request)
+end
+
 function _Host:execute(query, args, options)
   local opts = get_opts(options)
   local request = opts.prepared and
@@ -252,13 +252,13 @@ function _Host:execute(query, args, options)
   return self:send(request)
 end
 
-function _Host:iterate(query, args, options)
-  return page_iterator(self, query, args, get_opts(options))
-end
-
 function _Host:batch(queries, options)
   local batch_request = requests.batch.new(queries, get_opts(options))
   return self:send(batch_request)
+end
+
+function _Host:iterate(query, args, options)
+  return page_iterator(self, query, args, get_opts(options))
 end
 
 function _Host:__tostring()

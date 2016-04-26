@@ -315,6 +315,8 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
+      --[[
+      not supported anymore for now
       pending("executes a batch of queries as strings", function()
         local res = assert(peer:batch {
           "INSERT INTO things(id, n) VALUES("..uuid..", 1)",
@@ -326,6 +328,7 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
+      --]]
       it("executes batch with params", function()
         local res = assert(peer:batch({
           {"INSERT INTO things(id, n) VALUES(?, ?)", {cassandra.uuid(uuid), 1}},
@@ -388,11 +391,11 @@ describe("cassandra (host)", function()
         local q1, q2 = res1.query_id, res2.query_id
 
         local res = assert(peer:batch({
-          {q1, {cassandra.uuid(uuid), 1}},
-          {q2, {2, cassandra.uuid(uuid)}},
-          {q2, {3, cassandra.uuid(uuid)}},
-          {q2, {4, cassandra.uuid(uuid)}},
-          {q2, {5, cassandra.uuid(uuid)}}
+          {[2] = {cassandra.uuid(uuid), 1}, [3] = q1},
+          {[2] = {2, cassandra.uuid(uuid)}, [3] = q2},
+          {[2] = {3, cassandra.uuid(uuid)}, [3] = q2},
+          {[2] = {4, cassandra.uuid(uuid)}, [3] = q2},
+          {[2] = {5, cassandra.uuid(uuid)}, [3] = q2}
         }, {prepared = true}))
         assert.equal("VOID", res.type)
 
@@ -406,7 +409,7 @@ describe("cassandra (host)", function()
         local q1, q2 = res1.query_id, res2.query_id
 
         local res = assert(peer:batch({
-          q1, q2
+          {[3] = q1}, {[3] = q2}
         }, {prepared = true}))
         assert.equal("VOID", res.type)
 

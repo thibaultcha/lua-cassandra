@@ -15,7 +15,6 @@ local sub = string.sub
 local now = ngx.now
 local type = type
 local log = ngx.log
-local ERR = ngx.ERR
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
 
@@ -460,10 +459,9 @@ local function get_or_prepare(self, coordinator, query)
   return query_id
 end
 
-local inner_send
+local send_request
 
 local function prepare_and_retry(self, coordinator, request)
-  local req
   if request.queries then
     -- prepared batch
     log(NOTICE, 'some requests from this batch were not prepared on host ',
@@ -473,17 +471,16 @@ local function prepare_and_retry(self, coordinator, request)
       if not query_id then return nil, err end
       request.queries[i][3] = query_id
     end
-    req = batch_req(request.queries, request.opts)
   else
     -- prepared query
     log(NOTICE, request.query, ' was not prepared on host ', coordinator.host,
                ', preparing and retrying')
     local query_id, err = prepare(self, coordinator, request.query)
     if not query_id then return nil, err end
-    req = prep_req(query_id, request.args, request.opts)
+    request.query_id = query_id
   end
 
-  return inner_send(self, coordinator, req)
+  return send_request(self, coordinator, request)
 end
 
 local function handle_error(self, err, cql_code, coordinator, request)
@@ -491,12 +488,13 @@ local function handle_error(self, err, cql_code, coordinator, request)
     return prepare_and_retry(self, coordinator, request)
   end
 
+  -- failure, need to try another coordinator
   coordinator:setkeepalive()
 
   return nil, err, cql_code
 end
 
-inner_send = function(self, coordinator, request)
+send_request = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
@@ -509,6 +507,7 @@ inner_send = function(self, coordinator, request)
     res.schema_version = schema_version
   end
 
+  -- success
   coordinator:setkeepalive()
 
   return res
@@ -538,7 +537,7 @@ function _Cluster:execute(query, args, options)
     request = query_req(query, args, opts)
   end
 
-  return inner_send(self, coordinator, request)
+  return send_request(self, coordinator, request)
 end
 
 function _Cluster:batch(queries_t, options)
@@ -560,16 +559,16 @@ function _Cluster:batch(queries_t, options)
     end
   end
 
-  return inner_send(self, coordinator, batch_req(queries_t, opts))
+  return send_request(self, coordinator, batch_req(queries_t, opts))
 end
 
 _Cluster.set_peer = set_peer
 _Cluster.get_peer = get_peer
 _Cluster.get_peers = get_peers
 _Cluster.set_peer_up = set_peer_up
-_Cluster.set_peer_down = set_peer_down
 _Cluster.can_try_peer = can_try_peer
-_Cluster.next_coordinator = next_coordinator
+_Cluster.set_peer_down = set_peer_down
 _Cluster.get_or_prepare = get_or_prepare
+_Cluster.next_coordinator = next_coordinator
 
 return _Cluster

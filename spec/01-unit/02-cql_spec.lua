@@ -131,6 +131,11 @@ for protocol_version = 2, 3 do
   describe("CQL requests", function()
     local requests = cql.requests
 
+    it("sanity", function()
+      local r = requests.query.new("SELECT * FROM peers")
+      assert.equal(0, r.retries)
+    end)
+
     describe("build_frame()", function()
       it("writes the frame's body", function()
         local r = requests.query.new("SELECT * FROM peers")

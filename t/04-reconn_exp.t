@@ -3,7 +3,6 @@ use Test::Nginx::Socket::Lua;
 
 our $HttpConfig = <<_EOC_;
     lua_package_path 'lib/?.lua;lib/?/init.lua;;';
-    lua_shared_dict cassandra 1m;
 _EOC_
 
 plan tests => repeat_each() * blocks() * 3;

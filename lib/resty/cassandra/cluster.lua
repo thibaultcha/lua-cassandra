@@ -15,6 +15,7 @@ local sub = string.sub
 local now = ngx.now
 local type = type
 local log = ngx.log
+local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
 
@@ -101,10 +102,12 @@ end
 
 
 local function set_peer_down(self, host)
+  log(WARN, 'setting host at ', host.coordinator, ' DOWN')
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
+  log(NOTICE, 'setting host at ', host.coordinator, ' UP')
   self.reconn_policy:reset(host)
   return set_peer(self, host, true, 0, 0)
 end
@@ -245,7 +248,9 @@ function _Cluster.new(opts)
     lb_policy = opts.lb_policy
                 or require('resty.cassandra.policies.lb.rr').new(),
     reconn_policy = opts.reconn_policy
-                or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000)
+                or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000),
+    retry_policy = opts.retry_policy
+                or require('resty.cassandra.policies.retry.simple').new(3)
   }, _Cluster)
 end
 
@@ -364,11 +369,6 @@ end
 -- queries execution
 --------------------
 
-local get_request_opts = cassandra.get_request_opts
-local query_req = requests.query.new
-local batch_req = requests.batch.new
-local prep_req = requests.execute_prepared.new
-
 local function check_schema_consensus(coordinator)
   local local_res, err = coordinator:execute('SELECT schema_version FROM system.local')
   if not local_res then return nil, err end
@@ -461,6 +461,17 @@ end
 
 local send_request
 
+function _Cluster:send_retry(request)
+  local coordinator, err = next_coordinator(self)
+  if not coordinator then return nil, err end
+
+  log(NOTICE, 'retrying request on host at ', coordinator.host)
+
+  request.retries = request.retries + 1
+
+  return send_request(self, coordinator, request)
+end
+
 local function prepare_and_retry(self, coordinator, request)
   if request.queries then
     -- prepared batch
@@ -491,6 +502,35 @@ local function handle_error(self, err, cql_code, coordinator, request)
   -- failure, need to try another coordinator
   coordinator:setkeepalive()
 
+  if cql_code then
+    local retry
+    if cql_code == cql_errors.OVERLOADED or
+       cql_code == cql_errors.IS_BOOTSTRAPPING or
+       cql_code == cql_errors.TRUNCATE_ERROR then
+      retry = true
+    elseif cql_code == cql_errors.UNAVAILABLE_EXCEPTION then
+      retry = self.retry_policy:on_unavailable(request)
+    elseif cql_code == cql_errors.READ_TIMEOUT then
+      retry = self.retry_policy:on_read_timeout(request)
+    elseif cql_code == cql_errors.WRITE_TIMEOUT then
+      retry = self.retry_policy:on_write_timeout(request)
+    end
+
+    if retry then
+      return self:send_retry(request)
+    end
+  elseif err == 'timeout' then
+    if self.retry_on_timeout then
+      return self:send_retry(request)
+    end
+  else
+    -- host seems down?
+    local ok, err = set_peer_down(self, coordinator.host)
+    if not ok then return nil, err end
+
+    return self:send_retry(request)
+  end
+
   return nil, err, cql_code
 end
 
@@ -513,53 +553,56 @@ send_request = function(self, coordinator, request)
   return res
 end
 
-------------
--- execute()
-------------
+do
+  local get_request_opts = cassandra.get_request_opts
+  local query_req = requests.query.new
+  local batch_req = requests.batch.new
+  local prep_req = requests.execute_prepared.new
 
-function _Cluster:execute(query, args, options)
-  if not self.init then
-    local ok, err = self:refresh()
-    if not ok then return nil, 'could not refresh cluster: '..err end
-  end
-
-  local coordinator, err = next_coordinator(self)
-  if not coordinator then return nil, err end
-
-  local request
-  local opts = get_request_opts(options)
-
-  if opts.prepared then
-    local query_id, err = get_or_prepare(self, coordinator, query)
-    if not query_id then return nil, err end
-    request = prep_req(query_id, args, opts, query)
-  else
-    request = query_req(query, args, opts)
-  end
-
-  return send_request(self, coordinator, request)
-end
-
-function _Cluster:batch(queries_t, options)
-  if not self.init then
-    local ok, err = self:refresh()
-    if not ok then return nil, 'could not refresh cluster: '..err end
-  end
-
-  local coordinator, err = next_coordinator(self)
-  if not coordinator then return nil, err end
-
-  local opts = get_request_opts(options)
-
-  if opts.prepared then
-    for i = 1, #queries_t do
-      local query_id, err = get_or_prepare(self, coordinator, queries_t[i][1])
-      if not query_id then return nil, err end
-      queries_t[i][3] = query_id
+  function _Cluster:execute(query, args, options)
+    if not self.init then
+      local ok, err = self:refresh()
+      if not ok then return nil, 'could not refresh cluster: '..err end
     end
+
+    local coordinator, err = next_coordinator(self)
+    if not coordinator then return nil, err end
+
+    local request
+    local opts = get_request_opts(options)
+
+    if opts.prepared then
+      local query_id, err = get_or_prepare(self, coordinator, query)
+      if not query_id then return nil, err end
+      request = prep_req(query_id, args, opts, query)
+    else
+      request = query_req(query, args, opts)
+    end
+
+    return send_request(self, coordinator, request)
   end
 
-  return send_request(self, coordinator, batch_req(queries_t, opts))
+  function _Cluster:batch(queries_t, options)
+    if not self.init then
+      local ok, err = self:refresh()
+      if not ok then return nil, 'could not refresh cluster: '..err end
+    end
+
+    local coordinator, err = next_coordinator(self)
+    if not coordinator then return nil, err end
+
+    local opts = get_request_opts(options)
+
+    if opts.prepared then
+      for i = 1, #queries_t do
+        local query_id, err = get_or_prepare(self, coordinator, queries_t[i][1])
+        if not query_id then return nil, err end
+        queries_t[i][3] = query_id
+      end
+    end
+
+    return send_request(self, coordinator, batch_req(queries_t, opts))
+  end
 end
 
 _Cluster.set_peer = set_peer
@@ -567,6 +610,7 @@ _Cluster.get_peer = get_peer
 _Cluster.get_peers = get_peers
 _Cluster.set_peer_up = set_peer_up
 _Cluster.can_try_peer = can_try_peer
+_Cluster.handle_error = handle_error
 _Cluster.set_peer_down = set_peer_down
 _Cluster.get_or_prepare = get_or_prepare
 _Cluster.next_coordinator = next_coordinator

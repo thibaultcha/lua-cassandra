@@ -824,6 +824,7 @@ do
   local function new_request(op_code)
     return setmetatable({
       flags = 0,
+      retries = 0,
       header = Buffer.new(),
       body = Buffer.new(),
       op_code = op_code

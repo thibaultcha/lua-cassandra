@@ -188,6 +188,10 @@ all hosts tried for query failed. 127.0.0.255: host seems unhealthy, considering
                 ngx.log(ngx.ERR, 'could not refresh: ', err)
             end
 
+            local shm = ngx.shared.cassandra
+            local keys = shm:get_keys()
+            assert(#keys > 0)
+
             local peers, err = cluster:get_peers()
             if not peers then
                 ngx.log(ngx.ERR, 'could not get shm peers: ', err)
@@ -210,7 +214,55 @@ GET /t
 
 
 
-=== TEST 7: cluster.refresh() inits cluster
+=== TEST 7: cluster.refresh() sets hosts in a custom shm
+--- http_config eval
+qq{
+    $::HttpConfig
+    lua_shared_dict custom 1m;
+}
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new {
+                shm = 'custom'
+            }
+            if not cluster then
+                ngx.log(ngx.ERR, 'could not spawn cluster: ', err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, 'could not refresh: ', err)
+            end
+
+            local shm = ngx.shared.custom
+            local keys = shm:get_keys()
+            assert(#keys > 0)
+
+            local peers, err = cluster:get_peers()
+            if not peers then
+                ngx.log(ngx.ERR, 'could not get shm peers: ', err)
+            end
+
+            for i = 1, #peers do
+                local p = peers[i]
+                ngx.say(p.host..' '..p.unhealthy_at..' '..p.reconn_delay, ' ', p.up)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+127.0.0.3 0 0 true
+127.0.0.2 0 0 true
+127.0.0.1 0 0 true
+--- no_error_log
+[error]
+
+
+
+=== TEST 8: cluster.refresh() inits cluster
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -242,7 +294,7 @@ init: true
 
 
 
-=== TEST 8: cluster.refresh() removes old peers records and status
+=== TEST 9: cluster.refresh() removes old peers records and status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -291,7 +343,7 @@ status: nil
 
 
 
-=== TEST 9: cluster.refresh() does not alter existing peers records and status
+=== TEST 10: cluster.refresh() does not alter existing peers records and status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -344,7 +396,7 @@ up: false
 
 
 
-=== TEST 10: get_peers() corrupted shm
+=== TEST 11: get_peers() corrupted shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -372,7 +424,7 @@ corrupted shm
 
 
 
-=== TEST 11: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes health
+=== TEST 12: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes health
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -434,7 +486,7 @@ GET /t
 
 
 
-=== TEST 12: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
+=== TEST 13: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -520,7 +572,7 @@ reconn_delay: true
 
 
 
-=== TEST 13: can_try_peer() use reconnection policy to decide when node is down
+=== TEST 14: can_try_peer() use reconnection policy to decide when node is down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -584,7 +636,7 @@ after delay: true true
 
 
 
-=== TEST 14: next_coordinator() uses load balancing policy
+=== TEST 15: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -621,7 +673,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 15: next_coordinator() returns no host available errors
+=== TEST 16: next_coordinator() returns no host available errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -665,7 +717,7 @@ all hosts tried for query failed. 127.0.0.2: host still considered down. 127.0.0
 
 
 
-=== TEST 16: next_coordinator() avoids down hosts
+=== TEST 17: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -709,7 +761,7 @@ GET /t
 
 
 
-=== TEST 17: next_coordinator() marks nodes as down
+=== TEST 18: next_coordinator() marks nodes as down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -773,7 +825,7 @@ can try peer 127.0.0.9: false
 
 
 
-=== TEST 18: next_coordinator() retries down host as per reconnection policy and ups them back
+=== TEST 19: next_coordinator() retries down host as per reconnection policy and ups them back
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

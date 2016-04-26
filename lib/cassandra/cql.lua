@@ -835,9 +835,10 @@ do
       return self.frame
     end
 
-    local header, body = self.header, self.body
-    body.version = version
-    self:build_body(body)        -- build body (depends on protocol version)
+    local header = self.header
+    header.version = version
+    self.body.version = version
+    self:build_body(self.body)        -- build body (depends on protocol version)
 
     if version == 2 then
       header:write_byte(0x02)
@@ -854,13 +855,14 @@ do
     header:write_byte(self.op_code)
     header:write_int(self.body.len)
 
-    self.frame = header:get()..body:get()
+    self.frame = header:get()..self.body:get()
     return self.frame
   end
 
   local default_opts = {consistency = consistencies.one}
   local function build_args(body, args, opts)
     opts = opts or default_opts
+
     local flags = 0x00
     local buf = Buffer.new(body.version)
     if args then
@@ -888,137 +890,127 @@ do
     body:write(buf:get())
   end
 
-  local req_mts = {}
-
-  req_mts.startup = {
-    new = function()
-      return new_request(OP_CODES.STARTUP)
-    end,
-    build_body = function(_, body)
-      body:write_string_map {
-        ['CQL_VERSION'] = CQL_VERSION
-      }
-    end
-  }
-
-  req_mts.keyspace = {
-    new = function(keyspace)
-      local r = new_request(OP_CODES.QUERY)
-      r.keyspace = keyspace
-      return r
-    end,
-    build_body = function(self, body)
-      body:write_long_string(fmt([[USE "%s"]], self.keyspace))
-      build_args(body)
-    end
-  }
-
-  req_mts.query = {
-    new = function(query, args, opts)
-      local r = new_request(OP_CODES.QUERY)
-      r.query = query
-      r.args = args
-      r.opts = opts
-      return r
-    end,
-    build_body = function(self, body)
-      body:write_long_string(self.query)
-      build_args(body, self.args, self.opts)
-    end
-  }
-
-  req_mts.prepare = {
-    new = function(query)
-      local r = new_request(OP_CODES.PREPARE)
-      r.query = query
-      return r
-    end,
-    build_body = function(self, body)
-      body:write_long_string(self.query)
-    end
-  }
-
-  req_mts.execute_prepared = {
-    new = function(query_id, args, opts)
-      local r = new_request(OP_CODES.EXECUTE)
-      r.query_id = query_id
-      r.args = args
-      r.opts = opts
-      return r
-    end,
-    build_body = function(self, body)
-      body:write_short_bytes(self.query_id)
-      build_args(body, self.args, self.opts)
-    end
-  }
-
-  req_mts.batch = {
-    new = function(queries, opts)
-      local r = new_request(OP_CODES.BATCH)
-      r.queries = queries
-      r.opts = opts
-      r.type = opts.logged and 0 or 1
-      r.type = opts.counter and 2 or r.type
-      return r
-    end,
-    build_body = function(self, body)
-      local queries = self.queries
-      local opts = self.opts
-      body:write_byte(self.type)
-      body:write_short(#queries)
-      for i = 1, #queries do
-        local qi = queries[i]
-        local q, q_args
-        if type(qi) == 'string' then
-          q = qi
-        else
-          q, q_args = qi[1], qi[2]
-        end
-        if opts.prepared then
-          body:write_byte(1)
-          body:write_short_bytes(q) -- query_id
-        else
-          body:write_byte(0)
-          body:write_long_string(q)
-        end
-        if q_args then
-          body:write_short(#q_args)
-          for i = 1, #q_args do
-            body:write_cql_value(q_args[i])
+  local req_mts = {
+    startup = {
+      new = function()
+        return new_request(OP_CODES.STARTUP)
+      end,
+      build_body = function(_, body)
+        body:write_string_map {
+          ['CQL_VERSION'] = CQL_VERSION
+        }
+      end
+    },
+    keyspace = {
+      new = function(keyspace)
+        local r = new_request(OP_CODES.QUERY)
+        r.keyspace = keyspace
+        return r
+      end,
+      build_body = function(self, body)
+        body:write_long_string(fmt([[USE "%s"]], self.keyspace))
+        build_args(body)
+      end
+    },
+    query = {
+      new = function(query, args, opts)
+        local r = new_request(OP_CODES.QUERY)
+        r.query = query
+        r.args = args
+        r.opts = opts
+        return r
+      end,
+      build_body = function(self, body)
+        body:write_long_string(self.query)
+        build_args(body, self.args, self.opts)
+      end
+    },
+    prepare = {
+      new = function(query)
+        local r = new_request(OP_CODES.PREPARE)
+        r.query = query
+        return r
+      end,
+      build_body = function(self, body)
+        body:write_long_string(self.query)
+      end
+    },
+    execute_prepared = {
+      new = function(query_id, args, opts, query)
+        local r = new_request(OP_CODES.EXECUTE)
+        r.query_id = query_id
+        r.args = args
+        r.opts = opts
+        r.query = query -- allow to be re-prepared by cluster
+        return r
+      end,
+      build_body = function(self, body)
+        body:write_short_bytes(self.query_id)
+        build_args(body, self.args, self.opts)
+      end
+    },
+    batch = {
+      new = function(queries, opts)
+        local r = new_request(OP_CODES.BATCH)
+        r.queries = queries
+        r.opts = opts
+        r.type = opts.logged and 0 or 1
+        r.type = opts.counter and 2 or r.type
+        return r
+      end,
+      build_body = function(self, body)
+        local queries = self.queries
+        local opts = self.opts or default_opts
+        body:write_byte(self.type)
+        body:write_short(#queries)
+        for i = 1, #queries do
+          local q = queries[i] -- {query, args, query_id}
+          if opts.prepared then
+            body:write_byte(1)
+            body:write_short_bytes(q[3])
+          else
+            body:write_byte(0)
+            body:write_long_string(q[1])
           end
-        else
-          body:write_short(0)
+          if q[2] then
+            local args = q[2]
+            body:write_short(#args)
+            for i = 1, #args do
+              body:write_cql_value(args[i])
+            end
+          else
+            body:write_short(0)
+          end
+        end
+
+        body:write_short(opts.consistency)
+
+        if body.version > 2 then
+          local flags = 0x00
+          local buf = Buffer.new(body.version)
+          if opts.serial_consistency then
+            flags = bor(flags, 0x10)
+            buf:write_short(opts.serial_consistency)
+          end
+          if opts.timestamp then
+            flags = bor(flags, 0x20)
+            buf:write_long(opts.timestamp)
+          end
+          body:write_byte(flags)
+          body:write(buf:get())
         end
       end
-
-      body:write_short(opts.consistency)
-
-      if body.version > 2 then
-        local flags = 0x00
-        local buf = Buffer.new(body.version)
-        if opts.serial_consistency then
-          flags = bor(flags, 0x10)
-          buf:write_short(opts.serial_consistency)
-        end
-        if opts.timestamp then
-          flags = bor(flags, 0x20)
-          buf:write_long(opts.timestamp)
-        end
-        body:write_byte(flags)
-        body:write(buf:get())
+    },
+    auth_response = {
+      new = function(token)
+        local r = new_request(OP_CODES.AUTH_RESPONSE)
+        r.token = token
+        return r
+      end,
+      build_body = function(self, body)
+        body:write_bytes(self.token)
       end
-    end
-  }
-
-  req_mts.auth_response = {
-    new = function(token)
-      local r = new_request(OP_CODES.AUTH_RESPONSE)
-      r.token = token
-      return r
-    end,
-    build_body = function(self, body)
-      body:write_bytes(self.token)
-    end
+    }
   }
 
   for k, v in pairs(req_mts) do

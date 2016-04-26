@@ -6,7 +6,7 @@ our $HttpConfig = <<_EOC_;
     lua_shared_dict cassandra 1m;
 _EOC_
 
-plan tests => repeat_each() * blocks() * 3;
+plan tests => repeat_each() * blocks() * 3 + 1;
 
 no_shuffle();
 
@@ -64,7 +64,7 @@ qq{
             local n = #rows > 0 and rows[1].n or 0
 
             local b = {
-                "UPDATE metrics SET n = n + 1 WHERE id = 'batch'",
+                {"UPDATE metrics SET n = n + 1 WHERE id = 'batch'"},
                 {"UPDATE metrics SET n = n + 2 WHERE id = ?", {'batch'}}
             }
 
@@ -121,7 +121,7 @@ true
             local n = #rows > 0 and rows[1].n or 0
 
             local b = {
-                "UPDATE metrics SET n = n + 1 WHERE id = 'batch'",
+                {"UPDATE metrics SET n = n + 1 WHERE id = 'batch'"},
                 {"UPDATE metrics SET n = n + 2 WHERE id = ?", {'batch'}}
             }
 
@@ -143,7 +143,7 @@ true
             end
 
             ngx.say(rows[1].n == n + 3)
-            local k1 = b[1]
+            local k1 = b[1][1]
             local k2 = b[2][1]
             ngx.say('query_id 1: ', cluster.prepared_ids[k1] ~= nil)
             ngx.say('query_id 2: ', cluster.prepared_ids[k2] ~= nil)
@@ -161,7 +161,6 @@ query_id 2: true
 
 
 === TEST 3: cluster.batch() handles unprepared queries
---- SKIP
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -188,7 +187,7 @@ query_id 2: true
             math.randomseed(ngx.now()*1000)
             local r = math.random(10^5)
             local b = {
-                "UPDATE metrics SET n = n + "..r.." WHERE id = 'batch'",
+                {"UPDATE metrics SET n = n + "..r.." WHERE id = 'batch'"},
                 {"UPDATE metrics SET n = n + "..r.." WHERE id = ?", {'batch'}}
             }
 
@@ -211,8 +210,8 @@ query_id 2: true
                 return
             end
 
-            ngx.say(rows[1].n == n + r*2)
-            local k1 = b[1]
+            ngx.say(rows[1].n == n + r*6)
+            local k1 = b[1][1]
             local k2 = b[2][1]
             ngx.say('query_id 1: ', cluster.prepared_ids[k1] ~= nil)
             ngx.say('query_id 2: ', cluster.prepared_ids[k2] ~= nil)
@@ -224,5 +223,7 @@ GET /t
 true
 query_id 1: true
 query_id 2: true
+--- error_log eval
+qr{\[notice\] .*? some requests from this batch were not prepared on host}
 --- no_error_log
 [error]

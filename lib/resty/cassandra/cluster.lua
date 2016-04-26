@@ -462,20 +462,33 @@ end
 
 local inner_send
 
-local function prepare_and_retry(self, query, args, opts, coordinator)
-  local query_id, err = prepare(self, coordinator, query)
-  if not query_id then return nil, err end
+local function prepare_and_retry(self, coordinator, request)
+  local req
+  if request.queries then
+    -- prepared batch
+    log(NOTICE, 'some requests from this batch were not prepared on host ',
+                 coordinator.host, ', preparing and retrying')
+    for i = 1, #request.queries do
+      local query_id, err = prepare(self, coordinator, request.queries[i][1])
+      if not query_id then return nil, err end
+      request.queries[i][3] = query_id
+    end
+    req = batch_req(request.queries, request.opts)
+  else
+    -- prepared query
+    log(NOTICE, request.query, ' was not prepared on host ', coordinator.host,
+               ', preparing and retrying')
+    local query_id, err = prepare(self, coordinator, request.query)
+    if not query_id then return nil, err end
+    req = prep_req(query_id, request.args, request.opts)
+  end
 
-  local req = prep_req(query_id, args, opts)
-
-  return inner_send(self, coordinator, req, query, args, opts)
+  return inner_send(self, coordinator, req)
 end
 
-local function handle_error(self, err, cql_code, coordinator, query, args, opts)
+local function handle_error(self, err, cql_code, coordinator, request)
   if cql_code and cql_code == cql_errors.UNPREPARED then
-    log(NOTICE, query, ' not prepared on host ', coordinator.host, ',',
-                ' preparing and retrying')
-    return prepare_and_retry(self, query, args, opts, coordinator)
+    return prepare_and_retry(self, coordinator, request)
   end
 
   coordinator:setkeepalive()
@@ -483,10 +496,10 @@ local function handle_error(self, err, cql_code, coordinator, query, args, opts)
   return nil, err, cql_code
 end
 
-inner_send = function(self, coordinator, request, query, args, opts)
+inner_send = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
-    return handle_error(self, err, cql_code, coordinator, query, args, opts)
+    return handle_error(self, err, cql_code, coordinator, request)
   elseif res.type == 'SCHEMA_CHANGE' then
     local schema_version, err = wait_schema_consensus(self, coordinator)
     if not schema_version then
@@ -520,16 +533,15 @@ function _Cluster:execute(query, args, options)
   if opts.prepared then
     local query_id, err = get_or_prepare(self, coordinator, query)
     if not query_id then return nil, err end
-
-    request = prep_req(query_id, args, opts)
+    request = prep_req(query_id, args, opts, query)
   else
     request = query_req(query, args, opts)
   end
 
-  return inner_send(self, coordinator, request, query, args, opts)
+  return inner_send(self, coordinator, request)
 end
 
-function _Cluster:batch(queries, options)
+function _Cluster:batch(queries_t, options)
   if not self.init then
     local ok, err = self:refresh()
     if not ok then return nil, 'could not refresh cluster: '..err end
@@ -538,27 +550,17 @@ function _Cluster:batch(queries, options)
   local coordinator, err = next_coordinator(self)
   if not coordinator then return nil, err end
 
-  local request
   local opts = get_request_opts(options)
 
   if opts.prepared then
-    local queries_ids = {}
-    for i = 1, #queries do
-      local query, args = queries[i]
-      if type(query) == 'table' then
-        query, args = query[1], query[2]
-      end
-      print(query)
-      local query_id, err = get_or_prepare(self, coordinator, query)
+    for i = 1, #queries_t do
+      local query_id, err = get_or_prepare(self, coordinator, queries_t[i][1])
       if not query_id then return nil, err end
-      queries_ids[i] = {query_id, args}
+      queries_t[i][3] = query_id
     end
-    request = batch_req(queries_ids, opts)
-  else
-    request = batch_req(queries, opts)
   end
 
-  return inner_send(self, coordinator, request, queries, args, opts)
+  return inner_send(self, coordinator, batch_req(queries_t, opts))
 end
 
 _Cluster.set_peer = set_peer

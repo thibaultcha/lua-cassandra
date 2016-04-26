@@ -42,4 +42,4 @@ GET /t
 --- response_body
 
 --- error_log eval
-qr/\[notice\] .*? preparing and retrying/
+qr{\[notice\] .*? preparing and retrying}

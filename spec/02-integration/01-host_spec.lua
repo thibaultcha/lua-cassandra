@@ -315,7 +315,7 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
         assert.equal(3, rows[1].n)
       end)
-      it("executes a batch of queries as strings", function()
+      pending("executes a batch of queries as strings", function()
         local res = assert(peer:batch {
           "INSERT INTO things(id, n) VALUES("..uuid..", 1)",
           "UPDATE things SET n = 2 WHERE id = "..uuid,

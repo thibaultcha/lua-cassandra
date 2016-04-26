@@ -166,7 +166,7 @@ local cql = require "cassandra.cql"
 _M.cql_fixtures = {
   -- custom
   ascii = {"Hello world", ""},
-  bigint = {0, 42, -42, 42000000000, -42000000000},
+  bigint = {0, 42, -42, 42000000000},
   boolean = {true, false},
   -- counter
   double = {0, 1.0000000000000004, -1.0000000000000004},

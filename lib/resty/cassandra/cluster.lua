@@ -100,7 +100,6 @@ local function get_peers(self)
   end
 end
 
-
 local function set_peer_down(self, host)
   log(WARN, 'setting host at ', host.coordinator, ' DOWN')
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())

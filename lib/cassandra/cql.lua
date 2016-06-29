@@ -1,10 +1,5 @@
-local t_utils = require 'cassandra.utils.table'
-local bit
-if jit then
-  bit = require 'bit'
-else
-  bit = require 'cassandra.utils.bit'
-end
+local utils = require 'cassandra.utils'
+local bit = require 'bit'
 
 local setmetatable = setmetatable
 local tonumber = tonumber
@@ -733,7 +728,7 @@ do
       if val.__cql_type then
         cql_t = val.__cql_type
         val = val.val
-      elseif t_utils.is_array(val) then
+      elseif utils.is_array(val) then
         cql_t = cql_types.list
       else
         cql_t = cql_types.map

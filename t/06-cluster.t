@@ -88,7 +88,7 @@ GET /t
             end
             ngx.say('false opt: ', cluster.retry_on_timeout)
 
-            cluster, err = Cluster.new({retry_on_timeout = true})
+            cluster, err = Cluster.new {retry_on_timeout = true}
             if not cluster then
                 ngx.log(ngx.ERR, err)
                 return

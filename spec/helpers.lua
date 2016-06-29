@@ -16,7 +16,7 @@ local function exec(cmd, ignore)
 end
 
 local _M = {
-  cassandra_version = os.getenv("CASSANDRA") or "2.1.12",
+  cassandra_version = os.getenv("CASSANDRA") or "2.2.4",
   ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 }
 
@@ -73,22 +73,6 @@ function _M.ccm_start(n_nodes, opts)
   end
 
   return hosts
-end
-
-function _M.ccm_down_node(node_n)
-  assert(type(node_n) == "number")
-  exec("ccm node"..node_n.." pause")
-end
-
-function _M.ccm_up_node(node_n)
-  assert(type(node_n) == "number")
-  exec("ccm node"..node_n.." resume")
-end
-
-function _M.ccm_restart_node(node_n)
-  assert(type(node_n) == "number")
-  exec("ccm node"..node_n.." stop")
-  exec("ccm node"..node_n.." start --wait-for-binary-proto")
 end
 
 --- CQL

@@ -116,7 +116,7 @@ function _Host:connect()
     local res, err, code = send_startup(self)
     if not res then
       if code == cql.errors.PROTOCOL and
-         find(err, "Invalid or unsupported protocol version", nil, true) then
+        find(err, "Invalid or unsupported protocol version", nil, true) then
         -- too high protocol version
         self.sock:close()
         self.protocol_version = self.protocol_version - 1

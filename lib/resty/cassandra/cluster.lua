@@ -285,6 +285,7 @@ local function next_coordinator(self)
     if ok then
       local peer, err = check_peer_health(self, peer_rec.host, retry)
       if peer then
+        log(DEBUG, 'load balancing policy chose host at ',  peer.host)
         return peer
       else
         errors[peer_rec.host] = err
@@ -554,6 +555,7 @@ end
 
 do
   local get_request_opts = cassandra.get_request_opts
+  local page_iterator = cassandra.page_iterator
   local query_req = requests.query.new
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
@@ -601,6 +603,10 @@ do
     end
 
     return send_request(self, coordinator, batch_req(queries_t, opts))
+  end
+
+  function _Cluster:iterate(query, args, options)
+    return page_iterator(self, query, args, options)
   end
 end
 

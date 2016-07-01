@@ -9,6 +9,9 @@ description = {
   homepage = "http://thibaultcha.github.io/lua-cassandra",
   license = "MIT"
 }
+dependencies = {
+  "luabitop"
+}
 build = {
   type = "builtin",
   modules = {

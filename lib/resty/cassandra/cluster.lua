@@ -305,7 +305,7 @@ function _Cluster:refresh()
   local old_peers, err = get_peers(self)
   if err then return nil, err
   elseif old_peers then
-    -- we need to first flush the existing peers from the shm,
+    -- we first need to flush the existing peers from the shm,
     -- so that our lock can work properly. we keep old peers in
     -- our local for later.
     for i = 1, #old_peers do

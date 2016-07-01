@@ -1,3 +1,5 @@
+local _setfenv = setfenv
+
 local function exec(cmd)
   local tmp = os.tmpname()
   os.execute(cmd.." > "..tmp)
@@ -5,6 +7,25 @@ local function exec(cmd)
   local stdout = f:read("*a")
   os.remove(tmp)
   return stdout
+end
+
+if not _setfenv then
+  _setfenv = function(fn, env)
+    local i = 1
+    while true do
+      local name = debug.getupvalue(fn, i)
+      if name == "_ENV" then
+        debug.upvaluejoin(fn, i, function()
+          return env
+        end, 1)
+        break
+      elseif not name then
+        break
+      end
+      i = i + 1
+    end
+    return fn
+  end
 end
 
 describe("rockspec", function()
@@ -19,7 +40,7 @@ describe("rockspec", function()
 
     rock_filename = exec("find . -name lua-cassandra-*.rockspec")
     local f = assert(loadfile(rock_filename:sub(1, -2)))
-    setfenv(f, rock)
+    _setfenv(f, rock)
     f()
   end)
 

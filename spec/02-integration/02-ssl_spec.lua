@@ -5,7 +5,7 @@ local ca_path = helpers.ssl_path.."/cassandra.pem"
 
 describe("SSL", function()
   setup(function()
-    helpers.ccm_start(1, {ssl = true, name = "ssl"})
+    helpers.ccm_start {ssl = true, name = "ssl"}
   end)
 
   describe("host", function()

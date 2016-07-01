@@ -16,7 +16,7 @@ local function exec(cmd, ignore)
 end
 
 local _M = {
-  cassandra_version = os.getenv("CASSANDRA") or "2.2.4",
+  cassandra_version = os.getenv("CASSANDRA") or "2.2.6",
   ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 }
 
@@ -30,11 +30,11 @@ local function ccm_is_current(c_name)
   return exec("ccm list | grep '*"..c_name.."'", true)
 end
 
-function _M.ccm_start(n_nodes, opts)
-  n_nodes = n_nodes or 3
+function _M.ccm_start(opts)
   opts = opts or {}
   opts.name = opts.name or "default"
   opts.version = opts.version or _M.cassandra_version
+  opts.nodes = opts.nodes or 1
 
   local cluster_name = "lua_cassandra_"..opts.name.."_specs"
 
@@ -45,7 +45,7 @@ function _M.ccm_start(n_nodes, opts)
   -- create cluster if not exists
   if not ccm_exists(cluster_name) then
     local cmd = string.format("ccm create %s -v binary:%s -n %s",
-                              cluster_name, opts.version, n_nodes)
+                              cluster_name, opts.version, opts.nodes)
     if opts.ssl then
       cmd = cmd.." --ssl='".._M.ssl_path.."'"
     end
@@ -63,13 +63,13 @@ function _M.ccm_start(n_nodes, opts)
   exec("ccm start --wait-for-binary-proto")
 
   local hosts = {}
-  for i = 1, n_nodes do
+  for i = 1, opts.nodes do
     hosts[#hosts+1] = "127.0.0."..i
   end
 
   if opts.pwd_auth then
     -- the cassandra superuser takes some time to be created
-    os.execute "sleep 5"
+    exec("sleep 10")
   end
 
   return hosts

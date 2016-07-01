@@ -2,10 +2,10 @@
 
 set -e
 
-if [ "$OPENRESTY_TESTS" != "yes" ]; then
+if [ "$OPENRESTY_TESTS" = true ]; then
+  make prove
+else
   make lint
   busted -v --coverage -o gtest --repeat 1
-  luacov-coveralls -i src/cassandra -e bit.lua -e socket.lua -e shm.lua
-else
-  make prove
+  luacov-coveralls -i lib/cassandra -e socket.lua
 fi

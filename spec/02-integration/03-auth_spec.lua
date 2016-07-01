@@ -5,11 +5,11 @@ local ca_path = helpers.ssl_path.."/cassandra.pem"
 
 describe("plain_text auth provider", function()
   setup(function()
-    helpers.ccm_start(1, {
+    helpers.ccm_start {
       ssl = true,
       pwd_auth = true,
       name = "auth"
-    })
+    }
   end)
 
   describe("host", function()

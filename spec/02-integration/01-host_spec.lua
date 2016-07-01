@@ -3,7 +3,7 @@ local cassandra = require "cassandra"
 
 describe("cassandra (host)", function()
   setup(function()
-    helpers.ccm_start(3)
+    helpers.ccm_start()
   end)
 
   describe("consistencies", function()
@@ -85,7 +85,7 @@ describe("cassandra (host)", function()
     end)
     it("3rd return value indicates potential down host", function()
       local peer = assert(cassandra.new {
-        host = "127.0.0.9"
+        host = "255.255.255.254"
       })
       peer:settimeout(1000)
       local ok, err, maybe_down = peer:connect()
@@ -418,10 +418,10 @@ describe("cassandra (host)", function()
       end)
       it("returns CQL errors", function()
         local res, err, code = peer:batch {
-          {"INSERT FOO"}, {"INSERT BAR"}
+          {"INSERT INTO things(id,n) VALUES()"}, {"INSERT BAR"}
         }
         assert.is_nil(res)
-        assert.equal("[Syntax error] line 0:-1 mismatched input '<EOF>' expecting '('", err)
+        assert.equal("[Syntax error] line 1:32 no viable alternative at input ')' (... things(id,n) VALUES([)])", err)
         assert.equal(cassandra.cql_errors.SYNTAX_ERROR, code)
       end)
     end) -- batch()

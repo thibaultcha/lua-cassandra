@@ -150,7 +150,7 @@ auth: table
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
             local cluster, err = Cluster.new {
-                contact_points = {'127.0.0.255'},
+                contact_points = {'255.255.255.254'},
                 connect_timeout = 10
             }
             if not cluster then
@@ -166,7 +166,7 @@ auth: table
 GET /t
 --- response_body
 nil
-all hosts tried for query failed. 127.0.0.255: host seems unhealthy, considering it down (timeout)
+all hosts tried for query failed. 255.255.255.254: host seems unhealthy, considering it down (timeout)
 --- no_error_log
 [error]
 
@@ -775,12 +775,12 @@ GET /t
             end
 
             -- insert fake nodes
-            local ok, err = cluster:set_peer_up('127.0.0.8')
+            local ok, err = cluster:set_peer_up('255.255.255.254')
             if not ok then
                 ngx.log(ngx.ERR, err)
                 return
             end
-            ok, err = cluster:set_peer_up('127.0.0.9')
+            ok, err = cluster:set_peer_up('255.255.255.253')
             if not ok then
                 ngx.log(ngx.ERR, err)
                 return
@@ -817,9 +817,9 @@ GET /t
 --- request
 GET /t
 --- response_body
-all down: all hosts tried for query failed. 127.0.0.8: host seems unhealthy, considering it down (timeout). 127.0.0.9: host seems unhealthy, considering it down (timeout)
-can try peer 127.0.0.8: false
-can try peer 127.0.0.9: false
+all down: all hosts tried for query failed. 255.255.255.254: host seems unhealthy, considering it down (timeout). 255.255.255.253: host seems unhealthy, considering it down (timeout)
+can try peer 255.255.255.254: false
+can try peer 255.255.255.253: false
 --- no_error_log
 [error]
 
@@ -878,11 +878,11 @@ can try peer 127.0.0.9: false
 
             for i = 1, #peers do
                 local ok, err = cluster:can_try_peer(peers[i].host)
-                if not ok then
-                     ngx.log(ngx.ERR, peers[i].host..': ', err)
+                if err then
+                     ngx.log(ngx.ERR, 'error in can_try_peer ', peers[i].host..': ', err)
                      return
                 end
-                ngx.say(peers[i].host .. ' is back up: ', ok)
+                ngx.say(peers[i].host, ' is back up: ', ok)
             end
         }
     }

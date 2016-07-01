@@ -485,8 +485,8 @@ local function prepare_and_retry(self, coordinator, request)
     end
   else
     -- prepared query
-    log(NOTICE, _log_prefix, request.query, ' was not prepared on host ', coordinator.host,
-               ', preparing and retrying')
+    log(NOTICE, _log_prefix, request.query, ' was not prepared on host ',
+                coordinator.host, ', preparing and retrying')
     local query_id, err = prepare(self, coordinator, request.query)
     if not query_id then return nil, err end
     request.query_id = query_id
@@ -539,16 +539,18 @@ send_request = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
-  elseif res.type == 'SCHEMA_CHANGE' then
+  end
+
+  if res.type == 'SCHEMA_CHANGE' then
     local schema_version, err = wait_schema_consensus(self, coordinator)
     if not schema_version then
+      coordinator:setkeepalive()
       return nil, 'could not check schema consensus: '..err
     end
 
     res.schema_version = schema_version
   end
 
-  -- success
   coordinator:setkeepalive()
 
   return res

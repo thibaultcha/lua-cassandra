@@ -19,6 +19,7 @@ local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
 
+local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
 
@@ -101,12 +102,12 @@ local function get_peers(self)
 end
 
 local function set_peer_down(self, host)
-  log(WARN, 'setting host at ', host.coordinator, ' DOWN')
+  log(WARN, _log_prefix, 'setting host at ', host.coordinator, ' DOWN')
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
-  log(NOTICE, 'setting host at ', host.coordinator, ' UP')
+  log(NOTICE, _log_prefix, 'setting host at ', host.coordinator, ' UP')
   self.reconn_policy:reset(host)
   return set_peer(self, host, true, 0, 0)
 end
@@ -285,7 +286,7 @@ local function next_coordinator(self)
     if ok then
       local peer, err = check_peer_health(self, peer_rec.host, retry)
       if peer then
-        log(DEBUG, 'load balancing policy chose host at ',  peer.host)
+        log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
         return peer
       else
         errors[peer_rec.host] = err
@@ -412,7 +413,7 @@ local function wait_schema_consensus(self, coordinator)
 end
 
 local function prepare(self, coordinator, query)
-  log(DEBUG, 'preparing ', query, ' on host ', coordinator.host)
+  log(DEBUG, _log_prefix, 'preparing ', query, ' on host ', coordinator.host)
   -- we are the ones preparing the query
   local res, err = coordinator:prepare(query)
   if not res then return nil, 'could not prepare query: '..err end
@@ -465,7 +466,7 @@ function _Cluster:send_retry(request)
   local coordinator, err = next_coordinator(self)
   if not coordinator then return nil, err end
 
-  log(NOTICE, 'retrying request on host at ', coordinator.host)
+  log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host)
 
   request.retries = request.retries + 1
 
@@ -475,7 +476,7 @@ end
 local function prepare_and_retry(self, coordinator, request)
   if request.queries then
     -- prepared batch
-    log(NOTICE, 'some requests from this batch were not prepared on host ',
+    log(NOTICE, _log_prefix, 'some requests from this batch were not prepared on host ',
                  coordinator.host, ', preparing and retrying')
     for i = 1, #request.queries do
       local query_id, err = prepare(self, coordinator, request.queries[i][1])
@@ -484,7 +485,7 @@ local function prepare_and_retry(self, coordinator, request)
     end
   else
     -- prepared query
-    log(NOTICE, request.query, ' was not prepared on host ', coordinator.host,
+    log(NOTICE, _log_prefix, request.query, ' was not prepared on host ', coordinator.host,
                ', preparing and retrying')
     local query_id, err = prepare(self, coordinator, request.query)
     if not query_id then return nil, err end

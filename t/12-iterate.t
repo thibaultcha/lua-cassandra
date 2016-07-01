@@ -116,6 +116,6 @@ GET /t
 --- no_error_log
 [error]
 --- error_log
-next_coordinator(): load balancing policy chose host at 127.0.0.3
-next_coordinator(): load balancing policy chose host at 127.0.0.2
-next_coordinator(): load balancing policy chose host at 127.0.0.1
+next_coordinator(): [lua-cassandra] load balancing policy chose host at 127.0.0.3
+next_coordinator(): [lua-cassandra] load balancing policy chose host at 127.0.0.2
+next_coordinator(): [lua-cassandra] load balancing policy chose host at 127.0.0.1

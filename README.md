@@ -114,7 +114,6 @@ Refer to the online [manual] and detailed [documentation]. You will also find [e
 ## Roadmap
 
 CQL:
-- Support for query tracing
 - Support for native protocol v4
 
 ## Development
@@ -175,4 +174,3 @@ $ make doc
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
 [badge-version-image]: https://img.shields.io/badge/version-0.5.0-blue.svg?style=flat
-

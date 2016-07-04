@@ -288,6 +288,29 @@ describe("cassandra (host)", function()
           assert.equal(30, rows[1].n)
         end)
       end)
+      describe("tracing", function()
+        it("appends tracing_id field to result", function()
+          local res = assert(peer:execute("INSERT INTO options(id,n) VALUES(4, 10)", nil, {
+            tracing = true
+          }))
+
+          assert.is_string(res.tracing_id)
+        end)
+        describe("get_trace()", function()
+          it('retrieves a tracing session and events', function()
+            local res = assert(peer:execute("INSERT INTO options(id,n) VALUES(5, 10)", nil, {
+              tracing = true
+            }))
+
+            local trace = assert(peer:get_trace(res.tracing_id))
+            assert.equal("127.0.0.1", trace.client)
+            assert.equal("QUERY", trace.command)
+            assert.is_table(trace.events)
+            assert.True(#trace.events > 0)
+            assert.is_table(trace.parameters)
+          end)
+        end)
+      end)
     end) -- execute()
 
     describe("prepared queries", function()
@@ -469,7 +492,6 @@ describe("cassandra (host)", function()
 
           local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
           assert.equal(1, #rows)
-          assert.equal(3, rows[1].n)
         end)
         --[[
         not supported because of CQL issue we reported:

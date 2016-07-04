@@ -87,6 +87,11 @@ local ERRORS = {
   UNPREPARED = 0x2500
 }
 
+local QUERY_FLAGS = {
+  COMPRESSION = 0x01,
+  TRACING = 0x02
+}
+
 local OP_CODES = {
   ERROR = 0x00,
   STARTUP = 0x01,
@@ -806,19 +811,12 @@ end -- do CQL encoding
 
 do
   local CQL_VERSION = '3.0.0'
-  --[[
-  local QUERY_FLAGS = {
-    COMPRESSION = 0x01,
-    TRACING = 0x02
-  }
-  --]]
 
   local request_mt = {}
   request_mt.__index = request_mt
 
   local function new_request(op_code)
     return setmetatable({
-      flags = 0,
       retries = 0,
       header = Buffer.new(),
       body = Buffer.new(),
@@ -836,7 +834,14 @@ do
     else
       header:write_byte(0x03)
     end
-    header:write_byte(0)         -- flags
+
+    local flags = 0
+    if self.opts and self.opts.tracing then
+      flags = bor(flags, QUERY_FLAGS.TRACING)
+    end
+
+    header:write_byte(flags)
+
     if version < 3 then
       header:write_byte(0)       -- stream_id
     else
@@ -1224,9 +1229,15 @@ do
     local body = Buffer.new(header.version, bytes)
 
     if op_code == OP_CODES.RESULT then
+      local tracing_id
+      if band(header.flags, QUERY_FLAGS.TRACING) ~= 0 then
+        tracing_id = body:read_uuid()
+      end
       local result_kind = body:read_int()
       local parser = results_parsers[result_kind]
-      return parser(body)
+      local res = parser(body)
+      res.tracing_id = tracing_id
+      return res
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()
       local message = body:read_string()

@@ -177,6 +177,7 @@ local query_options = {
   page_size = 1000,
   paging_state = nil,
   auto_paging = false,
+  tracing = false,
   -- execute with a prepared query id
   prepared = false,
   -- batch
@@ -261,6 +262,25 @@ end
 
 function _Host:iterate(query, args, options)
   return page_iterator(self, query, args, get_opts(options))
+end
+
+function _Host:get_trace(tracing_id)
+  local uuid_tracing_id = _Host.uuid(tracing_id)
+
+  local rows, err = self:execute([[
+    SELECT * FROM system_traces.sessions WHERE session_id = ?
+  ]], {uuid_tracing_id})
+  if not rows then return nil, 'could not get trace: '..err
+  elseif #rows == 0 then return nil, 'no trace with id: '..tracing_id end
+
+  local trace = rows[1]
+
+  trace.events, err = self:execute([[
+    SELECT * FROM system_traces.events WHERE session_id = ?
+  ]], {uuid_tracing_id})
+  if not trace.events then return nil, 'could not get trace events: '..err end
+
+  return trace
 end
 
 function _Host:__tostring()

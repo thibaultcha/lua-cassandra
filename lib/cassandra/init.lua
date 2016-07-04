@@ -182,7 +182,9 @@ local query_options = {
   -- batch
   logged = true,
   counter = false,
-  timestamp = nil
+  -- protocol v3+ options
+  timestamp = nil,
+  named = false
 }
 
 local function get_opts(o)

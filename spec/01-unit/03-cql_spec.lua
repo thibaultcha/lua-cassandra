@@ -150,6 +150,7 @@ for protocol_version = 2, 3 do
         assert.matches("SELECT * FROM local", frame1, nil, true)
 
         r.query = "SELECT key FROM local"
+
         local frame3 = r:build_frame(protocol_version)
         assert.matches("SELECT key FROM local", frame3, nil, true)
       end)

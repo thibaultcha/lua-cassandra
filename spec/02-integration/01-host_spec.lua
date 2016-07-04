@@ -243,6 +243,51 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"}))
         assert.equal("local", rows[1].key)
       end)
+      describe("protocol v3 options", function()
+        setup(function()
+          assert(peer:set_keyspace(helpers.keyspace))
+          assert(peer:execute [[
+            CREATE TABLE IF NOT EXISTS options(
+              id int PRIMARY KEY,
+              n int
+            )
+          ]])
+        end)
+        teardown(function()
+          assert(peer:execute "TRUNCATE options")
+        end)
+
+        it("supports protocol level timestamp", function()
+          assert(peer:execute("INSERT INTO options(id,n) VALUES(1, 10)", nil, {
+            timestamp = 1428311323417123
+          }))
+
+          local rows = assert(peer:execute "SELECT n,writetime(n) FROM options WHERE id = 1")
+          assert.equal(10, rows[1].n)
+          assert.equal(1428311323417123, rows[1]["writetime(n)"])
+        end)
+        it("supports serial consistency", function()
+          assert(peer:execute("INSERT INTO options(id, n) VALUES(2, 20) IF NOT EXISTS", nil, {
+            serial_consistency = cassandra.consistencies.local_serial
+          }))
+
+          local rows = assert(peer:execute "SELECT * FROM options WHERE id = 2")
+          assert.equal(1, #rows)
+          assert.equal(20, rows[1].n)
+        end)
+        it("supports named parameters", function()
+          assert(peer:execute("INSERT INTO options(id, n) VALUES(?, ?)", {
+            id = 3,
+            n = 30
+          }, {
+            named = true
+          }))
+
+          local rows = assert(peer:execute "SELECT * FROM options WHERE id = 3")
+          assert.equal(1, #rows)
+          assert.equal(30, rows[1].n)
+        end)
+      end)
     end) -- execute()
 
     describe("prepared queries", function()
@@ -362,28 +407,6 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute "SELECT value FROM counters WHERE key = 'counter'")
         assert.equal(3, rows[1].value)
       end)
-      it("supports protocol level timestamp", function()
-        local uuid = "0d0dca5e-e1d5-11e5-89ff-93118511c17e"
-        assert(peer:batch({
-          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
-          {"UPDATE things SET n = 2 WHERE id = "..uuid},
-          {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {timestamp = 1428311323417123}))
-
-        local rows = assert(peer:execute("SELECT n,writetime(n) FROM things WHERE id = "..uuid))
-        assert.equal(3, rows[1].n)
-        assert.equal(1428311323417123, rows[1]["writetime(n)"])
-      end)
-      it("supports serial consistency", function()
-        assert(peer:batch({
-          {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
-          {"UPDATE things SET n = 2 WHERE id = "..uuid},
-          {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {serial_consistency = cassandra.consistencies.local_serial}))
-
-        local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
-        assert.equal(3, rows[1].n)
-      end)
       it("executes prepared queries", function()
         local res1 = assert(peer:prepare "INSERT INTO things(id,n) VALUES(?,?)")
         local res2 = assert(peer:prepare "UPDATE things set n = ? WHERE id = ?")
@@ -423,6 +446,46 @@ describe("cassandra (host)", function()
         assert.is_nil(res)
         assert.equal("[Syntax error] line 1:32 no viable alternative at input ')' (... things(id,n) VALUES([)])", err)
         assert.equal(cassandra.cql_errors.SYNTAX_ERROR, code)
+      end)
+      describe("protocol v3 options", function()
+        it("supports protocol level timestamp", function()
+          local uuid = "0d0dca5e-e1d5-11e5-89ff-93118511c17e"
+          assert(peer:batch({
+            {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+            {"UPDATE things SET n = 2 WHERE id = "..uuid},
+            {"UPDATE things SET n = 3 WHERE id = "..uuid}
+          }, {timestamp = 1428311323417123}))
+
+          local rows = assert(peer:execute("SELECT n,writetime(n) FROM things WHERE id = "..uuid))
+          assert.equal(3, rows[1].n)
+          assert.equal(1428311323417123, rows[1]["writetime(n)"])
+        end)
+        it("supports serial consistency", function()
+          assert(peer:batch({
+            {"INSERT INTO things(id, n) VALUES("..uuid..", 1) IF NOT EXISTS"},
+            {"UPDATE things SET n = 2 WHERE id = "..uuid},
+            {"UPDATE things SET n = 3 WHERE id = "..uuid}
+          }, {serial_consistency = cassandra.consistencies.local_serial}))
+
+          local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
+          assert.equal(1, #rows)
+          assert.equal(3, rows[1].n)
+        end)
+        --[[
+        not supported because of CQL issue we reported:
+        https://issues.apache.org/jira/browse/CASSANDRA-10246
+        pending("supports named parameters", function()
+          assert(peer:batch({
+            {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
+            {"UPDATE things SET n = ? WHERE id = ?", {n = 20, id = cassandra.uuid(uuid)}},
+            {"UPDATE things SET n = ? WHERE id = ?", {n = 21, id = cassandra.uuid(uuid)}}
+          }, {named = true}))
+
+          local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))
+          assert.equal(1, #rows)
+          assert.equal(3, rows[1].n)
+        end)
+        ]]
       end)
     end) -- batch()
 

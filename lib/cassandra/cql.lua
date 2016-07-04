@@ -857,9 +857,23 @@ do
     local buf = Buffer.new(body.version)
     if args then
       flags = bor(flags, 0x01)
-      buf:write_short(#args)
-      for i = 1, #args do
-        buf:write_cql_value(args[i])
+
+      if body.version >= 3 and opts.named then
+        flags = bor(flags, 0x40)
+        local n = 0
+        local args_buf = Buffer.new(body.version)
+        for name, val in pairs(args) do
+          n = n + 1
+          args_buf:write_string(name)
+          args_buf:write_cql_value(val)
+        end
+        buf:write_short(n)
+        buf:write(args_buf:get()) -- append args
+      else
+        buf:write_short(#args)
+        for i = 1, #args do
+          buf:write_cql_value(args[i])
+        end
       end
     end
     if opts.page_size then
@@ -870,9 +884,16 @@ do
       flags = bor(flags, 0x08)
       buf:write_bytes(opts.paging_state)
     end
-    if opts.serial_consistency then
-      flags = bor(flags, 0x10)
-      buf:write_short(opts.serial_consistency)
+
+    if body.version >= 3 then
+      if opts.serial_consistency then
+        flags = bor(flags, 0x10)
+        buf:write_short(opts.serial_consistency)
+      end
+      if opts.timestamp then
+        flags = bor(flags, 0x20)
+        buf:write_long(opts.timestamp)
+      end
     end
 
     body:write_short(opts.consistency)
@@ -964,10 +985,26 @@ do
           end
           if q[2] then
             local args = q[2]
-            body:write_short(#args)
-            for i = 1, #args do
-              body:write_cql_value(args[i])
-            end
+            --[[
+            not supported because of CQL issue we reported:
+            https://issues.apache.org/jira/browse/CASSANDRA-10246
+            if body.version >= 3 and opts.named then
+              local n = 0
+              local args_buf = Buffer.new(body.version)
+              for name, val in pairs(args) do
+                n = n + 1
+                args_buf:write_string(name)
+                args_buf:write_cql_value(val)
+              end
+              body:write_short(n)
+              body:write(args_buf:get()) -- append args
+            else
+            --]]
+              body:write_short(#args)
+              for i = 1, #args do
+                body:write_cql_value(args[i])
+              end
+            --end
           else
             body:write_short(0)
           end
@@ -975,7 +1012,7 @@ do
 
         body:write_short(opts.consistency)
 
-        if body.version > 2 then
+        if body.version >= 3 then
           local flags = 0x00
           local buf = Buffer.new(body.version)
           if opts.serial_consistency then
@@ -986,6 +1023,11 @@ do
             flags = bor(flags, 0x20)
             buf:write_long(opts.timestamp)
           end
+          --[[
+          if opts.named then
+            flags = bor(flags, 0x40)
+          end
+          --]]
           body:write_byte(flags)
           body:write(buf:get())
         end

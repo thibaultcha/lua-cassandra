@@ -115,7 +115,6 @@ Refer to the online [manual] and detailed [documentation]. You will also find [e
 
 CQL:
 - Support for query tracing
-- Support for native protocol v3's default timestamps and named parameters
 - Support for native protocol v4
 
 ## Development

@@ -20,7 +20,8 @@ busted:
 
 prove:
 	@util/prove_ccm.sh
-	@util/reindex t/* && prove
+	@t/reindex t/*
+	@prove
 
 test: busted prove
 
@@ -33,8 +34,10 @@ coverage: clean
 	@luacov cassandra
 
 lint:
-	@luacheck -q src --std ngx_lua --no-redefined --no-unused-args
-	@luacheck -q spec --std 'lua51+busted' --no-redefined --no-unused-args
+	@luacheck -q . \
+		--std 'ngx_lua+busted' \
+		--exclude-files 'doc/examples/*.lua'  \
+		--no-redefined --no-unused-args
 
 doc:
 	@ldoc -c doc/config.ld src

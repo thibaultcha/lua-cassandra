@@ -13,28 +13,22 @@ addons:
       - build-essential
 env:
   global:
-    - CASSANDRA=2.1.12
-    - OPENRESTY=1.9.7.3
-    - CASSANDRA_LOAD=100
+    - CASSANDRA=2.2.6
+    - OPENRESTY=1.9.15.1
     - OPENRESTY_DIR=$HOME/openresty
     - LUA_DIR=$HOME/lua
   matrix:
     - LUA="lua 5.1"
     - LUA="lua 5.2"
-    - LUA="lua 5.3"
     - LUA="luajit 2.0"
     - LUA="luajit 2.1"
-    - OPENRESTY_TESTS="yes"
-    - OPENRESTY_TESTS="yes"
-      CASSANDRA="2.2.4"
+    - OPENRESTY_TESTS=true
+      LUA="luajit 2.1"
+    - OPENRESTY_TESTS=true
+      LUA="luajit 2.1"
+      CASSANDRA=2.1.14
 before_install:
-  - source .ci/setenv.sh
-  - bash .ci/setup_openresty.sh
-  - bash .ci/setup_ccm.sh
-  - luarocks install luasec
-  - luarocks install busted
-  - luarocks install luacheck
-  - luarocks install luacov-coveralls
+  - source .ci/setup_env.sh
 install:
   - make install
 script: .ci/run_tests.sh

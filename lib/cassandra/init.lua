@@ -1,5 +1,5 @@
-local socket = require "cassandra.socket"
-local cql = require "cassandra.cql"
+local socket = require 'cassandra.socket'
+local cql = require 'cassandra.cql'
 
 local setmetatable = setmetatable
 local requests = cql.requests
@@ -7,9 +7,10 @@ local pairs = pairs
 local find = string.find
 
 local _Host = {
+  _VERSION = '0.5.0',
   cql_errors = cql.errors,
   consistencies = cql.consistencies,
-  auth_providers = require "cassandra.auth"
+  auth_providers = require 'cassandra.auth'
 }
 
 _Host.__index = _Host
@@ -21,7 +22,7 @@ function _Host.new(opts)
 
   local host = {
     sock = sock,
-    host = opts.host or "127.0.0.1",
+    host = opts.host or '127.0.0.1',
     port = opts.port or 9042,
     keyspace = opts.keyspace,
     protocol_version = opts.protocol_version or cql.def_protocol_version,
@@ -38,7 +39,7 @@ end
 
 function _Host:send(request)
   if not self.sock then
-    return nil, "no socket created"
+    return nil, 'no socket created'
   end
 
   local frame = request:build_frame(self.protocol_version)
@@ -97,7 +98,7 @@ end
 
 function _Host:connect()
   if not self.sock then
-    return nil, "no socket created"
+    return nil, 'no socket created'
   end
 
   local ok, err = self.sock:connect(self.host, self.port)
@@ -116,12 +117,12 @@ function _Host:connect()
     local res, err, code = send_startup(self)
     if not res then
       if code == cql.errors.PROTOCOL and
-        find(err, "Invalid or unsupported protocol version", nil, true) then
+        find(err, 'Invalid or unsupported protocol version', nil, true) then
         -- too high protocol version
         self.sock:close()
         self.protocol_version = self.protocol_version - 1
         if self.protocol_version < cql.min_protocol_version then
-          return nil, "could not find a supported protocol version"
+          return nil, 'could not find a supported protocol version'
         end
         return self:connect()
       end
@@ -130,7 +131,7 @@ function _Host:connect()
       return nil, err, true
     elseif res.must_authenticate then
       if not self.auth then
-        return nil, "authentication required"
+        return nil, 'authentication required'
       end
 
       local ok, err = send_auth(self)
@@ -139,8 +140,8 @@ function _Host:connect()
 
     if self.keyspace then
       -- TODO: since this not sent when the socket was retrieved
-      -- from the connection pool, we must document that calling
-      -- set_keyspace() manually is required if they interact with
+      -- from the connection pool, we must document that manually
+      -- calling set_keyspace() is required if users interact with
       -- several at once.
       local res, err = self:set_keyspace(self.keyspace)
       if not res then return nil, err end
@@ -152,21 +153,21 @@ end
 
 function _Host:settimeout(...)
   if not self.sock then
-    return nil, "no socket created"
+    return nil, 'no socket created'
   end
   return self.sock:settimeout(...)
 end
 
 function _Host:setkeepalive(...)
   if not self.sock then
-    return nil, "no socket created"
+    return nil, 'no socket created'
   end
   return self.sock:setkeepalive(...)
 end
 
 function _Host:close(...)
   if not self.sock then
-    return nil, "no socket created"
+    return nil, 'no socket created'
   end
   return self.sock:close(...)
 end
@@ -284,7 +285,7 @@ function _Host:get_trace(tracing_id)
 end
 
 function _Host:__tostring()
-  return "<Cassandra socket: "..tostring(self.sock)..">"
+  return '<Cassandra socket: '..tostring(self.sock)..'>'
 end
 
 ------------------
@@ -294,7 +295,7 @@ end
 for cql_t_name, cql_t in pairs(cql.types) do
   _Host[cql_t_name] = function(val)
     if val == nil then
-      error("bad argument #1 to '"..cql_t_name.."' (got nil)", 2)
+      error('bad argument #1 to '..cql_t_name..' (got nil)', 2)
     end
     return {val = val, __cql_type = cql_t}
   end

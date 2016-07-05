@@ -1,4 +1,3 @@
-local utils = require 'cassandra.utils'
 local bit = require 'bit'
 
 local setmetatable = setmetatable
@@ -110,6 +109,16 @@ local OP_CODES = {
   AUTH_RESPONSE = 0x0F,
   AUTH_SUCCESS = 0x10
 }
+
+local function is_array(t)
+  if type(t) ~= "table" then return false end
+  local i = 0
+  for _ in pairs(t) do
+    i = i + 1
+    if t[i] == nil then return false end
+  end
+  return true
+end
 
 do
   ---------
@@ -733,7 +742,7 @@ do
       if val.__cql_type then
         cql_t = val.__cql_type
         val = val.val
-      elseif utils.is_array(val) then
+      elseif is_array(val) then
         cql_t = cql_types.list
       else
         cql_t = cql_types.map
@@ -1259,7 +1268,6 @@ end
 ----------
 
 return {
-  buffer = Buffer, -- for testing only
   errors = ERRORS,
   requests = requests,
   types = cql_types,
@@ -1267,5 +1275,9 @@ return {
   frame_reader = frame_reader,
   consistencies = consistencies,
   min_protocol_version = 2,
-  def_protocol_version = 3
+  def_protocol_version = 3,
+
+  -- for testing only
+  is_array = is_array,
+  buffer = Buffer
 }

@@ -18,7 +18,6 @@ build = {
     ["cassandra"] = "lib/cassandra/init.lua",
     ["cassandra.cql"] = "lib/cassandra/cql.lua",
     ["cassandra.auth"] = "lib/cassandra/auth.lua",
-    ["cassandra.utils"] = "lib/cassandra/utils.lua",
     ["cassandra.socket"] = "lib/cassandra/socket.lua",
 
     ["resty.cassandra.cluster"] = "lib/resty/cassandra/cluster.lua",

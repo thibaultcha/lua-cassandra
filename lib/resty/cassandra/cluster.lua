@@ -151,6 +151,8 @@ local function check_peer_health(self, host, retry)
         if not ok then return nil, 'error setting host back up: '..err end
       end
 
+      peer:settimeout(self.timeout_read)
+
       return peer
     elseif maybe_down then
       -- host is not (or still not) responsive
@@ -168,7 +170,10 @@ end
 -- Cluster
 -----------
 
-local _Cluster = {}
+local _Cluster = {
+  _VERSION = '0.5.0'
+}
+
 _Cluster.__index = _Cluster
 
 function _Cluster.new(opts)

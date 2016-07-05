@@ -6,6 +6,10 @@ describe("cassandra (host)", function()
     helpers.ccm_start()
   end)
 
+  it("exposes version field", function()
+    assert.matches("%d%.%d%.%d", cassandra._VERSION)
+  end)
+
   describe("consistencies", function()
     it("exposes Cassandra data consistencies", function()
       assert.is_table(cassandra.consistencies)

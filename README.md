@@ -4,7 +4,8 @@
 [![Build Status][badge-travis-image]][badge-travis-url]
 [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-A pure Lua client library for Apache Cassandra (2.0/2.1), compatible with [OpenResty].
+A pure Lua client library for Apache Cassandra (2.0/2.1), compatible with
+[OpenResty].
 
 ## Table of Contents
 
@@ -96,20 +97,24 @@ $ luarocks install lua-cassandra
 
 Manually:
 
-Once you have a local copy of this module's `lib/` directory, add it to your `LUA_PATH` (or `lua_package_path` directive for OpenResty):
+Once you have a local copy of this module's `lib/` directory, add it to your
+`LUA_PATH` (or `lua_package_path` directive for OpenResty):
 
 ```
 /path/to/lib/?.lua;/path/to/lib/?/init.lua;
 ```
 
-**Note**: When used *outside* of OpenResty, or in the `init_by_lua` context, this module requires additional dependencies:
+**Note**: When used *outside* of OpenResty, or in the `init_by_lua` context,
+this module requires additional dependencies:
 
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
-- If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)
+- If you wish to use TLS client-to-node encryption,
+  [LuaSec](https://github.com/brunoos/luasec)
 
 ## Documentation and Examples
 
-Refer to the online [manual] and detailed [documentation]. You will also find [examples] there and you can browse the test suites for in-depth ones.
+Refer to the online [manual] and detailed [documentation]. You will also find
+[examples] there and you can browse the test suites for in-depth ones.
 
 ## Roadmap
 
@@ -120,13 +125,16 @@ CQL:
 
 #### Test Suites
 
-The single host tests require [busted] and [ccm] to be installed. They can be run with:
+The single host tests require [busted] and [ccm] to be installed. They can be
+run with:
 
 ```
 $ make busted
 ```
 
-The cluster module tests require [Test::Nginx::Socket](http://search.cpan.org/~agent/Test-Nginx-0.23/lib/Test/Nginx/Socket.pm) in addition to ccm. They can be run with:
+The cluster module tests require
+[Test::Nginx::Socket](http://search.cpan.org/~agent/Test-Nginx-0.23/lib/Test/Nginx/Socket.pm)
+in addition to ccm. They can be run with:
 
 ```
 $ make prove
@@ -134,13 +142,15 @@ $ make prove
 
 #### Tools
 
-This module uses various tools for documentation and code quality, they can easily be installed from Luarocks by running:
+This module uses various tools for documentation and code quality, they can
+easily be installed from Luarocks by running:
 
 ```
 $ make dev
 ```
 
-Code coverage is analyzed with [luacov](http://keplerproject.github.io/luacov/) from the **busted** tests:
+Code coverage is analyzed with [luacov](http://keplerproject.github.io/luacov/)
+from the **busted** tests:
 
 ```
 $ make coverage
@@ -152,7 +162,8 @@ The code is linted with [luacheck](https://github.com/mpeterv/luacheck):
 $ make lint
 ```
 
-The documentation is generated with [ldoc](https://github.com/stevedonovan/LDoc) and can be generated with:
+The documentation is generated with
+[ldoc](https://github.com/stevedonovan/LDoc) and can be generated with:
 
 ```
 $ make doc

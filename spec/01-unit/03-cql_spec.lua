@@ -3,6 +3,18 @@ local cassandra = require "cassandra"
 local cql = require "cassandra.cql"
 local Buffer = cql.buffer
 
+describe("is_array()", function()
+  it("detects arrays", function()
+    assert.True(cql.is_array {"a", "b", "c", "d"})
+    assert.False(cql.is_array {["1"] = "a", ["2"] = "b", ["3"] = "c", ["4"] = "d"})
+    assert.False(cql.is_array {"a", "b", "c", foo = "d"})
+    assert.False(cql.is_array())
+    assert.False(cql.is_array(false))
+    assert.False(cql.is_array(true))
+    assert.False(cql.is_array "")
+  end)
+end)
+
 for protocol_version = 2, 3 do
   describe("CQL marshalling v"..protocol_version, function()
     for cql_t_name, fixtures in pairs(helpers.cql_fixtures) do

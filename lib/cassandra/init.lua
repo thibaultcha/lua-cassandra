@@ -7,7 +7,7 @@ local pairs = pairs
 local find = string.find
 
 local _Host = {
-  _VERSION = '0.5.0',
+  _VERSION = '1.0.0',
   cql_errors = cql.errors,
   consistencies = cql.consistencies,
   auth_providers = require 'cassandra.auth'
@@ -295,7 +295,7 @@ end
 for cql_t_name, cql_t in pairs(cql.types) do
   _Host[cql_t_name] = function(val)
     if val == nil then
-      error('bad argument #1 to '..cql_t_name..' (got nil)', 2)
+      error('bad argument #1 to \''..cql_t_name..'()\' (got nil)', 2)
     end
     return {val = val, __cql_type = cql_t}
   end

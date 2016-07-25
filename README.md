@@ -4,16 +4,42 @@
 [![Build Status][badge-travis-image]][badge-travis-url]
 [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-A pure Lua client library for Apache Cassandra (2.0/2.1), compatible with
+A pure Lua client library for Apache Cassandra (2.x), compatible with
 [OpenResty].
 
 ## Table of Contents
 
+- [Features](#features)
 - [Usage](#usage)
 - [Installation](#installation)
 - [Documentation and Examples](#documentation-and-examples)
 - [Roadmap](#roadmap)
 - [Development](#development)
+
+## Features
+
+This library offers 2 modules: a "single host" module, compatible with PUC Lua,
+LuaJIT and OpenResty, which allows your application to connect itself to a
+given Cassandra node, and a "cluster" module, only compatible with OpenResty
+which adds support for multi-node Cassandra datacenters.
+
+- Single host `cassandra` module:
+  - support for Cassandra 2.x
+  - simple, prepared, and batch statements
+  - pagination (manual and automatic via Lua iterators)
+  - SSL client-to-node connections
+  - client authentication
+  - leverage the non-blocking, reusable cosocket API in ngx_lua (with
+    automatic fallback on LuaSocket)
+
+- Cluster `resty.cassandra.cluster` module:
+  - all features from the `cassandra` module
+  - cluster topology discovery
+  - multiple configurable policies (load balancing, retry, reconnection)
+  - remote nodes health status
+  - high performance, optimized for OpenResty
+
+[Back to TOC](#table-of-contents)
 
 ## Usage
 
@@ -49,7 +75,7 @@ peer:close()
 
 Cluster module (OpenResty only):
 
-```nginx
+```
 http {
     # you do not need the following line if you are using luarocks
     lua_package_path "/path/to/src/?.lua;/path/to/src/?/init.lua;;";
@@ -87,6 +113,8 @@ http {
 }
 ```
 
+[Back to TOC](#table-of-contents)
+
 ## Installation
 
 With [Luarocks]:
@@ -108,18 +136,24 @@ Once you have a local copy of this module's `lib/` directory, add it to your
 this module requires additional dependencies:
 
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
-- If you wish to use TLS client-to-node encryption,
+- If you wish to use SSL client-to-node connections,
   [LuaSec](https://github.com/brunoos/luasec)
+
+[Back to TOC](#table-of-contents)
 
 ## Documentation and Examples
 
 Refer to the online [manual] and detailed [documentation]. You will also find
 [examples] there and you can browse the test suites for in-depth ones.
 
+[Back to TOC](#table-of-contents)
+
 ## Roadmap
 
 CQL:
-- Support for native protocol v4
+- Support for native protocol v4 and Cassandra 3.x
+
+[Back to TOC](#table-of-contents)
 
 ## Development
 
@@ -168,6 +202,8 @@ The documentation is generated with
 ```
 $ make doc
 ```
+
+[Back to TOC](#table-of-contents)
 
 [Luarocks]: https://luarocks.org
 [OpenResty]: https://openresty.org

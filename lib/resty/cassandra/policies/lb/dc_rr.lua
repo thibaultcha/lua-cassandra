@@ -1,5 +1,27 @@
+--- Datacenter-aware round robin load balancing policy.
+-- This policy will work better than its plain Round Robin counterpart
+-- in multi-datacenters setups.
+-- It is implemented in such a fashion that it will always prioritize nodes
+-- from the local/closest datacenter (which needs to be manually specified).
+-- @module resty.cassandra.policies.lb.dc_rr
+-- @author thibaultcha
+
 local _M = require('resty.cassandra.policies.lb').new_policy('dc_aware_round_robin')
 
+--- Create a DC-aware round robin policy.
+-- Instanciates a DC-aware round robin policy for `resty.cassandra.cluster`.
+--
+-- @usage
+-- local Cluster = require "resty.cassandra.cluster"
+-- local dc_rr = require "resty.cassandra.policies.lb.dc_rr"
+--
+-- local policy = dc_rr.new("my_local_cluster_name")
+-- local cluster = assert(Cluster.new {
+--   lb_policy = policy
+-- })
+--
+-- @param [type=string] local_dc_name Name of the local/closest datacenter.
+-- @treturn table `policy`: A DC-aware round robin policy.
 function _M.new(local_dc)
   local self = _M.super.new()
   self.local_dc = local_dc

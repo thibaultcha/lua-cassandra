@@ -1,0 +1,471 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>lua-cassandra documentation</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>lua-cassandra</h1>
+
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Functions">Functions</a></li>
+<li><a href="#Tables">Tables</a></li>
+</ul>
+
+
+<h2>Modules</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../modules/cassandra.html">cassandra</a></li>
+  <li><strong>resty.cassandra.cluster</strong></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
+</ul>
+<h2>Manual</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../manual/README.md.html">README</a></li>
+</ul>
+<h2>Examples</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
+  <li><a href="../examples/batch.lua.html">batch.lua</a></li>
+  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
+  <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
+  <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<h1>Module <code>resty.cassandra.cluster</code></h1>
+<p>Cassandra cluster client module.</p>
+<p> Cluster module for OpenResty.</p>
+    <h3>Info:</h3>
+    <ul>
+        <li><strong>Release</strong>: 1.0.0</li>
+        <li><strong>Author</strong>: thibaultcha</li>
+    </ul>
+
+
+<h2><a href="#Functions">Functions</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#_Cluster.new">_Cluster.new (opts)</a></td>
+	<td class="summary">Create a new Cluster client.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#_Cluster:refresh">_Cluster:refresh ()</a></td>
+	<td class="summary">Refresh the list of nodes in the cluster.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#_Cluster:execute">_Cluster:execute (query, args, options)</a></td>
+	<td class="summary">Execute a query.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#_Cluster:batch">_Cluster:batch (queries_t, options)</a></td>
+	<td class="summary">Execute a batch.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#_Cluster:iterate">_Cluster:iterate (query, args, options)</a></td>
+	<td class="summary">Lua iterator for auto-pagination.</td>
+	</tr>
+</table>
+<h2><a href="#Tables">Tables</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#cluster_options">cluster_options</a></td>
+	<td class="summary">New cluster options.</td>
+	</tr>
+</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "_Cluster.new"></a>
+    <strong>_Cluster.new (opts)</strong>
+    </dt>
+    <dd>
+    Create a new Cluster client.
+ Takes a table of <a href="../modules/resty.cassandra.cluster.html#cluster_options">cluster_options</a>. Does not connect automatically.
+ On the first request to the cluster, the module will attempt to connect to
+ one of the specified <code>contact_points</code>, and retrieve the full list of nodes
+ belonging to this cluster. Once this list retrieved, the load balancing
+ policy will start selecting nodes to act as coordinators for the future
+ requests.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">opts</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         Options for the created cluster client.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <a href="../modules/resty.cassandra.cluster.html">cluster</a>: A table holding clustering operations capabilities
+ or nil if failure.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        <code>err</code>: String describing the error if failure.</li>
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+ <span class="keyword">local</span> cluster = Cluster.new {
+   shm = <span class="string">"cassandra_shared_dict"</span>,
+   contact_points = {<span class="string">"10.0.0.1"</span>, <span class="string">"10.0.0.2"</span>},
+   keyspace = <span class="string">"my_keyspace"</span>,
+   default_port = <span class="number">9042</span>,
+   connect_timeout = <span class="number">3000</span>
+ }</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "_Cluster:refresh"></a>
+    <strong>_Cluster:refresh ()</strong>
+    </dt>
+    <dd>
+    Refresh the list of nodes in the cluster.
+ Queries one of the specified <code>contact_points</code> to retrieve the list of
+ available nodes in the cluster, and update the configured policies.
+ This method is automatically called upon the first query made to the
+ cluster (from <a href="../modules/resty.cassandra.cluster.html#_Cluster:execute">execute</a>, <a href="../modules/resty.cassandra.cluster.html#_Cluster:batch">batch</a> or <a href="../modules/resty.cassandra.cluster.html#_Cluster:iterate">iterate</a>), but needs to be manually
+ called if further updates are required.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><span class="type">boolean</span></span>
+        <code>ok</code>: <code>true</code> if success, <code>nil</code> if failure.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        <code>err</code>: String describing the error if failure.</li>
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "_Cluster:execute"></a>
+    <strong>_Cluster:execute (query, args, options)</strong>
+    </dt>
+    <dd>
+    Execute a query.
+ Sends a request to the coordinator chosen by the configured load
+ balancing policy. The policy always chooses nodes that are considered
+ healthy, and eventually reconnects to unhealthy nodes as per the
+ configured reconnection policy.
+ Requests that fail because of timeouts can be retried on the next
+ available node if <code>retry_on_timeout</code> is enabled, and failed requests
+ can be retried as per defined in the configured retry policy.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">query</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         CQL query to execute.
+        </li>
+        <li><span class="parameter">args</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Arguments to bind to the query.
+        </li>
+        <li><span class="parameter">options</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <code>query_options</code>
+ for this query.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        <code>err</code>: String describing the error if failure.</li>
+        <li>
+           <span class="types"><span class="type">number</span></span>
+        <code>cql_err</code>: If a server-side error occurred, the CQL error code.</li>
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+ <span class="keyword">local</span> cluster, err = Cluster.new()
+ <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+   ngx.exit(<span class="number">500</span>)
+ <span class="keyword">end</span>
+
+ <span class="keyword">local</span> rows, err = cluster:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>. {
+   <span class="number">21</span>
+ }, {
+   page_size = <span class="number">100</span>
+ })
+ <span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
+   ngx.log(ngx.ERR, <span class="string">"could not retrieve users: "</span>, err)
+   ngx.exit(<span class="number">500</span>)
+ <span class="keyword">end</span>
+
+ ngx.say(<span class="string">"page size: "</span>, #rows, <span class="string">" next page: "</span>, rows.meta.paging_state)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "_Cluster:batch"></a>
+    <strong>_Cluster:batch (queries_t, options)</strong>
+    </dt>
+    <dd>
+    Execute a batch.
+ Sends a request to execute the given batch. Load balancing, reconnection,
+ and retry policies act the same as described for <a href="../modules/resty.cassandra.cluster.html#_Cluster:execute">execute</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">queries_t</span>
+
+
+
+        </li>
+        <li><span class="parameter">options</span>
+
+
+
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+        <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
+        <li>
+           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+        <code>err</code>: String describing the error if failure.</li>
+        <li>
+           <span class="types"><span class="type">number</span></span>
+        <code>cql_err</code>: If a server-side error occurred, the CQL error code.</li>
+    </ol>
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+ <span class="keyword">local</span> cluster, err = Cluster.new()
+ <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+   ngx.exit(<span class="number">500</span>)
+ <span class="keyword">end</span>
+
+ <span class="keyword">local</span> res, err = cluster:batch({
+   {<span class="string">"INSERT INTO things(id, n) VALUES(?, 1)"</span>, {<span class="number">123</span>}},
+   {<span class="string">"UPDATE things SET n = 2 WHERE id = ?"</span>, {<span class="number">123</span>}},
+   {<span class="string">"UPDATE things SET n = 3 WHERE id = ?"</span>, {<span class="number">123</span>}}
+ }, {
+   logged = <span class="keyword">false</span>
+ })
+ <span class="keyword">if</span> <span class="keyword">not</span> res <span class="keyword">then</span>
+   ngx.log(ngx.ERR, <span class="string">"could not execute batch: "</span>, err)
+   ngx.exit(<span class="number">500</span>)
+ <span class="keyword">end</span></pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "_Cluster:iterate"></a>
+    <strong>_Cluster:iterate (query, args, options)</strong>
+    </dt>
+    <dd>
+    Lua iterator for auto-pagination.
+ Perform auto-pagination for a query when used as a Lua iterator.
+ Load balancing, reconnection, and retry policies act the same as described
+ for <a href="../modules/resty.cassandra.cluster.html#_Cluster:execute">execute</a>.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">query</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         CQL query to execute.
+        </li>
+        <li><span class="parameter">args</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Arguments to bind to the query.
+        </li>
+        <li><span class="parameter">options</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <code>query_options</code>
+ for this query.
+        </li>
+    </ul>
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+ <span class="keyword">local</span> cluster, err = Cluster.new()
+ <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+   ngx.exit(<span class="number">500</span>)
+ <span class="keyword">end</span>
+
+ <span class="keyword">for</span> rows, err, page <span class="keyword">in</span> cluster:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
+   <span class="keyword">if</span> err <span class="keyword">then</span>
+     ngx.log(ngx.ERR, <span class="string">"could not retrieve page: "</span>, err)
+     ngx.exit(<span class="number">500</span>)
+   <span class="keyword">end</span>
+   ngx.say(<span class="string">"page "</span>, page, <span class="string">" has "</span>, #rows, <span class="string">" rows"</span>)
+ <span class="keyword">end</span></pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header "><a name="Tables"></a>Tables</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "cluster_options"></a>
+    <strong>cluster_options</strong>
+    </dt>
+    <dd>
+    New cluster options.
+ Options taken by <a href="../modules/resty.cassandra.cluster.html#_Cluster.new">new</a> upon cluster creation.
+
+
+    <h3>Fields:</h3>
+    <ul>
+        <li><span class="parameter">shm</span>
+         Name of the lua<em>shared</em>dict to use for this cluster's
+ information. (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, default: <a href="../modules/cassandra.html#">cassandra</a>)
+        </li>
+        <li><span class="parameter">contact_points</span>
+         Array of addresses for this cluster's
+ contact points. (<a href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a>, default: <code>{&quot;127.0.0.1&quot;}</code>)
+        </li>
+        <li><span class="parameter">default_port</span>
+         The port on which all nodes from the cluster are
+ listening on. (<code>number</code>, default: <code>9042</code>)
+        </li>
+        <li><span class="parameter">keyspace</span>
+         Keyspace to use for this cluster. (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+        </li>
+        <li><span class="parameter">connect_timeout</span>
+         The timeout value when connecing to a node, in ms.
+ (<code>number</code>, default: <code>1000</code>)
+        </li>
+        <li><span class="parameter">read_timeout</span>
+         The timeout value when reading from a node, in ms.
+ (<code>number</code>, default: <code>2000</code>)
+        </li>
+        <li><span class="parameter">retry_on_timeout</span>
+         Specifies if the request should be retried on the
+ next coordinator (as per the load balancing policy)
+ if it timed out. (<code>boolean</code>, default: <code>true</code>)
+        </li>
+        <li><span class="parameter">max_schema_consensus_wait</span>
+         Maximum waiting time allowed when executing
+ DDL queries before timing out, in ms.
+ (<code>number</code>, default: <code>10000</code>)
+        </li>
+        <li><span class="parameter">lb_policy</span>
+         A load balancing policy created from one of the modules
+ under <code>resty.cassandra.policies.lb.*</code>.
+ (<code>lb policy</code>, default: <code>lb.rr</code> round robin)
+        </li>
+        <li><span class="parameter">reconn_policy</span>
+         A reconnection policy created from one of the modules
+ under <code>resty.cassandra.policies.reconnection.*</code>.
+ (<code>reconn policy</code>, default: <code>reconnection.exp</code> (exponential)
+ 1000ms base, 60000ms max)
+        </li>
+        <li><span class="parameter">retry_policy</span>
+         A retry policy created from one of the modules
+ under <code>resty.cassandra.policies.retry.*</code>.
+ (<code>retry policy</code>, default: <code>retry.simple</code>, 3 retries)
+        </li>
+        <li><span class="parameter">ssl</span>
+         Determines if the created cluster should connect using SSL.
+ (<code>boolean</code>, default: <code>false</code>)
+        </li>
+        <li><span class="parameter">verify</span>
+         Enable server certificate validation if <code>ssl</code> is enabled.
+ (<code>boolean</code>, default: <code>false</code>)
+        </li>
+        <li><span class="parameter">auth</span>
+         Authentication handler, created from the
+ <a href="../modules/cassandra.html#auth_providers">cassandra.auth_providers</a> table. (optional)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
+</dl>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

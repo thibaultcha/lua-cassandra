@@ -34,9 +34,9 @@
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><strong>authentication.lua</strong></li>
+  <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
-  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
+  <li><strong>intro.lua</strong></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
   <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
 </ul>
@@ -59,7 +59,7 @@
 
 <div id="content">
 
-    <h2>authentication.lua</h2>
+    <h2>intro.lua</h2>
 <pre>
 <span class="comment">--------------------------------
 </span><span class="comment">-- Single host module, plain Lua
@@ -67,11 +67,41 @@
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 
-<span class="keyword">local</span> peer = <span class="global">assert</span>(cassandra.new {
-  auth = cassandra.auth_providers.plain_text(<span class="string">"cassandra"</span>, <span class="string">"cassandra"</span>)
+<span class="keyword">local</span> client = <span class="global">assert</span>(cassandra.new {
+  host = <span class="string">"127.0.0.1"</span>,
+  keyspace = <span class="string">"my_keyspace"</span>
 })
 
-<span class="global">assert</span>(peer:connect())
+client:settimeout(<span class="number">1000</span>)
+
+<span class="global">assert</span>(client:connect())
+
+<span class="keyword">local</span> res = <span class="global">assert</span>(client:execute <span class="string">[[
+  CREATE TABLE users(
+    id uuid PRIMARY KEY,
+    name varchar,
+    age int
+  )
+]]</span>)
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "SCHEMA_CHANGE"
+</span>
+res = <span class="global">assert</span>(client:execute(<span class="string">"INSERT INTO users(id, name, age) VALUES(?, ?, ?)"</span>, {
+  cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>),
+  <span class="string">"John O Reilly"</span>,
+  <span class="number">42</span>
+}))
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "VOID"
+</span>
+<span class="keyword">local</span> rows = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>, {
+  age = <span class="number">42</span> <span class="comment">-- key/value args
+</span>}, {
+  named = <span class="keyword">true</span> <span class="comment">-- named arguments
+</span>}))
+<span class="global">print</span>(rows.<span class="global">type</span>)    <span class="comment">-- "ROWS"
+</span><span class="global">print</span>(#rows)        <span class="comment">-- 1
+</span><span class="global">print</span>(rows[<span class="number">1</span>].name) <span class="comment">-- "John O Reilly"
+</span>
+client:close()
 
 <span class="comment">----------------------------
 </span><span class="comment">-- Cluster module, OpenResty
@@ -90,12 +120,27 @@ http {
         <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
 
         <span class="keyword">local</span> cluster, err = Cluster.new {
-          auth = cassandra.auth_providers.plain_text(<span class="string">"cassandra"</span>, <span class="string">"cassandra"</span>)
+          shm = <span class="string">"cassandra"</span>, <span class="comment">-- defined in http block
+</span>          contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>},
+          keyspace = <span class="string">"my_keyspace"</span>
         }
         <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
           ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
           ngx.exit(<span class="number">500</span>)
         <span class="keyword">end</span>
+
+        <span class="keyword">local</span> rows, err = cluster.execute(<span class="string">"SELECT * FROM users WHERE id = ? AND name = ?"</span>, {
+          cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>),
+          <span class="string">"John O Reilly"</span>
+        })
+        <span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
+          ngx.log(ngx.ERR, <span class="string">"could not retrieve users: "</span>, err)
+          ngx.exit(<span class="number">500</span>)
+        <span class="keyword">end</span>
+
+        <span class="keyword">for</span> i, row <span class="keyword">in</span> <span class="global">ipairs</span>(rows) <span class="keyword">do</span>
+          ngx.say(i, <span class="string">": "</span>, rows[i].name) <span class="comment">-- "1: John O Reilly"
+</span>        <span class="keyword">end</span>
       }
     }
   }

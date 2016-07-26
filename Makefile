@@ -40,4 +40,4 @@ lint:
 		--no-redefined --no-unused-args
 
 doc:
-	@ldoc -c doc/config.ld src
+	@ldoc -c doc/config.ld lib

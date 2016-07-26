@@ -185,38 +185,38 @@ _Cluster.__index = _Cluster
 --- New cluster options.
 -- Options taken by `new` upon cluster creation.
 -- @field shm Name of the lua_shared_dict to use for this cluster's
---        information. (`string`, default: `cassandra`)
+-- information. (`string`, default: `cassandra`)
 -- @field contact_points Array of addresses for this cluster's
---        contact points. (`table`, default: `{"127.0.0.1"}`)
+-- contact points. (`table`, default: `{"127.0.0.1"}`)
 -- @field default_port The port on which all nodes from the cluster are
---        listening on. (`number`, default: `9042`)
+-- listening on. (`number`, default: `9042`)
 -- @field keyspace Keyspace to use for this cluster. (`string`, optional)
 -- @field connect_timeout The timeout value when connecing to a node, in ms.
---        (`number`, default: `1000`)
+-- (`number`, default: `1000`)
 -- @field read_timeout The timeout value when reading from a node, in ms.
---        (`number`, default: `2000`)
+-- (`number`, default: `2000`)
 -- @field retry_on_timeout Specifies if the request should be retried on the
---        next coordinator (as per the load balancing policy)
---        if it timed out. (`boolean`, default: `true`)
+-- next coordinator (as per the load balancing policy)
+-- if it timed out. (`boolean`, default: `true`)
 -- @field max_schema_consensus_wait Maximum waiting time allowed when executing
---        DDL queries before timing out, in ms.
---        (`number`, default: `10000`)
+-- DDL queries before timing out, in ms.
+-- (`number`, default: `10000`)
 -- @field lb_policy A load balancing policy created from one of the modules
---        under `resty.cassandra.policies.lb.*`.
---        (`lb policy`, default: `lb.rr` round robin)
+-- under `resty.cassandra.policies.lb.*`.
+-- (`lb policy`, default: `lb.rr` round robin)
 -- @field reconn_policy A reconnection policy created from one of the modules
---        under `resty.cassandra.policies.reconnection.*`.
---        (`reconn policy`, default: `reconnection.exp` (exponential)
---        1000ms base, 60000ms max)
+-- under `resty.cassandra.policies.reconnection.*`.
+-- (`reconn policy`, default: `reconnection.exp` (exponential)
+-- 1000ms base, 60000ms max)
 -- @field retry_policy A retry policy created from one of the modules
---        under `resty.cassandra.policies.retry.*`.
---        (`retry policy`, default: `retry.simple`, 3 retries)
+-- under `resty.cassandra.policies.retry.*`.
+-- (`retry policy`, default: `retry.simple`, 3 retries)
 -- @field ssl Determines if the created cluster should connect using SSL.
---        (`boolean`, default: `false`)
+-- (`boolean`, default: `false`)
 -- @field verify Enable server certificate validation if `ssl` is enabled.
---        (`boolean`, default: `false`)
+-- (`boolean`, default: `false`)
 -- @field auth Authentication handler, created from the
---        `cassandra.auth_providers` table. (optional)
+-- `cassandra.auth_providers` table. (optional)
 -- @table `cluster_options`
 
 --- Create a new Cluster client.
@@ -239,7 +239,7 @@ _Cluster.__index = _Cluster
 --
 -- @param[type=table] opts Options for the created cluster client.
 -- @treturn table `cluster`: A table holding clustering operations capabilities
---                           or nil if failure.
+-- or nil if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Cluster.new(opts)
   opts = opts or {}
@@ -668,12 +668,12 @@ do
   --   ngx.exit(500)
   -- end
   --
-  -- ngx.say("page size: ", #rows, " next page: ", rows.paging_state)
+  -- ngx.say("page size: ", #rows, " next page: ", rows.meta.paging_state)
   --
   -- @param[type=string] query CQL query to execute.
   -- @param[type=table] args (optional) Arguments to bind to the query.
   -- @param[type=table] options (optional) Options from `query_options`
-  --                            for this query.
+  -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
@@ -772,7 +772,7 @@ do
   -- @param[type=string] query CQL query to execute.
   -- @param[type=table] args (optional) Arguments to bind to the query.
   -- @param[type=table] options (optional) Options from `query_options`
-  --                            for this query.
+  -- for this query.
   function _Cluster:iterate(query, args, options)
     return page_iterator(self, query, args, options)
   end

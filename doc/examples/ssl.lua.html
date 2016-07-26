@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
     <title>lua-cassandra documentation</title>
-    <link rel="stylesheet" href="../ldoc_pale.css" type="text/css" />
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
 </head>
 <body>
 
@@ -26,20 +26,29 @@
 <br/>
 <h1>lua-cassandra</h1>
 
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
 
 
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
-  <li><a href="../examples/basic.lua.html">basic.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
+  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
   <li><strong>ssl.lua</strong></li>
 </ul>
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="../index.html">cassandra</a></li>
+  <li><a href="../modules/cassandra.html">cassandra</a></li>
+  <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -52,75 +61,57 @@
 
     <h2>ssl.lua</h2>
 <pre>
-<span class="comment">--------
-</span><span class="comment">-- Example of SSL enabled connection using LuaSocket in plain Lua
+<span class="comment">------------------------------------------
+</span><span class="comment">-- Single host module with SSL connections
 </span><span class="comment">-- Required modules: LuaSocket, LuaSec
-</span><span class="comment">-- @see http://docs.datastax.com/en/cassandra/2.1/cassandra/security/secureSslEncryptionTOC.html
+</span><span class="comment">------------------------------------------
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 
-<span class="keyword">local</span> session, err = cassandra.spawn_session {
-  shm = <span class="string">"cassandra"</span>,
-  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>},
-  ssl_options = {
-    enabled = <span class="keyword">true</span>,
-    verify = <span class="keyword">true</span>, <span class="comment">-- optionally, verify the server certificate
-</span>    ca = <span class="string">"/path/to/node-certificate.pem"</span> <span class="comment">-- optionally, the CA file to verify the server certificate
-</span>}
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
+<span class="keyword">local</span> client = <span class="global">assert</span>(cassandra.new {
+  ssl = <span class="keyword">true</span>,
+  verify = <span class="keyword">true</span>, <span class="comment">-- optionally, verify the server certificate
+</span>  cafile = <span class="string">"/path/to/node-certificate.pem"</span> <span class="comment">-- optionally, the CA in PEM format
+</span>})
 
-<span class="comment">--------
-</span><span class="comment">-- Plain Lua (not ngx_lua) can also authenticate itself to the node
-</span>
-<span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="global">assert</span>(client:connect())
 
-<span class="keyword">local</span> session, err = cassandra.spawn_session {
-  shm = <span class="string">"cassandra"</span>,
-  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>},
-  ssl_options = {
-    enabled = <span class="keyword">true</span>,
-    verify = <span class="keyword">true</span>,
-    ca = <span class="string">"/path/to/node-certificate.pem"</span>,
-    key = <span class="string">"/path/to/client-private-key.pem"</span>,
-    certificate = <span class="string">"/path/to/client-certificate.pem"</span>
-}
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
-
-<span class="comment">--------
-</span><span class="comment">-- Example of SSL enabled connection from ngx_lua
+<span class="comment">--------------------------------------
+</span><span class="comment">-- Cluster module with SSL connections
+</span><span class="comment">--------------------------------------
 </span>
 http {
-
   lua_shared_dict cassandra <span class="number">1</span>m;
 
   server {
     ...
 
     location / {
-
       # this will be used to verify the server certificate
       lua_ssl_trusted_certificate <span class="string">"/path/to/node-certificate.pem"</span>;
 
       content_by_lua_block {
-        <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+        <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
 
-        <span class="keyword">local</span> session, err = cassandra.spawn_session {
-          shm = <span class="string">"cassandra"</span>,
-          contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>},
-          ssl_options = {
-            enabled = <span class="keyword">true</span>,
-            verify = <span class="keyword">true</span> <span class="comment">-- optionally, verify the server certificate
-</span>            <span class="comment">-- no certificate option here
-</span>          }
+        <span class="keyword">local</span> cluster, err = Cluster.new {
+          shm = <span class="string">"cassandra"</span>, <span class="comment">-- defined in http block
+</span>          contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>},
+          keyspace = <span class="string">"my_keyspace"</span>,
+          ssl = <span class="keyword">true</span>,
+          verify = <span class="keyword">true</span>
         }
-        <span class="keyword">if</span> err <span class="keyword">then</span>
-          ngx.log(ngx.ERR, err)
+        <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+          ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
           ngx.exit(<span class="number">500</span>)
         <span class="keyword">end</span>
 
-        <span class="comment">-- ...
-</span>
-        session:set_keep_alive()
+        <span class="keyword">local</span> ok, err = cluster:refresh() <span class="comment">-- automatically called upon first query
+</span>        <span class="keyword">if</span> <span class="keyword">not</span> ok <span class="keyword">then</span>
+          ngx.log(ngx.ERR, <span class="string">"could not connect to cluster: "</span>, err)
+          ngx.exit(<span class="number">500</span>)
+        <span class="keyword">end</span>
+
+        ngx.say(<span class="string">"SSL connection: OK"</span>)
       }
     }
   }
@@ -131,7 +122,7 @@ http {
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-02-02 17:06:41 </i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

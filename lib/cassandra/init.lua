@@ -16,30 +16,30 @@ local find = string.find
 -- CQL error codes constant. Useful when it is desired to programatically
 -- determine the type of error that occurred during a query execution.
 -- @field SERVER Something unexpected happened. This indicates a server-side
---        bug.
+-- bug.
 -- @field PROTOCOL Some client message triggered a protocol violation
---        (for instance a QUERY message is sent before a STARTUP).
+-- (for instance a QUERY message is sent before a STARTUP).
 -- @field BAD_CREDENTIALS A CREDENTIALS request failed because Cassandra did
---        not accept the provided credentials.
+-- not accept the provided credentials.
 -- @field UNAVAILABLE_EXCEPTION The query could not be processed with respect
---        to the given concurrency.
+-- to the given concurrency.
 -- @field OVERLOADED The request cannot be processed because the coordinator
---        node is overloaded.
+-- node is overloaded.
 -- @field IS_BOOTSTRAPPING The request was a read request but the coordinator
---        node is bootstrapping.
+-- node is bootstrapping.
 -- @field TRUNCATE_ERROR Error during a truncation.
 -- @field WRITE_TIMEOUT Timeout exception during a write request.
 -- @field READ_TIMEOUT Timeout exception during a read request.
 -- @field SYNTAX_ERROR The submitted query has a syntax error.
 -- @field UNAUTHORIZED The logged-in user doesn't have the right to perform
---        the query.
+-- the query.
 -- @field INVALID The query is syntactically correct but invalid.
 -- @field CONFIG_ERROR The query is invalid because of some configuration
---        issue.
+-- issue.
 -- @field ALREADY_EXISTS The query attempted to create a keyspace or a table
---        that is already existing.
+-- that is already existing.
 -- @field UNPREPARED Can be thrown while a prepared statement tries to be
---        executed if the provided prepared query id is not known by this host.
+-- executed if the provided prepared query id is not known by this host.
 -- @table cassandra.cql_errors
 
 --- CQL consistencies.
@@ -68,7 +68,8 @@ local find = string.find
 -- @table cassandra.consistencies
 
 --- Authentication providers
--- #TODO
+-- @field plain_text The plain text auth provider.
+--     local auth = cassandra.auth_provider.plain_text("username", "password")
 -- @table cassandra.auth_providers
 
 local _Host = {
@@ -83,25 +84,25 @@ _Host.__index = _Host
 --- New client options.
 -- Options taken by `new` upon client creation.
 -- @field host Address to which the client should connect.
---        (`string`, default: `"127.0.0.1"`)
+-- (`string`, default: `"127.0.0.1"`)
 -- @field port Port to which the client should connect.
---        (`number`, default: `9042`)
+-- (`number`, default: `9042`)
 -- @field keyspace Keyspace the client should use. (`string`, optional)
 -- @field protocol_version Binary protocol version the client should try to use
---        (`number`, default: `3`)
+-- (`number`, default: `3`)
 -- @field ssl Determines if the client should connect using SSL.
---        (`boolean`, default: `false`)
+-- (`boolean`, default: `false`)
 -- @field verify Enable server certificate validation if `ssl` is enabled.
---        (`boolean`, default: `false`)
+-- (`boolean`, default: `false`)
 -- @field cafile Path to the server certificate (LuaSec usage only, see
---        `lua_ssl_trusted_certificate` directive for ngx_lua).
---        (`string`, optional)
+-- `lua_ssl_trusted_certificate` directive for ngx_lua).
+-- (`string`, optional)
 -- @field cert Path to the client SSL certificate (LuaSec usage only).
---        (`string`, optional)
+-- (`string`, optional)
 -- @field key Path to the client SSL key (LuaSec usage only).
---        (`string`, optional)
+-- (`string`, optional)
 -- @field auth Authentication handler, created from the
---        `cassandra.auth_providers` table. (optional)
+-- `cassandra.auth_providers` table. (optional)
 -- @table `client_options`
 
 --- Create a new Cassandra client.
@@ -282,9 +283,9 @@ end
 -- method on the same host/port combination.
 -- @see https://github.com/openresty/lua-nginx-module#tcpsocksetkeepalive
 -- @param[type=number] timeout (optional) Value in milliseconds specifying the
---                             maximal idle timeout.
+-- maximal idle timeout.
 -- @param[type=number] size (optional) Maximal number of connections allowed in
---                          the pool for the current server.
+-- the pool for the current server.
 -- @treturn number `success`: `1` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Host:setkeepalive(...)
@@ -307,34 +308,34 @@ end
 
 --- Query options.
 -- @field consistency Consistency level for this request.
---        See `cassandra.consistencies` table.
---        (default: `cassandra.consistencies.one`)
+-- See `cassandra.consistencies` table.
+-- (default: `cassandra.consistencies.one`)
 -- @field serial_consistency Serial consistency level for this request.
---        See `cassandra.consistencies` table.
---        (default: `cassandra.consistencies.serial`)
+-- See `cassandra.consistencies` table.
+-- (default: `cassandra.consistencies.serial`)
 -- @field page_size When retrieving a set of rows (`SELECT`), determines the
---        maximum maximum amount of rows per page.
---        (`number`, default: `1000`)
+-- maximum maximum amount of rows per page.
+-- (`number`, default: `1000`)
 -- @field paging_state String token representing the paging state. Useful for
---        manual paging: if provided, the query will be executed
---        starting from the given paging state.
---        (`string`, optional)
+-- manual paging: if provided, the query will be executed
+-- starting from the given paging state.
+-- (`string`, optional)
 -- @field tracing Enable query tracing. Use this option to diagnose performance
---        problems related to query execution.
---        (`boolean`, default: `false`)
+-- problems related to query execution.
+-- (`boolean`, default: `false`)
 -- @field prepared Determines if the argument given to `execute` is a prepared
---        query id (from `prepare`) to be executed.
---        (`boolean`, default: `false`)
+-- query id (from `prepare`) to be executed.
+-- (`boolean`, default: `false`)
 -- @field logged When executing a `batch`, determines if the batch should be
---        written to the batchlog. (`boolean`, default: `true`)
+-- written to the batchlog. (`boolean`, default: `true`)
 -- @field counter When executing a `batch`, specify if the batch contains
---        counter updates. (`boolean`, default: `false`)
+-- counter updates. (`boolean`, default: `false`)
 -- @field timestamp The default timestamp for the query/batch in microseconds
---        from unix epoch. If provided, will replace the server
---        side assigned timestamp as default timestamp.
---        (`number`, optional)
+-- from unix epoch. If provided, will replace the server
+-- side assigned timestamp as default timestamp.
+-- (`number`, optional)
 -- @field named Determines if arguments binded to `execute` are key/value
---        indexed instead of an array. (`boolean`, default: `false`)
+-- indexed instead of an array. (`boolean`, default: `false`)
 -- @table query_options
 
 local query_options = {
@@ -458,12 +459,12 @@ end
 --   error(err)
 -- end
 -- print(#rows) -- `<= 5000`
--- print(rows.paging_state) -- pagination token
+-- print(rows.meta.paging_state) -- pagination token
 --
 -- @param[type=string] query CQL query to execute.
 -- @param[type=table] args (optional) Arguments to bind to the query.
 -- @param[type=table] options (optional) Options from `query_options`
---                            for this query.
+-- for this query.
 -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
@@ -496,7 +497,7 @@ end
 --
 -- @param[type=table] Array of CQL queries to execute as a batch.
 -- @param[type=table] options (optional) Options from `query_options`
---                            for this query.
+-- for this query.
 -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
@@ -524,7 +525,7 @@ end
 -- @param[type=string] query CQL query to execute.
 -- @param[type=table] args (optional) Arguments to bind to the query.
 -- @param[type=table] options (optional) Options from `query_options`
---                            for this query.
+-- for this query.
 function _Host:iterate(query, args, options)
   return page_iterator(self, query, args, get_opts(options))
 end
@@ -547,7 +548,7 @@ end
 -- print(trace.command) -- "QUERY"
 --
 -- @param[type=string] tracing_id The query's tracing is as returned in the
---                                results of a traced query.
+-- results of a traced query.
 -- @treturn table `trace`: Table holding the query's tracing events if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Host:get_trace(tracing_id)

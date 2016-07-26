@@ -1,4 +1,23 @@
+--- Round robin load balancing policy.
+-- @module resty.cassandra.policies.lb.rr
+-- @author thibaultcha
+
 local _rr_lb = require('resty.cassandra.policies.lb').new_policy('round_robin')
+
+--- Create a round robin policy.
+-- Instanciates a round robin policy for `resty.cassandra.cluster`.
+-- @function new
+--
+-- @usage
+-- local Cluster = require "resty.cassandra.cluster"
+-- local rr = require "resty.cassandra.policies.lb.rr"
+--
+-- local policy = rr.new()
+-- local cluster = assert(Cluster.new {
+--   lb_policy = policy
+-- })
+--
+-- @treturn table `policy`: A round robin policy.
 
 function _rr_lb:init(peers)
   self.peers = peers

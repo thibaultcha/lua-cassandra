@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
     <title>lua-cassandra documentation</title>
-    <link rel="stylesheet" href="../ldoc_pale.css" type="text/css" />
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
 </head>
 <body>
 
@@ -26,20 +26,29 @@
 <br/>
 <h1>lua-cassandra</h1>
 
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
 
 
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
-  <li><a href="../examples/basic.lua.html">basic.lua</a></li>
   <li><strong>batch.lua</strong></li>
+  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
   <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
 </ul>
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="../index.html">cassandra</a></li>
+  <li><a href="../modules/cassandra.html">cassandra</a></li>
+  <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -52,56 +61,86 @@
 
     <h2>batch.lua</h2>
 <pre>
-<span class="comment">--------
-</span><span class="comment">-- Examples of batched queries
-</span><span class="comment">-- @see https://cassandra.apache.org/doc/cql3/CQL-2.2.html#batchStmt
+<span class="comment">--------------------------------
+</span><span class="comment">-- Single host module, plain Lua
+</span><span class="comment">--------------------------------
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 
-<span class="keyword">local</span> session, err = cassandra.spawn_session {
-  shm = <span class="string">"cassandra"</span>, <span class="comment">-- used to store cluster infos
-</span>  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>}, <span class="comment">-- entry points to your cluster
-</span>  keyspace = <span class="string">"my_keyspace"</span> <span class="comment">-- this keyspace must exist
-</span>}
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
+<span class="keyword">local</span> client = <span class="global">assert</span>(cassandra.new {
+  host = <span class="string">"127.0.0.1"</span>,
+  keyspace = <span class="string">"my_keyspace"</span>
+})
 
-<span class="comment">-- Basic logged batch
-</span><span class="keyword">local</span> res, err = session:batch {
-  {<span class="string">"INSERT INTO users(id, name) VALUES(123, 'Alice')"</span>},
-  {<span class="string">"UPDATE users SET name = 'Alicia' WHERE id = 123"</span>}
-}
-<span class="global">assert</span>(err.<span class="global">type</span> == <span class="string">"VOID"</span>)
+client:settimeout(<span class="number">1000</span>)
 
-<span class="comment">-- With binded parameters and prepared queries
-</span><span class="keyword">local</span> res, err = session:batch({
-  {<span class="string">"INSERT INTO users(id, name) VALUES(?, ?)"</span>, {cassandra.uuid(some_uuid), <span class="string">"Alice"</span>}},
-  {<span class="string">"UPDATE users SET name = ? WHERE id = ?"</span>, {cassandra.uuid(some_uuid), <span class="string">"Alicia"</span>}}
-}, {prepare = <span class="keyword">true</span>})
-<span class="global">assert</span>(err.<span class="global">type</span> == <span class="string">"VOID"</span>)
+<span class="global">assert</span>(client:connect())
 
-<span class="comment">-- Unlogged batch
-</span><span class="keyword">local</span> res, err = session:batch({
-  {<span class="string">"INSERT INTO users(id, name) VALUES(123, 'Alice')"</span>},
-  {<span class="string">"UPDATE users SET name = 'Alicia' WHERE id = 123"</span>}
-}, {logged = <span class="keyword">false</span>})
-<span class="global">assert</span>(err.<span class="global">type</span> == <span class="string">"VOID"</span>)
+<span class="global">assert</span>(client:execute <span class="string">[[
+  CREATE TABLE IF NOT EXISTS things(
+    id uuid PRIMARY KEY,
+    n int
+  )
+]]</span>)
 
+<span class="global">assert</span>(client:execute <span class="string">[[
+  CREATE TABLE IF NOT EXISTS counters(
+    key text PRIMARY KEY,
+    value counter
+  )
+]]</span>)
+
+<span class="comment">-- Logged batch
+</span><span class="keyword">local</span> res = <span class="global">assert</span>(client:batch {
+  {<span class="string">"INSERT INTO things(id, n) VALUES(1144bada-852c-11e3-89fb-e0b9a54a6d11, 1)"</span>},
+  {<span class="string">"UPDATE things SET n = 2 WHERE id = 1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>},
+  {<span class="string">"UPDATE things SET n = 3 WHERE id = 1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>}
+})
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "VOID"
+</span>
+<span class="comment">-- Unlogged batch, with binded parameters
+</span><span class="keyword">local</span> uuid = <span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>
+<span class="keyword">local</span> serialized_uuid = cassandra.uuid(uuid)
+
+res = <span class="global">assert</span>(client:batch({
+  {<span class="string">"INSERT INTO things(id, n) VALUES(?, ?)"</span>, {serialized_uuid, <span class="number">4</span>}},
+  {<span class="string">"INSERT INTO things(id, n) VALUES(?, ?)"</span>, {serialized_uuid, <span class="number">5</span>}},
+  {<span class="string">"INSERT INTO things(id, n) VALUES(?, ?)"</span>, {serialized_uuid, <span class="number">6</span>}},
+}), {
+  logged = <span class="keyword">false</span>
+})
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "VOID"
+</span>
 <span class="comment">-- Counter batch
-</span><span class="keyword">local</span> res, err = session:batch({
-  {<span class="string">"UPDATE table SET value = value + 1 WHERE key = 'counter'"</span>},
-  {<span class="string">"UPDATE table SET value = value + 5 WHERE key = 'counter'"</span>},
-  {<span class="string">"UPDATE table SET value = value + 2 WHERE key = ?"</span>, {<span class="string">"counter"</span>}}
-}, {counter = <span class="keyword">true</span>})
-<span class="global">assert</span>(err.<span class="global">type</span> == <span class="string">"VOID"</span>)
+</span>res = <span class="global">assert</span>(client:batch({
+  {<span class="string">"UPDATE counters SET value = value + 1 WHERE key = 'counter'"</span>},
+  {<span class="string">"UPDATE counters SET value = value + 1 WHERE key = 'counter'"</span>},
+  {<span class="string">"UPDATE counters SET value = value + 1 WHERE key = 'counter'"</span>}
+}, {
+  counter = <span class="keyword">true</span>
+}))
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "VOID"
+</span>
+<span class="comment">-- Batch of prepared queries
+</span><span class="keyword">local</span> res1 = <span class="global">assert</span>(client:prepare(<span class="string">"INSERT INTO things(id, n) VALUES(1144bada-852c-11e3-89fb-e0b9a54a6d11, 1)"</span>))
+<span class="keyword">local</span> res2 = <span class="global">assert</span>(client:prepare(<span class="string">"UPDATE things set n = 2 WHERE id = 1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>))
 
-session:shutdown()</pre>
+<span class="keyword">local</span> res = <span class="global">assert</span>(client:batch({
+  {[<span class="number">3</span>] = res1.query_id},
+  {[<span class="number">3</span>] = res2.query_id}
+}, {
+  prepared = <span class="keyword">true</span>
+}))
+<span class="global">print</span>(res.<span class="global">type</span>) <span class="comment">-- "VOID"
+</span>
+client:close()</pre>
 
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-02-02 17:06:41 </i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

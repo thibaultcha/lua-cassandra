@@ -1,4 +1,4 @@
---- Cassandra client library.
+--- Cassandra single-host client module.
 -- Single host module for PUC Lua, LuaJIT and OpenResty.
 -- @module cassandra
 -- @author thibaultcha
@@ -16,31 +16,30 @@ local find = string.find
 -- CQL error codes constant. Useful when it is desired to programatically
 -- determine the type of error that occurred during a query execution.
 -- @field SERVER Something unexpected happened. This indicates a server-side
---               bug.
+--        bug.
 -- @field PROTOCOL Some client message triggered a protocol violation
---                 (for instance a QUERY message is sent before a STARTUP).
+--        (for instance a QUERY message is sent before a STARTUP).
 -- @field BAD_CREDENTIALS A CREDENTIALS request failed because Cassandra did
---                                      not accept the provided credentials.
+--        not accept the provided credentials.
 -- @field UNAVAILABLE_EXCEPTION The query could not be processed with respect
---                              to the given concurrency.
+--        to the given concurrency.
 -- @field OVERLOADED The request cannot be processed because the coordinator
---                   node is overloaded.
+--        node is overloaded.
 -- @field IS_BOOTSTRAPPING The request was a read request but the coordinator
---                         node is bootstrapping.
+--        node is bootstrapping.
 -- @field TRUNCATE_ERROR Error during a truncation.
 -- @field WRITE_TIMEOUT Timeout exception during a write request.
 -- @field READ_TIMEOUT Timeout exception during a read request.
 -- @field SYNTAX_ERROR The submitted query has a syntax error.
 -- @field UNAUTHORIZED The logged-in user doesn't have the right to perform
---                     the query.
+--        the query.
 -- @field INVALID The query is syntactically correct but invalid.
 -- @field CONFIG_ERROR The query is invalid because of some configuration
---                      issue.
+--        issue.
 -- @field ALREADY_EXISTS The query attempted to create a keyspace or a table
---                       that is already existing.
+--        that is already existing.
 -- @field UNPREPARED Can be thrown while a prepared statement tries to be
---                   executed if the provided prepared query id is not known
---                   by this host.
+--        executed if the provided prepared query id is not known by this host.
 -- @table cassandra.cql_errors
 
 --- CQL consistencies.
@@ -84,25 +83,25 @@ _Host.__index = _Host
 --- New client options.
 -- Options taken by `new` upon client creation.
 -- @field host Address to which the client should connect.
---             (`string`, default: `"127.0.0.1"`)
+--        (`string`, default: `"127.0.0.1"`)
 -- @field port Port to which the client should connect.
---             (`number`, default: `9042`)
+--        (`number`, default: `9042`)
 -- @field keyspace Keyspace the client should use. (`string`, optional)
 -- @field protocol_version Binary protocol version the client should try to use
---                         (`number`, default: `3`)
+--        (`number`, default: `3`)
 -- @field ssl Determines if the client should connect using SSL.
---            (`boolean`, default: `false`)
+--        (`boolean`, default: `false`)
 -- @field verify Enable server certificate validation if `ssl` is enabled.
---               (`boolean`, default: `true`)
+--        (`boolean`, default: `false`)
 -- @field cafile Path to the server certificate (LuaSec usage only, see
---               `lua_ssl_trusted_certificate` directive for ngx_lua).
---               (`string`, optional)
+--        `lua_ssl_trusted_certificate` directive for ngx_lua).
+--        (`string`, optional)
 -- @field cert Path to the client SSL certificate (LuaSec usage only).
---             (`string`, optional)
+--        (`string`, optional)
 -- @field key Path to the client SSL key (LuaSec usage only).
---            (`string`, optional)
+--        (`string`, optional)
 -- @field auth Authentication handler, created from the
---             `cassandra.auth_providers` table. (optional)
+--        `cassandra.auth_providers` table. (optional)
 -- @table `client_options`
 
 --- Create a new Cassandra client.
@@ -308,34 +307,34 @@ end
 
 --- Query options.
 -- @field consistency Consistency level for this request.
---                    See `cassandra.consistencies` table.
---                    (default: `cassandra.consistencies.one`)
+--        See `cassandra.consistencies` table.
+--        (default: `cassandra.consistencies.one`)
 -- @field serial_consistency Serial consistency level for this request.
---                           See `cassandra.consistencies` table.
---                           (default: `cassandra.consistencies.serial`)
+--        See `cassandra.consistencies` table.
+--        (default: `cassandra.consistencies.serial`)
 -- @field page_size When retrieving a set of rows (`SELECT`), determines the
---                  maximum maximum amount of rows per page.
---                  (`number`, default: `1000`)
+--        maximum maximum amount of rows per page.
+--        (`number`, default: `1000`)
 -- @field paging_state String token representing the paging state. Useful for
---                     manual paging: if provided, the query will be executed
---                     starting from the given paging state.
---                     (`string`, optional)
+--        manual paging: if provided, the query will be executed
+--        starting from the given paging state.
+--        (`string`, optional)
 -- @field tracing Enable query tracing. Use this option to diagnose performance
---                problems related to query execution.
---                (`boolean`, default: `false`)
+--        problems related to query execution.
+--        (`boolean`, default: `false`)
 -- @field prepared Determines if the argument given to `execute` is a prepared
---                 query id (from `prepare`) to be executed.
---                 (`boolean`, default: `false`)
+--        query id (from `prepare`) to be executed.
+--        (`boolean`, default: `false`)
 -- @field logged When executing a `batch`, determines if the batch should be
---               written to the batchlog. (`boolean`, default: `true`)
+--        written to the batchlog. (`boolean`, default: `true`)
 -- @field counter When executing a `batch`, specify if the batch contains
---               counter updates. (`boolean`, default: `false`)
+--        counter updates. (`boolean`, default: `false`)
 -- @field timestamp The default timestamp for the query/batch in microseconds
---                  from unix epoch. If provided, will replace the server
---                  side assigned timestamp as default timestamp.
---                  (`number`, optional)
+--        from unix epoch. If provided, will replace the server
+--        side assigned timestamp as default timestamp.
+--        (`number`, optional)
 -- @field named Determines if arguments binded to `execute` are key/value
---              indexed instead of an array. (`boolean`, default: `false`)
+--        indexed instead of an array. (`boolean`, default: `false`)
 -- @table query_options
 
 local query_options = {
@@ -487,13 +486,13 @@ end
 -- local client = cassandra.new()
 -- assert(client:connect())
 --
--- local res = assert(client:batch {
+-- local res = assert(client:batch({
 --   {"INSERT INTO things(id, n) VALUES(?, 1)", {123}},
 --   {"UPDATE things SET n = 2 WHERE id = ?", {123}},
 --   {"UPDATE things SET n = 3 WHERE id = ?", {123}}
 -- }, {
 --   logged = false
--- })
+-- }))
 --
 -- @param[type=table] Array of CQL queries to execute as a batch.
 -- @param[type=table] options (optional) Options from `query_options`
@@ -592,7 +591,7 @@ end
 -- client:execute("INSERT INTO users(id, emails) VALUES(?, ?)", {
 --   1,
 --   cassandra.set({"john@foo.com", "john@bar.com"})
---})
+-- })
 --
 -- @field unset Equivalent to the `null` CQL value. Useful to unset a field.
 --     cassandra.unset()

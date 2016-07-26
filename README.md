@@ -213,7 +213,7 @@ $ make doc
 
 [documentation]: http://thibaultcha.github.io/lua-cassandra/
 [manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
-[examples]: http://thibaultcha.github.io/lua-cassandra/examples/basic.lua.html
+[examples]: http://thibaultcha.github.io/lua-cassandra/examples/intro.lua.html
 
 [badge-travis-url]: https://travis-ci.org/thibaultCha/lua-cassandra
 [badge-travis-image]: https://travis-ci.org/thibaultCha/lua-cassandra.svg?branch=master

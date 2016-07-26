@@ -24,20 +24,21 @@ given Cassandra node, and a "cluster" module, only compatible with OpenResty
 which adds support for multi-node Cassandra datacenters.
 
 - Single host `cassandra` module:
+  - no dependencies
   - support for Cassandra 2.x
   - simple, prepared, and batch statements
   - pagination (manual and automatic via Lua iterators)
   - SSL client-to-node connections
   - client authentication
   - leverage the non-blocking, reusable cosocket API in ngx_lua (with
-    automatic fallback on LuaSocket)
+    automatic fallback to LuaSocket in non-supported contexts)
 
 - Cluster `resty.cassandra.cluster` module:
   - all features from the `cassandra` module
   - cluster topology discovery
-  - multiple configurable policies (load balancing, retry, reconnection)
-  - remote nodes health status
-  - high performance, optimized for OpenResty
+  - advanced querying options
+  - configurable policies (load balancing, retry, reconnection)
+  - optimized performance for OpenResty
 
 [Back to TOC](#table-of-contents)
 

@@ -18,7 +18,7 @@ A pure Lua client library for Apache Cassandra (2.x), compatible with
 
 ## Features
 
-This library offers 2 modules: a "single host" module, compatible with PUC Lua,
+This library offers 2 modules: a "single host" module, compatible with PUC Lua 5.1/5.2,
 LuaJIT and OpenResty, which allows your application to connect itself to a
 given Cassandra node, and a "cluster" module, only compatible with OpenResty
 which adds support for multi-node Cassandra datacenters.

@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
     <title>lua-cassandra documentation</title>
-    <link rel="stylesheet" href="../ldoc_pale.css" type="text/css" />
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
 </head>
 <body>
 
@@ -26,6 +26,9 @@
 <br/>
 <h1>lua-cassandra</h1>
 
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
 
 <h2>Contents</h2>
 <ul>
@@ -33,6 +36,7 @@
 <li><a href="#Usage">Usage </a></li>
 <li><a href="#Examples">Examples </a></li>
 <li><a href="#Credits">Credits </a></li>
+<li><a href="#License">License </a></li>
 </ul>
 
 
@@ -42,13 +46,19 @@
 </ul>
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="../index.html">cassandra</a></li>
+  <li><a href="../modules/cassandra.html">cassandra</a></li>
+  <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
-  <li><a href="../examples/basic.lua.html">basic.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
+  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
   <li><a href="../examples/pagination.lua.html">pagination.lua</a></li>
   <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
 </ul>
@@ -60,11 +70,17 @@
 
 <h1>lua-cassandra</h1>
 
-<p>This library is a pure Lua implementation of the Cassandra CQL binary protocol.</p>
+<p>A pure Lua client library for Apache Cassandra (2.x), compatible with
+<a href="https://openresty.org">OpenResty</a>.</p>
 
-<p>It is compatible in Lua 5.1, 5.2, 5.3, LuaJIT, and optimized for <a href="https://openresty.org">OpenResty</a>/<a href="https://github.com/openresty/lua-nginx-module">ngx_lua</a>.</p>
+<p>This library offers 2 modules: a "single host" module (<a href="../modules/cassandra.html#">cassandra</a>), compatible
+with PUC Lua 5.1/5.2, LuaJIT and OpenResty, which allows your application to
+connect itself to a given Cassandra node, and a "cluster" module
+(<a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a>), only compatible with OpenResty which adds support
+for multi-node Cassandra datacenters.</p>
 
-<p>The following table describes which version(s) of the binary protocol is supported by each Cassandra version:</p>
+<p>The following table describes which version(s) of the binary protocol is
+supported by each Cassandra version:</p>
 
 <p><br /></p>
 
@@ -79,7 +95,8 @@
 
 <p><br /></p>
 
-<p>This library supports binary protocols 2 and 3, hence supports Cassandra 2.0+. It is tested with Cassandra 2.1 and 2.2 only as of now, with plans for testing it with more versions.</p>
+<p>This library supports binary protocols 2 and 3, hence supports Cassandra 2.x
+only (3.0 currently has some incompatibilities).</p>
 
 <p><a name="Installation"></a></p>
 <h2>Installation</h2>
@@ -94,59 +111,139 @@ $ luarocks install lua-cassandra
 
 <p>Manually:</p>
 
-<p>Once you have a local copy of this module's <code>src/</code> directory, add it to your <code>LUA_PATH</code> (or <code>lua_package_path</code> directive for ngx_lua):</p>
+<p>Once you have a local copy of this module's <code>lib/</code> directory, add it to your
+<code>LUA_PATH</code> (or <code>lua_package_path</code> directive for OpenResty):</p>
 
-<pre><code> /path/to/src/?.lua;/path/to/src/?/init.lua;
+<pre><code> /path/to/lib/?.lua;/path/to/lib/?/init.lua;
 </code></pre>
 
 
-<p><strong>Note</strong>: If used <em>outside</em> of ngx_lua, this module requires:</p>
+<p><strong>Note</strong>: When used <em>outside</em> of OpenResty, or in the <code>init_by_lua</code> context,
+this module requires additional dependencies:</p>
 
 <ul>
     <li><a href="http://w3.impa.br/~diego/software/luasocket/">LuaSocket</a></li>
-    <li>If you wish to use TLS client-to-node encryption, <a href="https://github.com/brunoos/luasec">LuaSec</a></li>
+    <li>If you wish to use SSL client-to-node connections,
+    <a href="https://github.com/brunoos/luasec">LuaSec</a></li>
 </ul>
 
 <p><a name="Usage"></a></p>
 <h2>Usage</h2>
 
+<p>Single host module (Lua and OpenResty):</p>
+
 
 <pre>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 
-<span class="keyword">local</span> session, err = cassandra.spawn_session {
-  shm = <span class="string">"cassandra"</span>,
-  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>}
-}
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
-
-<span class="keyword">local</span> res, err = session:execute(<span class="string">"INSERT INTO users(id, name, age) VALUES(?, ?, ?)"</span>, {
-  cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>),
-  <span class="string">"John O'Reilly"</span>,
-  <span class="number">42</span>
+<span class="keyword">local</span> peer = <span class="global">assert</span>(cassandra.new {
+  host = <span class="string">"127.0.0.1"</span>,
+  port = <span class="number">9042</span>,
+  keyspace = <span class="string">"my_keyspace"</span>
 })
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
 
-<span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM users"</span>)
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
+peer:settimeout(<span class="number">1000</span>)
 
-<span class="global">print</span>(<span class="string">"rows retrieved: "</span>, #rows)
+<span class="global">assert</span>(peer:connect())
 
-session:shutdown()
+<span class="global">assert</span>(peer:execute(<span class="string">"INSERT INTO users(id, name, age) VALUES(?, ?, ?)"</span>, {
+  cassandra.uuid(<span class="string">"1144bada-852c-11e3-89fb-e0b9a54a6d11"</span>),
+  <span class="string">"John O Reilly"</span>,
+  <span class="number">42</span>
+}))
+
+<span class="keyword">local</span> rows = <span class="global">assert</span>(peer:execute <span class="string">"SELECT * FROM users"</span>)
+
+<span class="keyword">local</span> user = rows[<span class="number">1</span>]
+<span class="global">print</span>(user.name) <span class="comment">-- John O Reilly
+</span><span class="global">print</span>(user.age)  <span class="comment">-- 42
+</span>
+peer:close()
 </pre>
 
 
-<p>See the <a href="../index.html#">cassandra</a> module for a detailed list of available objects and functions.</p>
+<p>Cluster module (OpenResty only):</p>
+
+<pre><code> http {
+     # you do not need the following line if you are using luarocks
+     lua_package_path "/path/to/src/?.lua;/path/to/src/?/init.lua;;";
+
+     # all cluster informations will be stored here
+     lua_shared_dict cassandra 1m;
+
+     server {
+         ...
+
+         location / {
+             content_by_lua_block {
+                 local Cluster = require 'resty.cassandra.cluster'
+
+                 local cluster, err = Cluster.new {
+                     shm = 'cassandra', -- defined by the lua_shared_dict directive
+                     contact_points = {'127.0.0.1', '127.0.0.2'},
+                     keyspace = 'my_keyspace'
+                 }
+                 if not cluster then
+                     ngx.log(ngx.ERR, 'could not create cluster: ', err)
+                     return ngx.exit(500)
+                 end
+
+                 local rows, err = cluster:execute "SELECT * FROM users"
+                 if not rows then
+                     ngx.log(ngx.ERR, 'could not retrieve users: ', err)
+                     return ngx.exit(500)
+                 end
+
+                 ngx.say('users: ', #rows)
+             }
+         }
+     }
+ }
+</code></pre>
+
+
+<p>See the <a href="../modules/cassandra.html#">cassandra</a> and <a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a> modules references for a
+detailed list of available methods and options.</p>
 
 <p><a name="Examples"></a></p>
 <h2>Examples</h2>
 
-<p>Also check out the examples section for concrete examples of basic and advanced usage.</p>
+<p>Also check out the examples section for concrete examples of basic and advanced
+usage.</p>
 
 <p><a name="Credits"></a></p>
 <h2>Credits</h2>
 
-<p>This project was originally a fork of <a href="https://github.com/jbochi/lua-resty-cassandra">jbochi/lua-resty-cassandra</a> with bugfixes and new features. It was completely rewritten in its <code>0.4.0</code> version to allow serious improvements in terms of features and maintainability.</p>
+<p>This project was originally a fork of
+<a href="https://github.com/jbochi/lua-resty-cassandra">jbochi/lua-resty-cassandra</a> with bugfixes and new
+features. It was completely rewritten in its <code>0.4.0</code> version to allow serious
+improvements in terms of features and maintainability.</p>
+
+<p><a name="License"></a></p>
+<h2>License</h2>
+
+<p>The MIT License (MIT)</p>
+
+<p>Original work Copyright (c) 2016 Thibault Charbonnier
+Based on the work of Juarez Bochi Copyright 2014</p>
+
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:</p>
+
+<p>The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.</p>
+
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.</p>
 
 
 
@@ -154,7 +251,7 @@ session:shutdown()
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-02-02 17:06:41 </i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

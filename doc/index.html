@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
     <title>lua-cassandra documentation</title>
-    <link rel="stylesheet" href="ldoc_pale.css" type="text/css" />
+    <link rel="stylesheet" href="ldoc.css" type="text/css" />
 </head>
 <body>
 
@@ -27,16 +27,17 @@
 <h1>lua-cassandra</h1>
 
 
-<h2>Contents</h2>
-<ul>
-<li><a href="#Session">Session </a></li>
-<li><a href="#Cassandra">Cassandra </a></li>
-</ul>
 
 
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><strong>cassandra</strong></li>
+  <li><a href="modules/cassandra.html">cassandra</a></li>
+  <li><a href="modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
+  <li><a href="modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -45,8 +46,8 @@
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
   <li><a href="examples/authentication.lua.html">authentication.lua</a></li>
-  <li><a href="examples/basic.lua.html">basic.lua</a></li>
   <li><a href="examples/batch.lua.html">batch.lua</a></li>
+  <li><a href="examples/intro.lua.html">intro.lua</a></li>
   <li><a href="examples/pagination.lua.html">pagination.lua</a></li>
   <li><a href="examples/ssl.lua.html">ssl.lua</a></li>
 </ul>
@@ -55,805 +56,76 @@
 
 <div id="content">
 
-<h1>Module <code>cassandra</code></h1>
-<p>Cassandra client library for Lua and ngx_lua (OpenResty).</p>
-<p> Compatible with Cassandra 2.0+, Lua 5.1, 5.2, 5.3, LuaJIT, OpenResty.</p>
 
-<p> Support for binary protocols v2 and v3.</p>
-    <h3>Info:</h3>
-    <ul>
-        <li><strong>Release</strong>: 0.5.0</li>
-        <li><strong>Author</strong>: thibaultcha</li>
-    </ul>
+  <h2>A pure Lua client library for Apache Cassandra (2.x)</h2>
 
-
-<h2><a href="#Session">Session </a></h2>
-<table class="function_list">
+<h2>Modules</h2>
+<table class="module_list">
 	<tr>
-	<td class="name" nowrap><a href="#Session:execute">Session:execute (query, args, query_options)</a></td>
-	<td class="summary">Execute a query.</td>
+		<td class="name"  nowrap><a href="modules/cassandra.html">cassandra</a></td>
+		<td class="summary">Cassandra single-host client module.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#Session:batch">Session:batch (queries, query_options)</a></td>
-	<td class="summary">Execute a batch of queries.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></td>
+		<td class="summary">Cassandra cluster client module.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#Session:set_keyspace">Session:set_keyspace (keyspace)</a></td>
-	<td class="summary">Switch the session's keyspace.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></td>
+		<td class="summary">Datacenter-aware round robin load balancing policy.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#Session:set_keep_alive">Session:set_keep_alive ()</a></td>
-	<td class="summary">Put the underlying sockets into the connection pool and keep them alive.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></td>
+		<td class="summary">Round robin load balancing policy.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#Session:shutdown">Session:shutdown ()</a></td>
-	<td class="summary">Terminate a session.</td>
-	</tr>
-</table>
-<h2><a href="#Cassandra">Cassandra </a></h2>
-<table class="function_list">
-	<tr>
-	<td class="name" nowrap><a href="#Cassandra.spawn_session">Cassandra.spawn_session (options)</a></td>
-	<td class="summary">Spawn a session to connect to the cluster.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></td>
+		<td class="summary">Constant reconnection policy.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#Cassandra.spawn_cluster">Cassandra.spawn_cluster (options)</a></td>
-	<td class="summary">Load the cluster topology.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></td>
+		<td class="summary">Exponential reconnection policy.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#type_serializers">type_serializers</a></td>
-	<td class="summary">Type serializer shorthands.</td>
-	</tr>
-	<tr>
-	<td class="name" nowrap><a href="#consistencies">consistencies</a></td>
-	<td class="summary">CQL data consistencies.</td>
-	</tr>
-	<tr>
-	<td class="name" nowrap><a href="#cql_errors">cql_errors</a></td>
-	<td class="summary">CQL Error types.</td>
-	</tr>
-	<tr>
-	<td class="name" nowrap><a href="#auth">auth</a></td>
-	<td class="summary">Authentication providers that can be instanciated and given to a <code>session</code>'s options.</td>
+		<td class="name"  nowrap><a href="modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></td>
+		<td class="summary">Simple retry policy.</td>
 	</tr>
 </table>
-
-<br/>
-<br/>
-
-
-    <h2 class="section-header "><a name="Session"></a>Session </h2>
-
-    <dl class="function">
-    <dt>
-    <a name = "Session:execute"></a>
-    <strong>Session:execute (query, args, query_options)</strong>
-    </dt>
-    <dd>
-    Execute a query.
- The session will choose a coordinator from the cached cluster topology according
- to the configured load balancing policy. Once connected to it, it will perform the
- given query. This operation is non-blocking in the context of ngx_lua because it
- uses the cosocket API (coroutine based).</p>
-
-<p> Queries can have parameters binded to it, they can be prepared, result sets can
- be paginated, and more, depending on the given <code>query_options</code>.</p>
-
-<p> If a node is not responding, it will be marked as being down. Since the state of
- the cluster is shared accross all workers by the ngx.shared.DICT API, all the other
- active sessions will be aware of it and will not attempt to connect to that node. The
- configured reconnection policy will decide when it is time to try to connect to that
- node again.</p>
-
-<p> When selecting a large number of rows, it is a good practise to not increase the <code>page_size</code>
- option, but to iterate over them. It is also useful to build web services. For such usages,
- this function accepts a <code>paging_state</code> and an <code>auto_paging</code> options.
-
-
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
-         The CQL query to execute, possibly with placeholder for binded parameters.
-        </li>
-        <li><span class="parameter">args</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         <em>Optional</em> A list of parameters to be binded to the query's placeholders.
-        </li>
-        <li><span class="parameter">query_options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         <em>Optional</em> Override the session<code>s </code>options.query_options` with the given values, for this request only.
-        </li>
-    </ul>
-
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>result/rows</code>: A table describing the result. The content of this table depends on the type of the query. If an error occurred, this value will be <code>nil</code> and a second value describing the error is returned.</li>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>error</code>: A table describing the error that occurred.</li>
-    </ol>
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- <span class="keyword">local</span> res, err = session:execute <span class="string">[[
-   CREATE KEYSPACE IF NOT EXISTS my_keyspace
-   WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}
- ]]</span>
-
- <span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM system.schema_keyspaces"</span>)
- <span class="keyword">for</span> i, row <span class="keyword">in</span> <span class="global">ipairs</span>(rows) <span class="keyword">do</span>
-   <span class="global">print</span>(row.keyspace_name)
- <span class="keyword">end</span>
-
- <span class="keyword">local</span> rows, err = session:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>, {<span class="number">42</span>}, {prepare = <span class="keyword">true</span>})
- <span class="keyword">for</span> i, row <span class="keyword">in</span> <span class="global">ipairs</span>(rows) <span class="keyword">do</span>
-   <span class="global">print</span>(row.username)
- <span class="keyword">end</span>
-
- <span class="comment">-- With auto-pagination
-</span> <span class="keyword">for</span> rows, err, page <span class="keyword">in</span> session:execute(<span class="string">"SELECT * FROM users"</span>, <span class="keyword">nil</span>, {page_size = <span class="number">50</span>, auto_paging = <span class="keyword">true</span>}) <span class="keyword">do</span>
-   <span class="comment">-- rows contains the retrived rows for this page
-</span>   <span class="comment">-- err contains an eventual error and will interrupt the iteration if it is set
-</span>   <span class="comment">-- page contains the current page number, starting from 1
-</span> <span class="keyword">end</span></pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "Session:batch"></a>
-    <strong>Session:batch (queries, query_options)</strong>
-    </dt>
-    <dd>
-    Execute a batch of queries.
- The session will chose a coordinator according to the load balancing policy and
- execute the batch on it. By default, the session executes a <code>logged</code> batch. If given in
- the <code>query_options</code>, the session can also execute <code>unlogged</code> and <code>counter</code> batches. The queries composing a batch can also be prepared.</p>
-
-<p> Be weary that depending on the number of partitions involved in the given queries, using
- batches can overload a coordinator, lead to performance drops and constitute an anti-pattern.</p>
-
-<p> See the documentation on <a href="https://cassandra.apache.org/doc/cql3/CQL-2.2.html#batchStmt">CQL Batches</a>.
-
-
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">queries</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         A list of CQL queries that constitutes the batch. Each value can contain either a string, or a table containing the query and its binded parameters.
-        </li>
-        <li><span class="parameter">query_options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         <em>Optional</em> Override the session's <code>options.query_options</code> with the given values, for this batch only. Can also be used to specify other batch types.
-        </li>
-    </ul>
-
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>result</code>: A table describing the result. Batch results are always <code>VOID</code> results. If an error occurred, this value will be <code>nil</code> and a second value describing the error is returned.</li>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>error</code>: A table describing the error that occurred.</li>
-    </ol>
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- <span class="comment">-- Basic logged batch
-</span> <span class="keyword">local</span> res, err = session:batch({
-   {<span class="string">"INSERT INTO users(id, name) VALUES(123, 'Alice')"</span>},
-   {<span class="string">"UPDATE users SET name = 'Alicia' WHERE id = 123"</span>}
- })
-
- <span class="comment">-- With binded parameters and prepared queries
-</span> <span class="keyword">local</span> res, err = session:batch({
-   {<span class="string">"INSERT INTO users(id, name) VALUES(?, ?)"</span>, {cassandra.uuid(some_uuid), <span class="string">"Alice"</span>}},
-   {<span class="string">"UPDATE users SET name = ? WHERE id = ?"</span>, {cassandra.uuid(some_uuid), <span class="string">"Alicia"</span>}}
- }, {prepare = <span class="keyword">true</span>})
-
- <span class="comment">-- Unlogged batch
-</span> <span class="keyword">local</span> res, err = session:batch({
-   {<span class="string">"INSERT INTO users(id, name) VALUES(123, 'Alice')"</span>},
-   {<span class="string">"UPDATE users SET name = 'Alicia' WHERE id = 123"</span>}
- }, {logged = <span class="keyword">false</span>})
-
- <span class="comment">-- Counter batch
-</span> <span class="keyword">local</span> res, err = session:batch({
-   {<span class="string">"UPDATE table SET value = value + 1 WHERE key = 'counter'"</span>},
-   {<span class="string">"UPDATE table SET value = value + 5 WHERE key = 'counter'"</span>},
-   {<span class="string">"UPDATE table SET value = value + 2 WHERE key = ?"</span>, {<span class="string">"counter"</span>}}
- }, {counter = <span class="keyword">true</span>})</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "Session:set_keyspace"></a>
-    <strong>Session:set_keyspace (keyspace)</strong>
-    </dt>
-    <dd>
-    Switch the session's keyspace.
- All underlying sockets of the session will switch to the given keyspace. Usually, the keyspace is set
- by the <code>keyspace</code> option given to <a href="index.html#Cassandra.spawn_session">spawn_session</a>, and it is a better practise to use another session
- for another keyspace, but sometimes, it might be useful to switch a sesson to another keyspace.
-
-
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">keyspace</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
-         The name of the keyspace to switch to.
-        </li>
-    </ul>
-
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-           <span class="types"><span class="type">boolean</span></span>
-        <code>ok</code>: True if successful, false otherwise. If false, a second value describing the error is returned.</li>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>error</code>: A table describing the error that occurred.</li>
-    </ol>
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- <span class="keyword">local</span> ok, err = session:set_keyspace(<span class="string">"my_keyspace"</span>)
- <span class="keyword">if</span> <span class="keyword">not</span> ok <span class="keyword">then</span>
-   <span class="comment">-- handle err
-</span> <span class="keyword">end</span></pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "Session:set_keep_alive"></a>
-    <strong>Session:set_keep_alive ()</strong>
-    </dt>
-    <dd>
-    Put the underlying sockets into the connection pool and keep them alive.
- When used inside of ngx_lua, the session will leverage the cosocket API, which maintains
- a connection pool of sockets to re-use for better performance. Once the session has finished
- its work, calling this function will allow other sessions to re-use the sockets, without having
- to open new ones.</p>
-
-<p> See the lua-nginx-module documentation on <a href="https://github.com/openresty/lua-nginx-module#tcpsocksetkeepalive">tcpsocket:setkeepalive()</a>.</p>
-
-<p> The underlying <a href="http://w3.impa.br/~diego/software/luasocket/tcp.html#setkeepalive">tcpsocket:setkeepalive()</a> function will be called with the session<code>s options values
- defined in </code>socket<em>options.pool</em>timeout<code> and </code>socket<em>options.pool</em>size<code>. Those values are </code>nil` by default.</p>
-
-<p> When called outside of ngx_lua, the sockets will be <strong>closed</strong>.</p>
-
-<p> This function does not take any parameters and does not have any return values.
-
-
-
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- <span class="comment">-- Execute queries...
-</span> session:set_keep_alive()</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "Session:shutdown"></a>
-    <strong>Session:shutdown ()</strong>
-    </dt>
-    <dd>
-    Terminate a session.
- Close all underlying sockets and free all data.
- A session closed this way cannot be re-used.</p>
-
-<p> This function does not take any parameters and does not have any return values.
-
-
-
-
-
-
-
-</dd>
-</dl>
-    <h2 class="section-header "><a name="Cassandra"></a>Cassandra </h2>
-
-    <dl class="function">
-    <dt>
-    <a name = "Cassandra.spawn_session"></a>
-    <strong>Cassandra.spawn_session (options)</strong>
-    </dt>
-    <dd>
-    Spawn a session to connect to the cluster.
- Sessions are meant to be short-lived and many can be created in parallel. In the context
- of ngx_lua, it makes perfect sense for a session to be spawned in a phase handler, and
- quickly disposed of by putting the sockets it used back into the cosocket connection pool.</p>
-
-<p> The session will retrieve the cluster topology from the configured shared dict or,
- if not found, by connecting to one of the optionally given <code>contact_points</code>.
- If you want to pre-load the cluster topology, see <a href="index.html#Cassandra.spawn_cluster">spawn_cluster</a>.
- The created session will use the configured load balancing policy to choose a
- coordinator from the retrieved cluster topology on each query.
-
-
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         The session's options, including the shared dict name and <em>*optionally</em> the contact points
-        </li>
-    </ul>
-
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>session</code>: A instanciated session, ready to be used. If an error occurred, this value will be <code>nil</code> and a second value is returned describing the error.</li>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>error</code>: A table describing the error that occurred.</li>
-    </ol>
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- access_by_lua_block {
-     <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
-     <span class="keyword">local</span> session, err = cassandra.spawn_session {
-         shm = <span class="string">"cassandra"</span>,
-         contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>}
-     }
-     <span class="keyword">if</span> <span class="keyword">not</span> session <span class="keyword">then</span>
-         ngx.log(ngx.ERR, <span class="global">tostring</span>(err))
-     <span class="keyword">end</span>
-
-     <span class="comment">-- execute query(ies)
-</span>
-     session:set_keep_alive()
- }</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "Cassandra.spawn_cluster"></a>
-    <strong>Cassandra.spawn_cluster (options)</strong>
-    </dt>
-    <dd>
-    Load the cluster topology.
- Iterate over the given <code>contact_points</code> and connects to the first one available
- to load the cluster topology. All peers of the chosen contact point will be
- retrieved and stored locally so that the load balancing policy can chose one
- on each request that will be executed.</p>
-
-<p> Use this function if you want to retrieve the cluster topology sooner than when
- you will create your first <code>Session</code>.
-
-
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         The cluster's options, including the shared dict name and the contact points.
-        </li>
-    </ul>
-
-    <h3>Returns:</h3>
-    <ol>
-        <li>
-           <span class="types"><span class="type">boolean</span></span>
-        <code>ok</code>: Success of the cluster topology retrieval. If false, a second value will be returned describing the error.</li>
-        <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>error</code>: An error in case the operation did not succeed.</li>
-    </ol>
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- init_worker_by_lua_block {
-     <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
-     <span class="keyword">local</span> cluster, err = cassandra.spawn_cluster {
-          shm = <span class="string">"cassandra"</span>,
-          contact_points = {<span class="string">"127.0.0.1"</span>}
-     }
- }
-
- access_by_lua_block {
-     <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
-     <span class="comment">-- The cluster topology is already loaded at this point,
-</span>     <span class="comment">-- avoiding latency on your first request.
-</span>     <span class="keyword">local</span> session, err = cassandra.spawn_session {
-         shm = <span class="string">"cassandra"</span>
-     }
- }</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "type_serializers"></a>
-    <strong>type_serializers</strong>
-    </dt>
-    <dd>
-    Type serializer shorthands.
- When binding parameters to a query from <a href="index.html#Session:execute">execute</a>, some
- types cannot be infered automatically and will require manual
- serialization. Some other times, it can be useful to manually enforce
- the type of a parameter.</p>
-
-<p> See the documentation on <a href="https://cassandra.apache.org/doc/cql3/CQL-2.2.html#types">CQL Data Types</a>.</p>
-
-<p> For this purpose, shorthands for type serialization are available
- on the <code>Cassandra</code> table.
-
-
-    <h3>Fields:</h3>
-    <ul>
-        <li><span class="parameter">unset</span>
-
-<p> Equivalent to the <code>null</code> CQL value. Useful to unset a field.</p>
-<pre><code> cassandra.unset()
-</code></pre>
-
-        </li>
-        <li><span class="parameter">uuid</span>
-
-<p> Serialize a 32 lowercase characters string to a CQL uuid.</p>
-<pre><code> cassandra.uuid("123e4567-e89b-12d3-a456-426655440000")
-</code></pre>
-
-        </li>
-        <li><span class="parameter">timestamp</span>
-
-<p> Serialize a 10 digits number into a CQL timestamp.</p>
-<pre><code> cassandra.timestamp(1405356926)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">list</span>
-
-
-<pre><code> cassandra.list({"abc", "def"})
-</code></pre>
-
-        </li>
-        <li><span class="parameter">set</span>
-
-
-<pre><code> cassandra.set({"abc", "def"})
-</code></pre>
-
-        </li>
-        <li><span class="parameter">map</span>
-
-
-<pre><code> cassandra.map({foo = "bar"})
-</code></pre>
-
-        </li>
-        <li><span class="parameter">udt</span>
-         CQL UDT.
-        </li>
-        <li><span class="parameter">tuple</span>
-         CQL tuple.
-        </li>
-        <li><span class="parameter">inet</span>
-
-<p> CQL inet.</p>
-<pre><code> cassandra.inet("127.0.0.1")
- cassandra.inet("2001:0db8:85a3:0042:1000:8a2e:0370:7334")
-</code></pre>
-
-        </li>
-        <li><span class="parameter">bigint</span>
-
-<p> CQL bigint.</p>
-<pre><code> cassandra.bigint(42000000000)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">double</span>
-
-<p> CQL double.</p>
-<pre><code> cassandra.bigint(1.0000000000000004)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">ascii</span>
-         CQL ascii.
-        </li>
-        <li><span class="parameter">blob</span>
-         CQL blob.
-        </li>
-        <li><span class="parameter">boolean</span>
-
-<p> CQL boolean.</p>
-<pre><code> cassandra.boolean(true)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">counter</span>
-
-<p> CQL counter.</p>
-<pre><code> cassandra.counter(1)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">decimal</span>
-         CQL decimal.
-        </li>
-        <li><span class="parameter">float</span>
-
-<p> CQL float.</p>
-<pre><code> cassandra.float(1.618033)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">int</span>
-
-<p> CQL int.</p>
-<pre><code> cassandra.float(10)
-</code></pre>
-
-        </li>
-        <li><span class="parameter">text</span>
-
-<p> CQL text.</p>
-<pre><code> cassandra.float("hello world")
-</code></pre>
-
-        </li>
-        <li><span class="parameter">timeuuid</span>
-         CQL timeuuid.
-        </li>
-        <li><span class="parameter">varchar</span>
-         CQL varchar.
-        </li>
-        <li><span class="parameter">varint</span>
-         CQL varint.
-        </li>
-    </ul>
-
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- session:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, {
-   cassandra.uuid(<span class="string">"123e4567-e89b-12d3-a456-426655440000"</span>)
- })
-
- session:execute(<span class="string">"INSERT INTO users(id, emails) VALUES(?, ?)"</span>, {
-   <span class="number">1</span>,
-   cassandra.set({<span class="string">"john@foo.com"</span>, <span class="string">"john@bar.com"</span>})
-})</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "consistencies"></a>
-    <strong>consistencies</strong>
-    </dt>
-    <dd>
-    CQL data consistencies.
- One of the <code>options</code> for <code>Session</code> and <a href="index.html#Session:execute">execute</a> is the CQL consistency to use
- with the queries executed. This table allowes you to specify other consistencies than the default <code>ONE</code>, by specifing the <code>query_options.consistency</code> option.</p>
-
-<p> See the documentation on <a href="http://docs.datastax.com/en/cassandra/2.1/cassandra/dml/dml_config_consistency_c.html">CQL data consistency</a>.
-
-
-    <h3>Fields:</h3>
-    <ul>
-        <li><span class="parameter">all</span>
-
-<p> CQL consistency <code>ALL</code>.</p>
-<pre><code> cassandra.consistencies.all
-</code></pre>
-
-        </li>
-        <li><span class="parameter">each_quorum</span>
-
-<p> CQL consistency <code>EACH_QUORUM</code>.</p>
-<pre><code> cassandra.consistencies.each_quorum
-</code></pre>
-
-        </li>
-        <li><span class="parameter">quorum</span>
-
-<p> CQL consistency <code>QUORUM</code>.</p>
-<pre><code> cassandra.consistencies.quorum
-</code></pre>
-
-        </li>
-        <li><span class="parameter">local_quorum</span>
-
-<p> CQL consistency <code>LOCAL_QUORUM</code>.</p>
-<pre><code> cassandra.consistencies.local_quorum
-</code></pre>
-
-        </li>
-        <li><span class="parameter">one</span>
-
-<p> CQL consistency <code>ONE</code>.</p>
-<pre><code> cassandra.consistencies.one
-</code></pre>
-
-        </li>
-        <li><span class="parameter">two</span>
-
-<p> CQL consistency <code>TWO</code>.</p>
-<pre><code> cassandra.consistencies.two
-</code></pre>
-
-        </li>
-        <li><span class="parameter">three</span>
-
-<p> CQL consistency <code>THREE</code>.</p>
-<pre><code> cassandra.consistencies.three
-</code></pre>
-
-        </li>
-        <li><span class="parameter">local_one</span>
-
-<p> CQL consistency <code>LOCAL_ONE</code>.</p>
-<pre><code> cassandra.consistencies.local_one
-</code></pre>
-
-        </li>
-        <li><span class="parameter">any</span>
-
-<p> CQL consistency <code>ANY</code>.</p>
-<pre><code> cassandra.consistencies.any
-</code></pre>
-
-        </li>
-        <li><span class="parameter">serial</span>
-
-<p> CQL consistency <code>SERIAL</code>.</p>
-<pre><code> cassandra.consistencies.seriam
-</code></pre>
-
-        </li>
-        <li><span class="parameter">local_serial</span>
-
-<p> CQL consistency <code>LOCAL_SERIAL</code>.</p>
-<pre><code> cassandra.consistencies.local_serial
-</code></pre>
-
-        </li>
-    </ul>
-
-
-
-
-    <h3>Usage:</h3>
-    <ul>
-        <pre class="example">
- <span class="comment">-- For a session
-</span> cassandra.spawn_session {
-   query_options = {consistency = cassandra.consistencies.<span class="keyword">local</span>}
- }
-
- <span class="comment">-- For a single query
-</span> session:execute(<span class="string">"SELECT * FROM users"</span>, <span class="keyword">nil</span>, {consistency = cassandra.consistencies.<span class="keyword">local</span>})</pre>
-    </ul>
-
-</dd>
-    <dt>
-    <a name = "cql_errors"></a>
-    <strong>cql_errors</strong>
-    </dt>
-    <dd>
-    CQL Error types.
- The library returns error that are tables. When the error type is <code>ResponseError</code>,
- the table contains a field named <code>code</code>, which describes the CQL error. That code is
- an hexadecimal value, that can be compared against the constants defined in this table.
-
-
-    <h3>Fields:</h3>
-    <ul>
-        <li><span class="parameter">SERVER</span>
-         something unexpected happened. This indicates a server-side bug.
-        </li>
-        <li><span class="parameter">PROTOCOL</span>
-         some client message triggered a protocol violation (for instance a <code>QUERY</code> message is sent before a <code>STARTUP</code>)
-        </li>
-        <li><span class="parameter">BAD_CREDENTIALS</span>
-         <code>CREDENTIALS</code> request failed because Cassandra did not accept the provided credentials.
-        </li>
-        <li><span class="parameter">UNAVAILABLE_EXCEPTION</span>
-         the query could not be processed with respect to the given concurrency.</p>
-
-<p> (This error could return more informations but it is <strong>not yet supported</strong>.)
-        </li>
-        <li><span class="parameter">OVERLOADED</span>
-         the request cannot be processed because the coordinator node is overloaded.
-        </li>
-        <li><span class="parameter">IS_BOOTSTRAPPING</span>
-         the request was a read request but the coordinator node is bootstrapping.
-        </li>
-        <li><span class="parameter">TRUNCATE_ERROR</span>
-         error during a truncation error.
-        </li>
-        <li><span class="parameter">WRITE_TIMEOUT</span>
-         timeout exception during a write request. (This error could return more informations but it is <strong>not yet supported</strong>.)
-        </li>
-        <li><span class="parameter">READ_TIMEOUT</span>
-         timeout exception during a read request. (This error could return more informations but it is <strong>not yet supported</strong>.)
-        </li>
-        <li><span class="parameter">SYNTAX_ERROR</span>
-         the submitted query has a syntax error.
-        </li>
-        <li><span class="parameter">UNAUTHORIZED</span>
-         the logged user doesn't have the right to perform the query.
-        </li>
-        <li><span class="parameter">INVALID</span>
-         the query is syntactically correct but invalid.
-        </li>
-        <li><span class="parameter">CONFIG_ERROR</span>
-         the query is invalid because of some configuration issue.
-        </li>
-        <li><span class="parameter">ALREADY_EXISTS</span>
-         the query attempted to create a keyspace or a table that was already existing. (This error could return more informations but it is <strong>not yet supported</strong>.)
-        </li>
-        <li><span class="parameter">UNPREPARED</span>
-         Can be thrown while a prepared statement tries to be executed if the provide prepared statement ID is not known by this host. (This error could return more informations but it is <strong>not yet supported</strong>.)
-        </li>
-    </ul>
-
-
-
-
-
-</dd>
-    <dt>
-    <a name = "auth"></a>
-    <strong>auth</strong>
-    </dt>
-    <dd>
-    Authentication providers that can be instanciated and given to a <code>session</code>'s options.
-
-
-    <h3>Fields:</h3>
-    <ul>
-        <li><span class="parameter">PlainTextProvider</span>
-
-<p> provider for plain text password authentication challenge (like <code>PasswordAuthenticator</code>).</p>
-<pre><code> cassandra.auth.PlainTextProvider("username", "password")
-</code></pre>
-
-        </li>
-    </ul>
-
-
-
-
-
-</dd>
-</dl>
-
+<h2>Manual</h2>
+<table class="module_list">
+	<tr>
+		<td class="name"  nowrap><a href="manual/README.md.html">README.md</a></td>
+		<td class="summary"></td>
+	</tr>
+</table>
+<h2>Examples</h2>
+<table class="module_list">
+	<tr>
+		<td class="name"  nowrap><a href="examples/authentication.lua.html">authentication.lua</a></td>
+		<td class="summary"></td>
+	</tr>
+	<tr>
+		<td class="name"  nowrap><a href="examples/batch.lua.html">batch.lua</a></td>
+		<td class="summary"></td>
+	</tr>
+	<tr>
+		<td class="name"  nowrap><a href="examples/intro.lua.html">intro.lua</a></td>
+		<td class="summary"></td>
+	</tr>
+	<tr>
+		<td class="name"  nowrap><a href="examples/pagination.lua.html">pagination.lua</a></td>
+		<td class="summary"></td>
+	</tr>
+	<tr>
+		<td class="name"  nowrap><a href="examples/ssl.lua.html">ssl.lua</a></td>
+		<td class="summary"></td>
+	</tr>
+</table>
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-02-02 17:06:41 </i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

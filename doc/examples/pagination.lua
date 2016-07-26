@@ -1,49 +1,49 @@
---------
--- Pagination might be very useful to build web services.
--- Assuming the users table contains 1000 rows:
+--------------------
+-- manual pagination
+--------------------
 
 local cassandra = require "cassandra"
 
-local session, err = cassandra.spawn_session {
-  shm = "cassandra", -- used to store cluster infos
-  contact_points = {"127.0.0.1", "127.0.0.2", "127.0.0.3"}, -- entry points to your cluster
-  keyspace = "my_keyspace", -- this keyspace must exist
-  query_options = {
-    page_size = 500 -- default is 1000, reduced to 500 for this session
-  }
-}
-assert(err == nil)
+local client = assert(cassandra.new {
+  host = "127.0.0.1",
+  keyspace = "my_keyspace"
+})
 
-local select_query = "SELECT * FROM users"
+client:settimeout(1000)
+
+assert(client:connect())
+
+-- assume 1190 rows in users table
 
 -- 1st page
-local rows, err = session:execute(select_query) -- using the session page_size
-assert(#rows == 500) -- rows contains the 500 first rows
-assert(rows.meta.has_more_pages) -- true when the column family contains more rows than fetched
+local rows_1 = assert(client:execute("SELECT * FROM users"))
+print(#rows_1)                    -- 1000 (default page_size)
+print(rows_1.meta.has_more_pages) -- true
 
 -- 2nd page
-rows, err = session:execute(select_query, nil {
-  page_size = 100 -- override the session page_size for this query only
-  paging_state = rows.meta.paging_state
-})
-assert(#rows == 100)
-assert(rows.meta.has_more_mages)
+local rows_2 = assert(client:execute("SELECT * FROM users", nil, {
+  page_size = 100,
+  paging_state = rows_1.meta.paging_state
+}))
+print(#rows_2)                    -- 100
+print(rows_2.meta.has_more_pages) -- true
 
--- 3rd page
-rows, err = session:execute(select_query, nil, {
-  paging_state = rows.meta.paging_state
-})
-assert(#rows == 400) -- last 400 rows
-assert(rows.meta.has_more_pages == false)
+-- 3rd, last page
+local rows_3 = assert(client:execute("SELECT * FROM users", nil, {
+  page_size = 100,
+  paging_state = rows_2.meta.paging_state
+}))
+print(#rows_3)                    -- 90
+print(rows_3.meta.has_more_pages) -- false
 
-session:shutdown()
+-----------------------
+-- automated pagination
+-----------------------
 
---------
--- Automated pagination.
--- Assuming our users table now contains 10.000 rows:
-
-for rows, err, page in session:execute("SELECT * FROM users", nil, {auto_paging = true}) do
-  assert.same(500, #rows) -- rows contains 500 rows on each iteration in this case
-  -- err: not nil if any fetch returns an error, this will be the last iteration
-  -- page: will be 1 on the first iteration, 2 on the second, etc.
+for rows, err, page in client:iterate("SELECT * FROM users") do
+  if err then
+    error(err)
+  end
+  print(page)
+  print(#rows)
 end

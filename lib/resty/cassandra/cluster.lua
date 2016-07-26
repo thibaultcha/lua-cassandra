@@ -1,3 +1,9 @@
+--- Cassandra cluster client module.
+-- Cluster module for OpenResty.
+-- @module resty.cassandra.cluster
+-- @author thibaultcha
+-- @release 1.0.0
+
 local resty_lock = require 'resty.lock'
 local cassandra = require 'cassandra'
 local cql = require 'cassandra.cql'
@@ -176,6 +182,65 @@ local _Cluster = {
 
 _Cluster.__index = _Cluster
 
+--- New cluster options.
+-- Options taken by `new` upon cluster creation.
+-- @field shm Name of the lua_shared_dict to use for this cluster's
+-- information. (`string`, default: `cassandra`)
+-- @field contact_points Array of addresses for this cluster's
+-- contact points. (`table`, default: `{"127.0.0.1"}`)
+-- @field default_port The port on which all nodes from the cluster are
+-- listening on. (`number`, default: `9042`)
+-- @field keyspace Keyspace to use for this cluster. (`string`, optional)
+-- @field connect_timeout The timeout value when connecing to a node, in ms.
+-- (`number`, default: `1000`)
+-- @field read_timeout The timeout value when reading from a node, in ms.
+-- (`number`, default: `2000`)
+-- @field retry_on_timeout Specifies if the request should be retried on the
+-- next coordinator (as per the load balancing policy)
+-- if it timed out. (`boolean`, default: `true`)
+-- @field max_schema_consensus_wait Maximum waiting time allowed when executing
+-- DDL queries before timing out, in ms.
+-- (`number`, default: `10000`)
+-- @field lb_policy A load balancing policy created from one of the modules
+-- under `resty.cassandra.policies.lb.*`.
+-- (`lb policy`, default: `lb.rr` round robin)
+-- @field reconn_policy A reconnection policy created from one of the modules
+-- under `resty.cassandra.policies.reconnection.*`.
+-- (`reconn policy`, default: `reconnection.exp` (exponential)
+-- 1000ms base, 60000ms max)
+-- @field retry_policy A retry policy created from one of the modules
+-- under `resty.cassandra.policies.retry.*`.
+-- (`retry policy`, default: `retry.simple`, 3 retries)
+-- @field ssl Determines if the created cluster should connect using SSL.
+-- (`boolean`, default: `false`)
+-- @field verify Enable server certificate validation if `ssl` is enabled.
+-- (`boolean`, default: `false`)
+-- @field auth Authentication handler, created from the
+-- `cassandra.auth_providers` table. (optional)
+-- @table `cluster_options`
+
+--- Create a new Cluster client.
+-- Takes a table of `cluster_options`. Does not connect automatically.
+-- On the first request to the cluster, the module will attempt to connect to
+-- one of the specified `contact_points`, and retrieve the full list of nodes
+-- belonging to this cluster. Once this list retrieved, the load balancing
+-- policy will start selecting nodes to act as coordinators for the future
+-- requests.
+--
+-- @usage
+-- local Cluster = require "resty.cassandra.cluster"
+-- local cluster = Cluster.new {
+--   shm = "cassandra_shared_dict",
+--   contact_points = {"10.0.0.1", "10.0.0.2"},
+--   keyspace = "my_keyspace",
+--   default_port = 9042,
+--   connect_timeout = 3000
+-- }
+--
+-- @param[type=table] opts Options for the created cluster client.
+-- @treturn table `cluster`: A table holding clustering operations capabilities
+-- or nil if failure.
+-- @treturn string `err`: String describing the error if failure.
 function _Cluster.new(opts)
   opts = opts or {}
   if type(opts) ~= 'table' then
@@ -306,6 +371,14 @@ local function next_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
+--- Refresh the list of nodes in the cluster.
+-- Queries one of the specified `contact_points` to retrieve the list of
+-- available nodes in the cluster, and update the configured policies.
+-- This method is automatically called upon the first query made to the
+-- cluster (from `execute`, `batch` or `iterate`), but needs to be manually
+-- called if further updates are required.
+-- @treturn boolean `ok`: `true` if success, `nil` if failure.
+-- @treturn string `err`: String describing the error if failure.
 function _Cluster:refresh()
   local old_peers, err = get_peers(self)
   if err then return nil, err
@@ -568,6 +641,42 @@ do
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
 
+  --- Execute a query.
+  -- Sends a request to the coordinator chosen by the configured load
+  -- balancing policy. The policy always chooses nodes that are considered
+  -- healthy, and eventually reconnects to unhealthy nodes as per the
+  -- configured reconnection policy.
+  -- Requests that fail because of timeouts can be retried on the next
+  -- available node if `retry_on_timeout` is enabled, and failed requests
+  -- can be retried as per defined in the configured retry policy.
+  --
+  -- @usage
+  -- local Cluster = require "resty.cassandra.cluster"
+  -- local cluster, err = Cluster.new()
+  -- if not cluster then
+  --   ngx.log(ngx.ERR, "could not create cluster: ", err)
+  --   ngx.exit(500)
+  -- end
+  --
+  -- local rows, err = cluster:execute("SELECT * FROM users WHERE age = ?". {
+  --   21
+  -- }, {
+  --   page_size = 100
+  -- })
+  -- if not rows then
+  --   ngx.log(ngx.ERR, "could not retrieve users: ", err)
+  --   ngx.exit(500)
+  -- end
+  --
+  -- ngx.say("page size: ", #rows, " next page: ", rows.meta.paging_state)
+  --
+  -- @param[type=string] query CQL query to execute.
+  -- @param[type=table] args (optional) Arguments to bind to the query.
+  -- @param[type=table] options (optional) Options from `query_options`
+  -- for this query.
+  -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
+  -- @treturn string `err`: String describing the error if failure.
+  -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
   function _Cluster:execute(query, args, options)
     if not self.init then
       local ok, err = self:refresh()
@@ -591,6 +700,32 @@ do
     return send_request(self, coordinator, request)
   end
 
+  --- Execute a batch.
+  -- Sends a request to execute the given batch. Load balancing, reconnection,
+  -- and retry policies act the same as described for `execute`.
+  -- @usage
+  -- local Cluster = require "resty.cassandra.cluster"
+  -- local cluster, err = Cluster.new()
+  -- if not cluster then
+  --   ngx.log(ngx.ERR, "could not create cluster: ", err)
+  --   ngx.exit(500)
+  -- end
+  --
+  -- local res, err = cluster:batch({
+  --   {"INSERT INTO things(id, n) VALUES(?, 1)", {123}},
+  --   {"UPDATE things SET n = 2 WHERE id = ?", {123}},
+  --   {"UPDATE things SET n = 3 WHERE id = ?", {123}}
+  -- }, {
+  --   logged = false
+  -- })
+  -- if not res then
+  --   ngx.log(ngx.ERR, "could not execute batch: ", err)
+  --   ngx.exit(500)
+  -- end
+  --
+  -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
+  -- @treturn string `err`: String describing the error if failure.
+  -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
   function _Cluster:batch(queries_t, options)
     if not self.init then
       local ok, err = self:refresh()
@@ -613,6 +748,31 @@ do
     return send_request(self, coordinator, batch_req(queries_t, opts))
   end
 
+  --- Lua iterator for auto-pagination.
+  -- Perform auto-pagination for a query when used as a Lua iterator.
+  -- Load balancing, reconnection, and retry policies act the same as described
+  -- for `execute`.
+  --
+  -- @usage
+  -- local Cluster = require "resty.cassandra.cluster"
+  -- local cluster, err = Cluster.new()
+  -- if not cluster then
+  --   ngx.log(ngx.ERR, "could not create cluster: ", err)
+  --   ngx.exit(500)
+  -- end
+  --
+  -- for rows, err, page in cluster:iterate("SELECT * FROM users") do
+  --   if err then
+  --     ngx.log(ngx.ERR, "could not retrieve page: ", err)
+  --     ngx.exit(500)
+  --   end
+  --   ngx.say("page ", page, " has ", #rows, " rows")
+  -- end
+  --
+  -- @param[type=string] query CQL query to execute.
+  -- @param[type=table] args (optional) Arguments to bind to the query.
+  -- @param[type=table] options (optional) Options from `query_options`
+  -- for this query.
   function _Cluster:iterate(query, args, options)
     return page_iterator(self, query, args, options)
   end

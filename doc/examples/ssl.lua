@@ -1,72 +1,54 @@
---------
--- Example of SSL enabled connection using LuaSocket in plain Lua
+------------------------------------------
+-- Single host module with SSL connections
 -- Required modules: LuaSocket, LuaSec
--- @see http://docs.datastax.com/en/cassandra/2.1/cassandra/security/secureSslEncryptionTOC.html
+------------------------------------------
 
 local cassandra = require "cassandra"
 
-local session, err = cassandra.spawn_session {
-  shm = "cassandra",
-  contact_points = {"127.0.0.1", "127.0.0.2", "127.0.0.3"},
-  ssl_options = {
-    enabled = true,
-    verify = true, -- optionally, verify the server certificate
-    ca = "/path/to/node-certificate.pem" -- optionally, the CA file to verify the server certificate
-}
-assert(err == nil)
+local client = assert(cassandra.new {
+  ssl = true,
+  verify = true, -- optionally, verify the server certificate
+  cafile = "/path/to/node-certificate.pem" -- optionally, the CA in PEM format
+})
 
---------
--- Plain Lua (not ngx_lua) can also authenticate itself to the node
+assert(client:connect())
 
-local cassandra = require "cassandra"
-
-local session, err = cassandra.spawn_session {
-  shm = "cassandra",
-  contact_points = {"127.0.0.1", "127.0.0.2", "127.0.0.3"},
-  ssl_options = {
-    enabled = true,
-    verify = true,
-    ca = "/path/to/node-certificate.pem",
-    key = "/path/to/client-private-key.pem",
-    certificate = "/path/to/client-certificate.pem"
-}
-assert(err == nil)
-
---------
--- Example of SSL enabled connection from ngx_lua
+--------------------------------------
+-- Cluster module with SSL connections
+--------------------------------------
 
 http {
-
   lua_shared_dict cassandra 1m;
 
   server {
     ...
 
     location / {
-
       # this will be used to verify the server certificate
       lua_ssl_trusted_certificate "/path/to/node-certificate.pem";
 
       content_by_lua_block {
-        local cassandra = require "cassandra"
+        local Cluster = require "resty.cassandra.cluster"
 
-        local session, err = cassandra.spawn_session {
-          shm = "cassandra",
-          contact_points = {"127.0.0.1", "127.0.0.2", "127.0.0.3"},
-          ssl_options = {
-            enabled = true,
-            verify = true -- optionally, verify the server certificate
-            -- no certificate option here
-          }
+        local cluster, err = Cluster.new {
+          shm = "cassandra", -- defined in http block
+          contact_points = {"127.0.0.1", "127.0.0.2"},
+          keyspace = "my_keyspace",
+          ssl = true,
+          verify = true
         }
-        if err then
-          ngx.log(ngx.ERR, err)
+        if not cluster then
+          ngx.log(ngx.ERR, "could not create cluster: ", err)
           ngx.exit(500)
         end
 
-        -- ...
+        local ok, err = cluster:refresh() -- automatically called upon first query
+        if not ok then
+          ngx.log(ngx.ERR, "could not connect to cluster: ", err)
+          ngx.exit(500)
+        end
 
-        session:set_keep_alive()
+        ngx.say("SSL connection: OK")
       }
     }
   }

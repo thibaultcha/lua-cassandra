@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
     <title>lua-cassandra documentation</title>
-    <link rel="stylesheet" href="../ldoc_pale.css" type="text/css" />
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
 </head>
 <body>
 
@@ -26,20 +26,29 @@
 <br/>
 <h1>lua-cassandra</h1>
 
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
 
 
 
 <h2>Examples</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
-  <li><a href="../examples/basic.lua.html">basic.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
+  <li><a href="../examples/intro.lua.html">intro.lua</a></li>
   <li><strong>pagination.lua</strong></li>
   <li><a href="../examples/ssl.lua.html">ssl.lua</a></li>
 </ul>
 <h2>Modules</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
-  <li><a href="../index.html">cassandra</a></li>
+  <li><a href="../modules/cassandra.html">cassandra</a></li>
+  <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
+  <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="$(kind=='Topics' and '' or 'nowrap'">
@@ -52,62 +61,62 @@
 
     <h2>pagination.lua</h2>
 <pre>
-<span class="comment">--------
-</span><span class="comment">-- Pagination might be very useful to build web services.
-</span><span class="comment">-- Assuming the users table contains 1000 rows:
+<span class="comment">--------------------
+</span><span class="comment">-- manual pagination
+</span><span class="comment">--------------------
 </span>
 <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
 
-<span class="keyword">local</span> session, err = cassandra.spawn_session {
-  shm = <span class="string">"cassandra"</span>, <span class="comment">-- used to store cluster infos
-</span>  contact_points = {<span class="string">"127.0.0.1"</span>, <span class="string">"127.0.0.2"</span>, <span class="string">"127.0.0.3"</span>}, <span class="comment">-- entry points to your cluster
-</span>  keyspace = <span class="string">"my_keyspace"</span>, <span class="comment">-- this keyspace must exist
-</span>  query_options = {
-    page_size = <span class="number">500</span> <span class="comment">-- default is 1000, reduced to 500 for this session
-</span>  }
-}
-<span class="global">assert</span>(err == <span class="keyword">nil</span>)
+<span class="keyword">local</span> client = <span class="global">assert</span>(cassandra.new {
+  host = <span class="string">"127.0.0.1"</span>,
+  keyspace = <span class="string">"my_keyspace"</span>
+})
 
-<span class="keyword">local</span> select_query = <span class="string">"SELECT * FROM users"</span>
+client:settimeout(<span class="number">1000</span>)
 
+<span class="global">assert</span>(client:connect())
+
+<span class="comment">-- assume 1190 rows in users table
+</span>
 <span class="comment">-- 1st page
-</span><span class="keyword">local</span> rows, err = session:execute(select_query) <span class="comment">-- using the session page_size
-</span><span class="global">assert</span>(#rows == <span class="number">500</span>) <span class="comment">-- rows contains the 500 first rows
-</span><span class="global">assert</span>(rows.meta.has_more_pages) <span class="comment">-- true when the column family contains more rows than fetched
+</span><span class="keyword">local</span> rows_1 = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users"</span>))
+<span class="global">print</span>(#rows_1)                    <span class="comment">-- 1000 (default page_size)
+</span><span class="global">print</span>(rows_1.meta.has_more_pages) <span class="comment">-- true
 </span>
 <span class="comment">-- 2nd page
-</span>rows, err = session:execute(select_query, <span class="keyword">nil</span> {
-  page_size = <span class="number">100</span> <span class="comment">-- override the session page_size for this query only
-</span>  paging_state = rows.meta.paging_state
-})
-<span class="global">assert</span>(#rows == <span class="number">100</span>)
-<span class="global">assert</span>(rows.meta.has_more_mages)
-
-<span class="comment">-- 3rd page
-</span>rows, err = session:execute(select_query, <span class="keyword">nil</span>, {
-  paging_state = rows.meta.paging_state
-})
-<span class="global">assert</span>(#rows == <span class="number">400</span>) <span class="comment">-- last 400 rows
-</span><span class="global">assert</span>(rows.meta.has_more_pages == <span class="keyword">false</span>)
-
-session:shutdown()
-
-<span class="comment">--------
-</span><span class="comment">-- Automated pagination.
-</span><span class="comment">-- Assuming our users table now contains 10.000 rows:
+</span><span class="keyword">local</span> rows_2 = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users"</span>, <span class="keyword">nil</span>, {
+  page_size = <span class="number">100</span>,
+  paging_state = rows_1.meta.paging_state
+}))
+<span class="global">print</span>(#rows_2)                    <span class="comment">-- 100
+</span><span class="global">print</span>(rows_2.meta.has_more_pages) <span class="comment">-- true
 </span>
-<span class="keyword">for</span> rows, err, page <span class="keyword">in</span> session:execute(<span class="string">"SELECT * FROM users"</span>, <span class="keyword">nil</span>, {auto_paging = <span class="keyword">true</span>}) <span class="keyword">do</span>
-  <span class="global">assert</span>.same(<span class="number">500</span>, #rows) <span class="comment">-- rows contains 500 rows on each iteration in this case
-</span>  <span class="comment">-- err: not nil if any fetch returns an error, this will be the last iteration
-</span>  <span class="comment">-- page: will be 1 on the first iteration, 2 on the second, etc.
-</span><span class="keyword">end</span></pre>
+<span class="comment">-- 3rd, last page
+</span><span class="keyword">local</span> rows_3 = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users"</span>, <span class="keyword">nil</span>, {
+  page_size = <span class="number">100</span>,
+  paging_state = rows_2.meta.paging_state
+}))
+<span class="global">print</span>(#rows_3)                    <span class="comment">-- 90
+</span><span class="global">print</span>(rows_3.meta.has_more_pages) <span class="comment">-- false
+</span>
+<span class="comment">-----------------------
+</span><span class="comment">-- automated pagination
+</span><span class="comment">-----------------------
+</span>
+<span class="keyword">for</span> rows, err, page <span class="keyword">in</span> client:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
+  <span class="keyword">if</span> err <span class="keyword">then</span>
+    error(err)
+  <span class="keyword">end</span>
+  <span class="global">print</span>(page)
+  <span class="global">print</span>(#rows)
+<span class="keyword">end</span></pre>
 
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-02-02 17:06:41 </i>
+<i style="float:right;">Last updated 2016-07-26 15:28:50 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

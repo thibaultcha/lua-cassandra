@@ -1,10 +1,16 @@
 # lua-cassandra
 
-This library is a pure Lua implementation of the Cassandra CQL binary protocol.
+A pure Lua client library for Apache Cassandra (2.x), compatible with
+[OpenResty][OpenResty].
 
-It is compatible in Lua 5.1, 5.2, 5.3, LuaJIT, and optimized for [OpenResty][OpenResty]/[ngx_lua][ngx_lua].
+This library offers 2 modules: a "single host" module (`cassandra`), compatible
+with PUC Lua 5.1/5.2, LuaJIT and OpenResty, which allows your application to
+connect itself to a given Cassandra node, and a "cluster" module
+(`resty.cassandra.cluster`), only compatible with OpenResty which adds support
+for multi-node Cassandra datacenters.
 
-The following table describes which version(s) of the binary protocol is supported by each Cassandra version:
+The following table describes which version(s) of the binary protocol is
+supported by each Cassandra version:
 
 <br />
 <table class="module_list">
@@ -17,7 +23,8 @@ The following table describes which version(s) of the binary protocol is support
 </table>
 <br />
 
-This library supports binary protocols 2 and 3, hence supports Cassandra 2.0+. It is tested with Cassandra 2.1 and 2.2 only as of now, with plans for testing it with more versions.
+This library supports binary protocols 2 and 3, hence supports Cassandra 2.x
+only (3.0 currently has some incompatibilities).
 
 ## Installation
 
@@ -29,54 +36,132 @@ $ luarocks install lua-cassandra
 
 Manually:
 
-Once you have a local copy of this module's `src/` directory, add it to your `LUA_PATH` (or `lua_package_path` directive for ngx_lua):
+Once you have a local copy of this module's `lib/` directory, add it to your
+`LUA_PATH` (or `lua_package_path` directive for OpenResty):
 
 ```
-/path/to/src/?.lua;/path/to/src/?/init.lua;
+/path/to/lib/?.lua;/path/to/lib/?/init.lua;
 ```
 
-**Note**: If used *outside* of ngx_lua, this module requires:
+**Note**: When used *outside* of OpenResty, or in the `init_by_lua` context,
+this module requires additional dependencies:
 
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
-- If you wish to use TLS client-to-node encryption, [LuaSec](https://github.com/brunoos/luasec)
+- If you wish to use SSL client-to-node connections,
+  [LuaSec](https://github.com/brunoos/luasec)
 
 ## Usage
+
+Single host module (Lua and OpenResty):
 
 ```lua
 local cassandra = require "cassandra"
 
-local session, err = cassandra.spawn_session {
-  shm = "cassandra",
-  contact_points = {"127.0.0.1", "127.0.0.2"}
-}
-assert(err == nil)
-
-local res, err = session:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
-  cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
-  "John O'Reilly",
-  42
+local peer = assert(cassandra.new {
+  host = "127.0.0.1",
+  port = 9042,
+  keyspace = "my_keyspace"
 })
-assert(err == nil)
 
-local rows, err = session:execute("SELECT * FROM users")
-assert(err == nil)
+peer:settimeout(1000)
 
-print("rows retrieved: ", #rows)
+assert(peer:connect())
 
-session:shutdown()
+assert(peer:execute("INSERT INTO users(id, name, age) VALUES(?, ?, ?)", {
+  cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
+  "John O Reilly",
+  42
+}))
+
+local rows = assert(peer:execute "SELECT * FROM users")
+
+local user = rows[1]
+print(user.name) -- John O Reilly
+print(user.age)  -- 42
+
+peer:close()
 ```
 
-See the `cassandra` module for a detailed list of available objects and functions.
+Cluster module (OpenResty only):
+
+```
+http {
+    # you do not need the following line if you are using luarocks
+    lua_package_path "/path/to/src/?.lua;/path/to/src/?/init.lua;;";
+
+    # all cluster informations will be stored here
+    lua_shared_dict cassandra 1m;
+
+    server {
+        ...
+
+        location / {
+            content_by_lua_block {
+                local Cluster = require 'resty.cassandra.cluster'
+
+                local cluster, err = Cluster.new {
+                    shm = 'cassandra', -- defined by the lua_shared_dict directive
+                    contact_points = {'127.0.0.1', '127.0.0.2'},
+                    keyspace = 'my_keyspace'
+                }
+                if not cluster then
+                    ngx.log(ngx.ERR, 'could not create cluster: ', err)
+                    return ngx.exit(500)
+                end
+
+                local rows, err = cluster:execute "SELECT * FROM users"
+                if not rows then
+                    ngx.log(ngx.ERR, 'could not retrieve users: ', err)
+                    return ngx.exit(500)
+                end
+
+                ngx.say('users: ', #rows)
+            }
+        }
+    }
+}
+```
+
+See the `cassandra` and `resty.cassandra.cluster` modules references for a
+detailed list of available methods and options.
 
 ## Examples
 
-Also check out the examples section for concrete examples of basic and advanced usage.
+Also check out the examples section for concrete examples of basic and advanced
+usage.
 
 ## Credits
 
-This project was originally a fork of [jbochi/lua-resty-cassandra][lua-resty-cassandra] with bugfixes and new features. It was completely rewritten in its `0.4.0` version to allow serious improvements in terms of features and maintainability.
+This project was originally a fork of
+[jbochi/lua-resty-cassandra][lua-resty-cassandra] with bugfixes and new
+features. It was completely rewritten in its `0.4.0` version to allow serious
+improvements in terms of features and maintainability.
+
+## License
+
+The MIT License (MIT)
+
+Original work Copyright (c) 2016 Thibault Charbonnier
+Based on the work of Juarez Bochi Copyright 2014
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 [OpenResty]: https://openresty.org
-[ngx_lua]: https://github.com/openresty/lua-nginx-module
 [Luarocks]: https://luarocks.org
 [lua-resty-cassandra]: https://github.com/jbochi/lua-resty-cassandra

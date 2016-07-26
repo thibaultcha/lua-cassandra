@@ -5,7 +5,8 @@ set -e
 if [ "$OPENRESTY_TESTS" = true ]; then
   make prove
 else
+  export BUSTED_ARGS="-v -o gtest --repeat 1 --coverage"
   make lint
-  busted -v --coverage -o gtest --repeat 1
+  make busted
   luacov-coveralls -i lib/cassandra -e socket.lua
 fi

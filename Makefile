@@ -1,4 +1,5 @@
 DEV_ROCKS=busted luacov-coveralls luacheck ldoc
+BUSTED_ARGS ?= -v -o gtest
 
 .PHONY: install dev busted prove test clean coverage lint doc
 
@@ -16,7 +17,7 @@ dev: install
 	done;
 
 busted:
-	@busted -v -o gtest
+	@busted $(BUSTED_ARGS)
 
 prove:
 	@util/prove_ccm.sh
@@ -30,8 +31,8 @@ clean:
 	@util/clean_ccm.sh
 
 coverage: clean
-	@busted -v -o gtest --coverage
-	@luacov cassandra
+	@busted $(BUSTED_ARGS) --coverage
+	@luacov -i lib/cassandra -e socket.lua
 
 lint:
 	@luacheck -q . \

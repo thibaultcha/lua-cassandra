@@ -6,7 +6,7 @@ source = {
 }
 description = {
   summary = "A pure Lua client library for Apache Cassandra (2.x)",
-  homepage = "http://thibaultcha.github.io/lua-cassandra",
+  homepage = "https://github.com/thibaultCha/lua-cassandra",
   license = "MIT"
 }
 dependencies = {

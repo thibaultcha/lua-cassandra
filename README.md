@@ -139,6 +139,8 @@ this module requires additional dependencies:
 - [LuaSocket](http://w3.impa.br/~diego/software/luasocket/)
 - If you wish to use SSL client-to-node connections,
   [LuaSec](https://github.com/brunoos/luasec)
+- When used in PUC-Lua,
+  [Lua BitOp](http://bitop.luajit.org/) (installed by Luarocks)
 
 [Back to TOC](#table-of-contents)
 

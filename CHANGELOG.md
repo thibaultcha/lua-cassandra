@@ -1,5 +1,22 @@
 ### [Unreleased][unreleased]
 
+### [1.0.0] - 2016/07/27
+
+####$ Changed
+
+:warning: This release contains **breaking changes**. The library has been rewritten to greatly increase performance, usability and maintanability. The result is very pleasant and eleguant: we now offer 2 modules, one "single host" compatible with PUC-Lua 5.1/5.2, and a "cluster" module, compatible with OpenResty and greatly optimized.
+
+- New single host `cassandra` module, able to connect to a single Cassandra node.
+- New cluster host `resty.cassandra.cluster`, able to efficiently deal with a multi-nodes Cassandra cluster.
+- No more tables as errors. All errors returned by those modules are strings.
+
+##### Added
+
+- New "Datacenter-aware round-robin" load balancing policy. This policy will prioritize nodes from the closest datacenter in multi-DC setups.
+- Considerable performance improvements compared to the previous versions: according to the benchmarks I made (on a late 2013 Macbook Pro), this new version allows up to 10k q/sec compared to 2k q/s with its old version. I plan on making those benchmarks available publicly in the near future.
+- A much more complete and reliable test suite (yay!).
+- A more complete documentation, including the available policies and better usage examples.
+
 ### [0.5.1] - 2016/04/11
 
 ##### Fixed
@@ -147,7 +164,9 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.1...1.0.0
+[0.5.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...0.5.0
 [0.4.2]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.0...0.4.1

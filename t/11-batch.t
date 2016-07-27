@@ -15,6 +15,7 @@ run_tests();
 __DATA__
 
 === TEST 1: cluster.batch() passes options to host module (counter update)
+--- timeout: 5s
 --- http_config eval
 qq{
     $::HttpConfig

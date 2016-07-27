@@ -2,18 +2,21 @@
 
 ### [1.0.0] - 2016/07/27
 
-####$ Changed
+##### Changed
 
 :warning: This release contains **breaking changes**. The library has been rewritten to greatly increase performance, usability and maintanability. The result is very pleasant and eleguant: we now offer 2 modules, one "single host" compatible with PUC-Lua 5.1/5.2, and a "cluster" module, compatible with OpenResty and greatly optimized.
 
 - New single host `cassandra` module, able to connect to a single Cassandra node.
 - New cluster host `resty.cassandra.cluster`, able to efficiently deal with a multi-nodes Cassandra cluster.
 - No more tables as errors. All errors returned by those modules are strings.
+- Some considerable performance improvements compared to the previous versions: according to the benchmarks I made (on a late 2013 Macbook Pro), this new version allows up to 10k q/sec compared to 2k q/s with its old version. I plan on making those benchmarks available publicly in the near future.
 
 ##### Added
 
-- New "Datacenter-aware round-robin" load balancing policy. This policy will prioritize nodes from the closest datacenter in multi-DC setups.
-- Considerable performance improvements compared to the previous versions: according to the benchmarks I made (on a late 2013 Macbook Pro), this new version allows up to 10k q/sec compared to 2k q/s with its old version. I plan on making those benchmarks available publicly in the near future.
+- Support for named arguments when binding query parameters (binary protocol v3).
+- Support for client-side timestamps (binary protocol v3).
+- Support for query tracing.
+- New "datacenter-aware round-robin" load balancing policy. This policy will prioritize nodes from the closest datacenter in multi-DC setups.
 - A much more complete and reliable test suite (yay!).
 - A more complete documentation, including the available policies and better usage examples.
 

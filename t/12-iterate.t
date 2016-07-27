@@ -15,12 +15,15 @@ run_tests();
 __DATA__
 
 === TEST 1: cluster.iterate() sanity
+--- timeout: 5
 --- http_config eval
 qq{
     $::HttpConfig
     init_worker_by_lua_block {
         local Cluster = require 'resty.cassandra.cluster'
-        local cluster, err = Cluster.new()
+        local cluster, err = Cluster.new {
+            timeout_read = 10000
+        }
         if not cluster then
             ngx.log(ngx.ERR, err)
             return
@@ -51,8 +54,9 @@ qq{
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
             local cluster, err = Cluster.new {
-                keyspace = 'lua_resty_tests'
-            }
+                keyspace = 'lua_resty_tests',
+                 timeout_read = 10000
+                }
             if not cluster then
                 ngx.log(ngx.ERR, err)
                 return
@@ -93,7 +97,8 @@ n rows: 101
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
             local cluster, err = Cluster.new {
-                keyspace = 'lua_resty_tests'
+                keyspace = 'lua_resty_tests',
+                timeout_read = 10000
             }
             if not cluster then
                 ngx.log(ngx.ERR, err)

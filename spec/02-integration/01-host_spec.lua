@@ -306,6 +306,20 @@ describe("cassandra (host)", function()
               tracing = true
             }))
 
+            local trace, err, timeout
+            local tstart = os.time()
+            repeat
+              trace, err = peer:get_trace(res.tracing_id)
+              if not trace and not string.find(err, "no trace with id", nil, true) then
+                error(err)
+              end
+              timeout = os.time() - tstart >= 5
+            until trace or timeout
+
+            if timeout then
+              error("timed out while waiting for trace")
+            end
+
             local trace = assert(peer:get_trace(res.tracing_id))
             assert.equal("127.0.0.1", trace.client)
             assert.equal("QUERY", trace.command)

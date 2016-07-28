@@ -217,10 +217,10 @@ $ make doc
 [manual]: http://thibaultcha.github.io/lua-cassandra/manual/README.md.html
 [examples]: http://thibaultcha.github.io/lua-cassandra/examples/intro.lua.html
 
-[badge-travis-url]: https://travis-ci.org/thibaultCha/lua-cassandra
-[badge-travis-image]: https://travis-ci.org/thibaultCha/lua-cassandra.svg?branch=master
+[badge-travis-url]: https://travis-ci.org/thibaultcha/lua-cassandra
+[badge-travis-image]: https://travis-ci.org/thibaultcha/lua-cassandra.svg?branch=master
 
-[badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
-[badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
+[badge-coveralls-url]: https://coveralls.io/r/thibaultcha/lua-cassandra?branch=master
+[badge-coveralls-image]: https://coveralls.io/repos/thibaultcha/lua-cassandra/badge.svg?branch=master&style=flat
 
 [badge-version-image]: https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat

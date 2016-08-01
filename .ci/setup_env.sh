@@ -57,11 +57,9 @@ if [ "$OPENRESTY_TESTS" = true ]; then
   # -------------------
   # Install Test::Nginx
   # -------------------
-  git clone git://github.com/travis-perl/helpers travis-perl-helpers
-  pushd travis-perl-helpers
-    source ./init
-  popd
-  cpan-install Test::Nginx::Socket
+  curl -L https://cpanmin.us | perl - App::cpanminus
+  $PERL_DIR/bin/cpanm Test::Nginx::Socket
+  $PERL_DIR/bin/cpanm --local-lib=$PERL_DIR local::lib && eval $(perl -I $PERL_DIR/lib/perl5/ -Mlocal::lib)
 else
   # -------------------------
   # Install test dependencies

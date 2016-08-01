@@ -16,6 +16,7 @@ env:
   global:
     - OPENRESTY=1.9.15.1
     - OPENRESTY_DIR=$HOME/openresty
+    - PERL_DIR=$HOME/perl5
     - LUA_DIR=$HOME/lua
   matrix:
     - LUA="lua 5.1"
@@ -40,5 +41,6 @@ cache:
   apt: true
   pip: true
   directories:
+    - $PERL_DIR
     - $OPENRESTY_DIR
     - $HOME/.ccm/repository/

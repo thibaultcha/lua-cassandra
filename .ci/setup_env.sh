@@ -54,11 +54,6 @@ if [ "$OPENRESTY_TESTS" = true ]; then
 
   export PATH=$PATH:$OPENRESTY_DIR/nginx/sbin
 
-  # -----------------
-  # setup ccm cluster
-  # -----------------
-  ./util/prove_ccm.sh $CASSANDRA
-
   # -------------------
   # Install Test::Nginx
   # -------------------

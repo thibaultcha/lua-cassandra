@@ -1,5 +1,6 @@
-language: perl
-perl: 5.18
+language: java
+jdk:
+  - oraclejdk8
 sudo: false
 notifications:
   email: false
@@ -13,7 +14,6 @@ addons:
       - build-essential
 env:
   global:
-    - CASSANDRA=2.2.7
     - OPENRESTY=1.9.15.1
     - OPENRESTY_DIR=$HOME/openresty
     - LUA_DIR=$HOME/lua
@@ -24,6 +24,9 @@ env:
     - LUA="luajit 2.1"
     - OPENRESTY_TESTS=true
       LUA="luajit 2.1"
+    - OPENRESTY_TESTS=true
+      LUA="luajit 2.1"
+      CASSANDRA=2.2.7
     - OPENRESTY_TESTS=true
       LUA="luajit 2.1"
       CASSANDRA=2.1.15

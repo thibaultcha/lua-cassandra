@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CASSANDRA=${1:-2.2.4}
+CASSANDRA=${1}
 
 ccm stop
 ccm create lua_cassandra_prove -v binary:$CASSANDRA -n 3

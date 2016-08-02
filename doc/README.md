@@ -1,6 +1,6 @@
 # lua-cassandra
 
-A pure Lua client library for Apache Cassandra (2.x), compatible with
+A pure Lua client library for Apache Cassandra (2.x/3.x), compatible with
 [OpenResty][OpenResty].
 
 This library offers 2 modules: a "single host" module (`cassandra`), compatible
@@ -24,7 +24,7 @@ supported by each Cassandra version:
 <br />
 
 This library supports binary protocols 2 and 3, hence supports Cassandra 2.x
-only (3.0 currently has some incompatibilities).
+and 3.x only.
 
 ## Installation
 

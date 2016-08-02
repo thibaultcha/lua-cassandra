@@ -4,7 +4,7 @@
 [![Build Status][badge-travis-image]][badge-travis-url]
 [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-A pure Lua client library for Apache Cassandra (2.x), compatible with
+A pure Lua client library for Apache Cassandra (2.x/3.x), compatible with
 [OpenResty].
 
 ## Table of Contents
@@ -25,7 +25,7 @@ which adds support for multi-node Cassandra datacenters.
 
 - Single host `cassandra` module:
   - no dependencies
-  - support for Cassandra 2.x
+  - support for Cassandra 2.x and 3.x
   - simple, prepared, and batch statements
   - pagination (manual and automatic via Lua iterators)
   - SSL client-to-node connections
@@ -154,7 +154,7 @@ Refer to the online [manual] and detailed [documentation]. You will also find
 ## Roadmap
 
 CQL:
-- Support for native protocol v4 and Cassandra 3.x
+- Support for native protocol v4
 
 [Back to TOC](#table-of-contents)
 

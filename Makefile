@@ -1,5 +1,6 @@
 DEV_ROCKS=busted luacov-coveralls luacheck ldoc
 BUSTED_ARGS ?= -v -o gtest
+CASSANDRA ?= 3.7
 
 .PHONY: install dev busted prove test clean coverage lint doc
 
@@ -20,7 +21,7 @@ busted:
 	@busted $(BUSTED_ARGS)
 
 prove:
-	@util/prove_ccm.sh
+	@util/prove_ccm.sh $(CASSANDRA)
 	@t/reindex t/*
 	@prove
 

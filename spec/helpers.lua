@@ -16,7 +16,7 @@ local function exec(cmd, ignore)
 end
 
 local _M = {
-  cassandra_version = os.getenv("CASSANDRA") or "2.2.7",
+  cassandra_version = os.getenv("CASSANDRA") or "3.7",
   ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 }
 

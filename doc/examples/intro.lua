@@ -40,33 +40,65 @@ print(rows[1].name) -- "John O Reilly"
 
 client:close()
 
-----------------------------
+-------------------------------------------------------------------------------
 -- Cluster module, OpenResty
-----------------------------
+-- This approach allows the cluster to live as an upvalue in your module's main
+-- chunk, assuming the `lua_code_cache` directive is enabled in your nginx
+-- config. This approach will be the most efficient as it will avoid re-creating
+-- the cluster variable on each request and will preserve the cached state of
+-- your load-balancing policy and prepared statements directly in the Lua land.
+-------------------------------------------------------------------------------
+
+--
+-- my_module.lua
+--
+
+local cassandra = require "cassandra"
+local Cluster = require "resty.cassandra.cluster"
+
+-- cluster instance as an upvalue
+local cluster
+
+local _M = {}
+
+function _M.init_cluster(...)
+  cluster = assert(Cluster.new(...))
+
+  -- we also retrieve the cluster's nodes informations early, to avoid
+  -- slowing down our first incoming request, which would have triggered
+  -- a refresh should this not be done already.
+  assert(cluster:refresh())
+end
+
+function _M.execute(...)
+  return cluster:execute(...)
+end
+
+return _M
+
+--
+-- nginx.conf
+--
 
 http {
-  # shm storing cluster information
-  lua_shared_dict cassandra 1m;
+  lua_shared_dict cassandra 1m; # shm storing cluster information
+  lua_code_cache on;            # ensure the upvalue is preserved beyond a single request
+
+  init_worker_by_lua_block {
+    local my_module = require "my_module"
+    my_module.init_cluster {
+      shm = "cassandra", -- defined in http block
+      contact_points = {"127.0.0.1", "127.0.0.2"},
+      keyspace = "my_keyspace"
+    }
+  }
 
   server {
-    ...
-
     location / {
       content_by_lua_block {
-        local cassandra = require "cassandra"
-        local Cluster = require "resty.cassandra.cluster"
+        local my_module = require "my_module"
 
-        local cluster, err = Cluster.new {
-          shm = "cassandra", -- defined in http block
-          contact_points = {"127.0.0.1", "127.0.0.2"},
-          keyspace = "my_keyspace"
-        }
-        if not cluster then
-          ngx.log(ngx.ERR, "could not create cluster: ", err)
-          ngx.exit(500)
-        end
-
-        local rows, err = cluster.execute("SELECT * FROM users WHERE id = ? AND name = ?", {
+        local rows, err = my_module.execute("SELECT * FROM users WHERE id = ? AND name = ?", {
           cassandra.uuid("1144bada-852c-11e3-89fb-e0b9a54a6d11"),
           "John O Reilly"
         })

@@ -1,3 +1,22 @@
+--[[
+Implement Cassandra's native protocol v2/v3
+See:
+  - v2: https://github.com/apache/cassandra/blob/cassandra-2.2.7/doc/native_protocol_v2.spec
+  - v3: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v3.spec
+  - v4: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec
+
+Notes:
+  - does not implement REGISTER messages
+  - does not implement SUPPORTED results parsing and OPTIONS messages
+  - does not implement EVENTS parsing
+  - does not implement compression
+  - does not set stream ids for frames
+  - does not implement `no_matadata` query flag and ROWS results flag
+  - does not implement decimal format serialization
+  - does not implement parsing of specific error codes
+    (unavailable/write_timeout/read_timeout/already_exists/etc...)
+--]]
+
 local bit = require 'bit'
 
 local setmetatable = setmetatable
@@ -55,59 +74,59 @@ local cql_types = {
 }
 
 local consistencies = {
-  any = 0x0000,
-  one = 0x0001,
-  two = 0x0002,
-  three = 0x0003,
-  quorum = 0x0004,
-  all = 0x0005,
-  local_quorum = 0x0006,
-  each_quorum = 0x0007,
-  serial = 0x0008,
-  local_serial = 0x0009,
-  local_one = 0x000a
+  any               = 0x0000,
+  one               = 0x0001,
+  two               = 0x0002,
+  three             = 0x0003,
+  quorum            = 0x0004,
+  all               = 0x0005,
+  local_quorum      = 0x0006,
+  each_quorum       = 0x0007,
+  serial            = 0x0008,
+  local_serial      = 0x0009,
+  local_one         = 0x000a
 }
 
-local ERRORS = {
-  SERVER = 0x0000,
-  PROTOCOL = 0x000A,
-  BAD_CREDENTIALS = 0x0100,
+local ERRORS            = {
+  SERVER                = 0x0000,
+  PROTOCOL              = 0x000A,
+  BAD_CREDENTIALS       = 0x0100,
   UNAVAILABLE_EXCEPTION = 0x1000,
-  OVERLOADED = 0x1001,
-  IS_BOOTSTRAPPING = 0x1002,
-  TRUNCATE_ERROR = 0x1003,
-  WRITE_TIMEOUT = 0x1100,
-  READ_TIMEOUT = 0x1200,
-  SYNTAX_ERROR = 0x2000,
-  UNAUTHORIZED = 0x2100,
-  INVALID = 0x2200,
-  CONFIG_ERROR = 0x2300,
-  ALREADY_EXISTS = 0x2400,
-  UNPREPARED = 0x2500
+  OVERLOADED            = 0x1001,
+  IS_BOOTSTRAPPING      = 0x1002,
+  TRUNCATE_ERROR        = 0x1003,
+  WRITE_TIMEOUT         = 0x1100,
+  READ_TIMEOUT          = 0x1200,
+  SYNTAX_ERROR          = 0x2000,
+  UNAUTHORIZED          = 0x2100,
+  INVALID               = 0x2200,
+  CONFIG_ERROR          = 0x2300,
+  ALREADY_EXISTS        = 0x2400,
+  UNPREPARED            = 0x2500
 }
 
 local QUERY_FLAGS = {
-  COMPRESSION = 0x01,
-  TRACING = 0x02
+  COMPRESSION     = 0x01,
+  TRACING         = 0x02
 }
 
-local OP_CODES = {
-  ERROR = 0x00,
-  STARTUP = 0x01,
-  READY = 0x02,
-  AUTHENTICATE = 0x03,
-  OPTIONS = 0x05,
-  SUPPORTED = 0x06,
-  QUERY = 0x07,
-  RESULT = 0x08,
-  PREPARE = 0x09,
-  EXECUTE = 0x0A,
-  REGISTER = 0x0B,
-  EVENT = 0x0C,
-  BATCH = 0x0D,
+local OP_CODES   = {
+  ERROR          = 0x00,
+  STARTUP        = 0x01,
+  READY          = 0x02,
+  AUTHENTICATE   = 0x03,
+  OPTIONS        = 0x05,
+  SUPPORTED      = 0x06,
+  QUERY          = 0x07,
+  RESULT         = 0x08,
+  PREPARE        = 0x09,
+  EXECUTE        = 0x0A,
+  REGISTER       = 0x0B,
+  EVENT          = 0x0C,
+  BATCH          = 0x0D,
   AUTH_CHALLENGE = 0x0E,
-  AUTH_RESPONSE = 0x0F,
-  AUTH_SUCCESS = 0x10
+  AUTH_RESPONSE  = 0x0F,
+  AUTH_SUCCESS   = 0x10
 }
 
 local function is_array(t)
@@ -393,19 +412,19 @@ do
 
   do
     local marshallers = {
-      byte = {marsh_byte, unmarsh_byte},
-      int = {marsh_int, unmarsh_int},
-      long = {marsh_long, unmarsh_long},
-      short = {marsh_short, unmarsh_short},
-      string = {marsh_string, unmarsh_string},
-      long_string = {marsh_long_string, unmarsh_long_string},
-      bytes = {marsh_bytes, unmarsh_bytes},
-      short_bytes = {marsh_short_bytes, unmarsh_short_bytes},
-      uuid = {marsh_uuid, unmarsh_uuid},
-      inet = {marsh_inet, unmarsh_inet},
-      string_map = {marsh_string_map, unmarsh_string_map},
-      udt_type = {nil, unmarsh_udt_type},
-      tuple_type = {nil, unmarsh_tuple_type}
+      byte            = {marsh_byte, unmarsh_byte},
+      int             = {marsh_int, unmarsh_int},
+      long            = {marsh_long, unmarsh_long},
+      short           = {marsh_short, unmarsh_short},
+      string          = {marsh_string, unmarsh_string},
+      long_string     = {marsh_long_string, unmarsh_long_string},
+      bytes           = {marsh_bytes, unmarsh_bytes},
+      short_bytes     = {marsh_short_bytes, unmarsh_short_bytes},
+      uuid            = {marsh_uuid, unmarsh_uuid},
+      inet            = {marsh_inet, unmarsh_inet},
+      string_map      = {marsh_string_map, unmarsh_string_map},
+      udt_type        = {nil, unmarsh_udt_type},
+      tuple_type      = {nil, unmarsh_tuple_type}
     }
 
     for name, t in pairs(marshallers) do
@@ -706,28 +725,28 @@ do
   ------------------
 
   local cql_marshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = marsh_raw,
-    [cql_types.bigint] = marsh_bigint,
-    [cql_types.blob] = marsh_raw,
+    -- custom           = 0x00,
+    [cql_types.ascii]   = marsh_raw,
+    [cql_types.bigint]  = marsh_bigint,
+    [cql_types.blob]    = marsh_raw,
     [cql_types.boolean] = marsh_boolean,
     [cql_types.counter] = marsh_bigint,
     -- decimal 0x06
-    [cql_types.double] = marsh_double,
-    [cql_types.float] = marsh_float,
-    [cql_types.inet] = marsh_inet,
-    [cql_types.int] = marsh_int,
-    [cql_types.text] = marsh_raw,
-    [cql_types.list] = marsh_set,
-    [cql_types.map] = marsh_map,
-    [cql_types.set] = marsh_set,
-    [cql_types.uuid] = marsh_uuid,
+    [cql_types.double]    = marsh_double,
+    [cql_types.float]     = marsh_float,
+    [cql_types.inet]      = marsh_inet,
+    [cql_types.int]       = marsh_int,
+    [cql_types.text]      = marsh_raw,
+    [cql_types.list]      = marsh_set,
+    [cql_types.map]       = marsh_map,
+    [cql_types.set]       = marsh_set,
+    [cql_types.uuid]      = marsh_uuid,
     [cql_types.timestamp] = marsh_bigint,
-    [cql_types.varchar] = marsh_raw,
-    [cql_types.varint] = marsh_int,
-    [cql_types.timeuuid] = marsh_uuid,
-    [cql_types.udt] = marsh_udt,
-    [cql_types.tuple] = marsh_tuple
+    [cql_types.varchar]   = marsh_raw,
+    [cql_types.varint]    = marsh_int,
+    [cql_types.timeuuid]  = marsh_uuid,
+    [cql_types.udt]       = marsh_udt,
+    [cql_types.tuple]     = marsh_tuple
   }
 
   marsh_cql_value = function(val, version)
@@ -776,28 +795,28 @@ do
   --------------------
 
   local cql_unmarshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = unmarsh_raw,
-    [cql_types.bigint] = unmarsh_bigint,
-    [cql_types.blob] = unmarsh_raw,
-    [cql_types.boolean] = unmarsh_boolean,
-    [cql_types.counter] = unmarsh_bigint,
+    -- custom             = 0x00,
+    [cql_types.ascii]     = unmarsh_raw,
+    [cql_types.bigint]    = unmarsh_bigint,
+    [cql_types.blob]      = unmarsh_raw,
+    [cql_types.boolean]   = unmarsh_boolean,
+    [cql_types.counter]   = unmarsh_bigint,
     -- decimal 0x06
-    [cql_types.double] = unmarsh_double,
-    [cql_types.float] = unmarsh_float,
-    [cql_types.inet] = unmarsh_inet,
-    [cql_types.int] = unmarsh_int,
-    [cql_types.text] = unmarsh_raw,
-    [cql_types.list] = unmarsh_set,
-    [cql_types.map] = unmarsh_map,
-    [cql_types.set] = unmarsh_set,
-    [cql_types.uuid] = unmarsh_uuid,
+    [cql_types.double]    = unmarsh_double,
+    [cql_types.float]     = unmarsh_float,
+    [cql_types.inet]      = unmarsh_inet,
+    [cql_types.int]       = unmarsh_int,
+    [cql_types.text]      = unmarsh_raw,
+    [cql_types.list]      = unmarsh_set,
+    [cql_types.map]       = unmarsh_map,
+    [cql_types.set]       = unmarsh_set,
+    [cql_types.uuid]      = unmarsh_uuid,
     [cql_types.timestamp] = unmarsh_bigint,
-    [cql_types.varchar] = unmarsh_raw,
-    [cql_types.varint] = unmarsh_int,
-    [cql_types.timeuuid] = unmarsh_uuid,
-    [cql_types.udt] = unmarsh_udt,
-    [cql_types.tuple] = unmarsh_tuple
+    [cql_types.varchar]   = unmarsh_raw,
+    [cql_types.varint]    = unmarsh_int,
+    [cql_types.timeuuid]  = unmarsh_uuid,
+    [cql_types.udt]       = unmarsh_udt,
+    [cql_types.tuple]     = unmarsh_tuple
   }
 
   -- Read a CQL value with a given CQL type
@@ -1076,35 +1095,35 @@ end
 
 do
   local RESULT_KINDS = {
-    VOID = 0x01,
-    ROWS = 0x02,
-    SET_KEYSPACE = 0x03,
-    PREPARED = 0x04,
-    SCHEMA_CHANGE = 0x05
+    VOID             = 0x01,
+    ROWS             = 0x02,
+    SET_KEYSPACE     = 0x03,
+    PREPARED         = 0x04,
+    SCHEMA_CHANGE    = 0x05
   }
 
   local ROWS_RESULT_FLAGS = {
-    GLOBAL_TABLES_SPEC = 0x01,
-    HAS_MORE_PAGES = 0x02,
-    NO_METADATA = 0x04
+    GLOBAL_TABLES_SPEC    = 0x01,
+    HAS_MORE_PAGES        = 0x02,
+    NO_METADATA           = 0x04
   }
 
-  local ERROR_TRANSLATIONS = {
-    [ERRORS.SERVER] = 'Server error',
-    [ERRORS.PROTOCOL] = 'Protocol error',
-    [ERRORS.BAD_CREDENTIALS] = 'Bad credentials',
+  local ERROR_TRANSLATIONS         = {
+    [ERRORS.SERVER]                = 'Server error',
+    [ERRORS.PROTOCOL]              = 'Protocol error',
+    [ERRORS.BAD_CREDENTIALS]       = 'Bad credentials',
     [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
-    [ERRORS.OVERLOADED] = 'Overloaded',
-    [ERRORS.IS_BOOTSTRAPPING] = 'Is bootstrapping',
-    [ERRORS.TRUNCATE_ERROR] = 'Truncate error',
-    [ERRORS.WRITE_TIMEOUT] = 'Write timeout',
-    [ERRORS.READ_TIMEOUT] = 'Read timeout',
-    [ERRORS.SYNTAX_ERROR] = 'Syntax error',
-    [ERRORS.UNAUTHORIZED] = 'Unauthorized',
-    [ERRORS.INVALID] = 'Invalid',
-    [ERRORS.CONFIG_ERROR] = 'Config error',
-    [ERRORS.ALREADY_EXISTS] = 'Already exists',
-    [ERRORS.UNPREPARED] = 'Unprepared'
+    [ERRORS.OVERLOADED]            = 'Overloaded',
+    [ERRORS.IS_BOOTSTRAPPING]      = 'Is bootstrapping',
+    [ERRORS.TRUNCATE_ERROR]        = 'Truncate error',
+    [ERRORS.WRITE_TIMEOUT]         = 'Write timeout',
+    [ERRORS.READ_TIMEOUT]          = 'Read timeout',
+    [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
+    [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
+    [ERRORS.INVALID]               = 'Invalid',
+    [ERRORS.CONFIG_ERROR]          = 'Config error',
+    [ERRORS.ALREADY_EXISTS]        = 'Already exists',
+    [ERRORS.UNPREPARED]            = 'Unprepared'
   }
 
   function frame_reader.version(b)
@@ -1123,10 +1142,10 @@ do
       stream_id = buf:read_short()
     end
     return {
-      flags = flags,
-      version = version,
-      stream_id = stream_id,
-      op_code = buf:read_byte(),
+      flags       = flags,
+      version     = version,
+      stream_id   = stream_id,
+      op_code     = buf:read_byte(),
       body_length = buf:read_int()
     }
   end
@@ -1162,10 +1181,10 @@ do
       }
     end
     return {
-      columns = columns,
-      columns_count = columns_count,
+      columns        = columns,
+      columns_count  = columns_count,
       has_more_pages = has_more_pages,
-      paging_state = paging_state
+      paging_state   = paging_state
     }
   end
 
@@ -1222,10 +1241,10 @@ do
         name = body:read_string()
       end
       return {
-        type = 'SCHEMA_CHANGE',
-        name = name,
-        target = target,
-        keyspace = keyspace,
+        type        = 'SCHEMA_CHANGE',
+        name        = name,
+        target      = target,
+        keyspace    = keyspace,
         change_type = change_type
       }
     end
@@ -1268,16 +1287,16 @@ end
 ----------
 
 return {
-  errors = ERRORS,
-  requests = requests,
-  types = cql_types,
-  t_unset = cql_t_unset,
-  frame_reader = frame_reader,
-  consistencies = consistencies,
+  errors               = ERRORS,
+  requests             = requests,
+  types                = cql_types,
+  t_unset              = cql_t_unset,
+  frame_reader         = frame_reader,
+  consistencies        = consistencies,
   min_protocol_version = 2,
   def_protocol_version = 3,
 
   -- for testing only
   is_array = is_array,
-  buffer = Buffer
+  buffer   = Buffer
 }

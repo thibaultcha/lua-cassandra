@@ -356,6 +356,26 @@ do
     end
   end
 
+  local function marsh_string_list(val)
+    local t = {}
+    local n = 0
+    for k, v in pairs(val) do
+      n = n + 1
+      t[#t+1] = marsh_string(v)
+    end
+    insert(t, 1, marsh_short(n))
+    return concat(t)
+  end
+
+  local function unmarsh_string_list(buffer)
+    local list = {}
+    local n = buffer:read_short()
+    for _ = 1, n do
+      list[#list+1] = buffer:read_string()
+    end
+    return list
+  end
+
   local function marsh_string_map(val)
     local t = {}
     local n = 0
@@ -377,6 +397,28 @@ do
       map[key] = value
     end
     return map
+  end
+
+  local function marsh_string_multimap(val)
+    local t = {}
+    local n = 0
+    for k, v in pairs(val) do
+      n = n + 1
+      t[#t+1] = marsh_string(k)
+      t[#t+1] = marsh_string_list(v)
+    end
+    insert(t, 1, marsh_short(n))
+    return concat(t)
+  end
+
+  local function unmarsh_string_multimap(buffer)
+    local multimap = {}
+    local n = buffer:read_short()
+    for _ = 1, n do
+      local key = buffer:read_string()
+      multimap[key] = buffer:read_string_list()
+    end
+    return multimap
   end
 
   local function unmarsh_udt_type(buffer)
@@ -423,6 +465,8 @@ do
       uuid            = {marsh_uuid, unmarsh_uuid},
       inet            = {marsh_inet, unmarsh_inet},
       string_map      = {marsh_string_map, unmarsh_string_map},
+      string_list     = {marsh_string_list, unmarsh_string_list},
+      string_multimap = {marsh_string_multimap, unmarsh_string_multimap},
       udt_type        = {nil, unmarsh_udt_type},
       tuple_type      = {nil, unmarsh_tuple_type}
     }

@@ -314,7 +314,7 @@ describe("cassandra (host)", function()
         end)
       end)
       if helpers.cassandra_version_num >= 30000 then
-        pending("#o protocol v4", function()
+        describe("protocol v4", function()
           it("uses protocol v4 by default", function()
             assert.equal(4, peer.protocol_version)
           end)
@@ -329,6 +329,8 @@ describe("cassandra (host)", function()
                  return state;
                 '
             ]])
+            assert.equal("FUNCTION", res.target)
+            assert.equal("avgstate", res.name)
 
             res = assert(peer:execute [[
               CREATE OR REPLACE FUNCTION avgFinal(state tuple<int,bigint>)
@@ -341,16 +343,18 @@ describe("cassandra (host)", function()
                  return Double.valueOf(r);
                 '
             ]])
-            local inspect = require "inspect"
-            print(inspect(res))
+            assert.equal("FUNCTION", res.target)
+            assert.equal("avgfinal", res.name)
+            assert.same({"frozen<tuple<int, bigint>>"}, res.arguments_types)
           end)
           it("parses SCHEMA_CHANGE for AGGREGATE", function()
             local res = assert(peer:execute [[
               CREATE OR REPLACE AGGREGATE average(int)
               SFUNC avgState STYPE tuple<int,bigint> FINALFUNC avgFinal INITCOND (0,0);
             ]])
-            local inspect = require "inspect"
-            print(inspect(res))
+            assert.equal("AGGREGATE", res.target)
+            assert.equal("average", res.name)
+            assert.same({"int"}, res.arguments_types)
           end)
         end)
       end

@@ -108,7 +108,7 @@ local ERRORS            = {
   UNPREPARED            = 0x2500
 }
 
-local QUERY_FLAGS = {
+local FRAME_FLAGS = {
   COMPRESSION     = 0x01,
   TRACING         = 0x02
 }
@@ -886,6 +886,15 @@ end -- do CQL encoding
 
 do
   local CQL_VERSION = '3.0.0'
+  local QUERY_FLAGS = {
+    VALUES                 = 0x01,
+    SKIP_METADATA          = 0x02,
+    PAGE_SIZE              = 0x04,
+    WITH_PAGING_STATE      = 0x08,
+    WITH_SERIAL_CONSITENCY = 0x10,
+    WITH_DEFAULT_TIMESTAMP = 0x20,
+    WITH_NAMES_FOR_VALUES  = 0x40
+  }
 
   local request_mt = {}
   request_mt.__index = request_mt
@@ -903,16 +912,11 @@ do
     local header, body = Buffer.new(version), Buffer.new(version)
 
     self:build_body(body)        -- build body (depends on protocol version)
-
-    if version == 2 then
-      header:write_byte(0x02)
-    else
-      header:write_byte(0x03)
-    end
+    header:write_byte(version)
 
     local flags = 0
     if self.opts and self.opts.tracing then
-      flags = bor(flags, QUERY_FLAGS.TRACING)
+      flags = bor(flags, FRAME_FLAGS.TRACING)
     end
 
     header:write_byte(flags)
@@ -936,10 +940,10 @@ do
     local flags = 0x00
     local buf = Buffer.new(body.version)
     if args then
-      flags = bor(flags, 0x01)
+      flags = bor(flags, QUERY_FLAGS.VALUES)
 
       if body.version >= 3 and opts.named then
-        flags = bor(flags, 0x40)
+        flags = bor(flags, QUERY_FLAGS.WITH_NAMES_FOR_VALUES)
         local n = 0
         local args_buf = Buffer.new(body.version)
         for name, val in pairs(args) do
@@ -957,21 +961,21 @@ do
       end
     end
     if opts.page_size then
-      flags = bor(flags, 0x04)
+      flags = bor(flags, QUERY_FLAGS.PAGE_SIZE)
       buf:write_int(opts.page_size)
     end
     if opts.paging_state then
-      flags = bor(flags, 0x08)
+      flags = bor(flags, QUERY_FLAGS.WITH_PAGING_STATE)
       buf:write_bytes(opts.paging_state)
     end
 
     if body.version >= 3 then
       if opts.serial_consistency then
-        flags = bor(flags, 0x10)
+        flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSITENCY)
         buf:write_short(opts.serial_consistency)
       end
       if opts.timestamp then
-        flags = bor(flags, 0x20)
+        flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
         buf:write_long(opts.timestamp)
       end
     end
@@ -1096,11 +1100,11 @@ do
           local flags = 0x00
           local buf = Buffer.new(body.version)
           if opts.serial_consistency then
-            flags = bor(flags, 0x10)
+            flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSITENCY)
             buf:write_short(opts.serial_consistency)
           end
           if opts.timestamp then
-            flags = bor(flags, 0x20)
+            flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
             buf:write_long(opts.timestamp)
           end
           --[[
@@ -1292,15 +1296,14 @@ do
         -- v4 only
         name = body:read_string()
         args_types = body:read_string_list()
-        local inspect = require "inspect"
-        print(inspect(args_types))
       end
       return {
-        type        = 'SCHEMA_CHANGE',
-        name        = name,
-        target      = target,
-        keyspace    = keyspace,
-        change_type = change_type
+        type            = 'SCHEMA_CHANGE',
+        name            = name,
+        target          = target,
+        keyspace        = keyspace,
+        arguments_types = args_types,
+        change_type     = change_type
       }
     end
   }
@@ -1313,7 +1316,7 @@ do
 
     if op_code == OP_CODES.RESULT then
       local tracing_id
-      if band(header.flags, QUERY_FLAGS.TRACING) ~= 0 then
+      if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
         tracing_id = body:read_uuid()
       end
       local result_kind = body:read_int()

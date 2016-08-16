@@ -1280,9 +1280,15 @@ do
       local change_type = body:read_string()
       local target = body:read_string()
       local keyspace = body:read_string()
-      local name
+      local name, args_types
       if target == 'TABLE' or target == 'TYPE' then
         name = body:read_string()
+      elseif target == 'FUNCTION' or target == 'AGGREGATE' then
+        -- v4 only
+        name = body:read_string()
+        args_types = body:read_string_list()
+        local inspect = require "inspect"
+        print(inspect(args_types))
       end
       return {
         type        = 'SCHEMA_CHANGE',
@@ -1338,7 +1344,7 @@ return {
   frame_reader         = frame_reader,
   consistencies        = consistencies,
   min_protocol_version = 2,
-  def_protocol_version = 3,
+  def_protocol_version = 4,
 
   -- for testing only
   is_array = is_array,

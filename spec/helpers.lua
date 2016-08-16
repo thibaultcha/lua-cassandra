@@ -20,6 +20,17 @@ local _M = {
   ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 }
 
+local function num(v)
+  local maj, min, patch = string.match(v, "^(%d*)%.(%d*)%.?(%d*)$")
+  local str = string.format("%02d%02d%02d",
+                            tonumber(maj),
+                            tonumber(min),
+                            patch and tonumber(patch) or 0)
+  return tonumber(str)
+end
+
+_M.cassandra_version_num = num(_M.cassandra_version)
+
 --- CCM
 
 local function ccm_exists(c_name)
@@ -60,6 +71,7 @@ function _M.ccm_start(opts)
   end
 
   exec("ccm switch "..cluster_name)
+  exec("ccm updateconf 'enable_user_defined_functions: true'")
   exec("ccm start --wait-for-binary-proto")
 
   local hosts = {}

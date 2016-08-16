@@ -254,7 +254,21 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"}))
         assert.equal("local", rows[1].key)
       end)
-      describe("protocol v3 options", function()
+      describe("bonary protocols", function()
+        it("#o connects with desired protocol version if specifically asked", function()
+          local min_protocol_version = helpers.cassandra_version_num < 30000 and 2 or 3
+          local max_protocol_version = helpers.cassandra_version_num >= 22000 and 4 or 3
+          for i = min_protocol_version, max_protocol_version do
+            local peer_v = assert(cassandra.new {
+              protocol_version = i
+            })
+            assert(peer_v:connect())
+            assert.equal(i, peer_v.protocol_version)
+            peer_v:close()
+          end
+        end)
+      end)
+      describe("protocol v3", function()
         setup(function()
           assert(peer:change_keyspace(helpers.keyspace))
           assert(peer:execute [[
@@ -299,6 +313,47 @@ describe("cassandra (host)", function()
           assert.equal(30, rows[1].n)
         end)
       end)
+      if helpers.cassandra_version_num >= 30000 then
+        pending("#o protocol v4", function()
+          it("uses protocol v4 by default", function()
+            assert.equal(4, peer.protocol_version)
+          end)
+          it("parses SCHEMA_CHANGE for FUNCTION", function()
+            local res = assert(peer:execute [[
+              CREATE OR REPLACE FUNCTION avgState(state tuple<int,bigint>, val int)
+              CALLED ON NULL INPUT RETURNS tuple<int,bigint> LANGUAGE java AS
+                'if (val !=null) {
+                   state.setInt(0, state.getInt(0)+1);
+                   state.setLong(1, state.getLong(1)+val.intValue());
+                 }
+                 return state;
+                '
+            ]])
+
+            res = assert(peer:execute [[
+              CREATE OR REPLACE FUNCTION avgFinal(state tuple<int,bigint>)
+              CALLED ON NULL INPUT RETURNS double LANGUAGE java AS
+                'double r = 0;
+                 if (state.getInt(0) == 0)
+                   return null;
+                 r = state.getLong(1);
+                 r/= state.getInt(0);
+                 return Double.valueOf(r);
+                '
+            ]])
+            local inspect = require "inspect"
+            print(inspect(res))
+          end)
+          it("parses SCHEMA_CHANGE for AGGREGATE", function()
+            local res = assert(peer:execute [[
+              CREATE OR REPLACE AGGREGATE average(int)
+              SFUNC avgState STYPE tuple<int,bigint> FINALFUNC avgFinal INITCOND (0,0);
+            ]])
+            local inspect = require "inspect"
+            print(inspect(res))
+          end)
+        end)
+      end
       describe("tracing", function()
         it("appends tracing_id field to result", function()
           local res = assert(peer:execute("INSERT INTO options(id,n) VALUES(4, 10)", nil, {

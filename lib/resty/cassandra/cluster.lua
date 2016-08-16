@@ -657,6 +657,11 @@ send_request = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
+  elseif res.warnings then
+    -- protocol v4 can return warnings to the client
+    for i = 1, #res.warnings do
+      log(WARN, _log_prefix, ' ', res.warnings[i])
+    end
   end
 
   if res.type == 'SCHEMA_CHANGE' then

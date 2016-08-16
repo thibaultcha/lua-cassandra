@@ -223,7 +223,7 @@ function _Host:connect()
 
   if self.ssl then
     ok, err = ssl_handshake(self)
-    if not ok then return nil, err end
+    if not ok then return nil, 'SSL handshake: '..err end
   end
 
   local reused, err = self.sock:getreusedtimes()
@@ -237,6 +237,9 @@ function _Host:connect()
         find(err, 'Invalid or unsupported protocol version', nil, true) then
         -- too high protocol version
         self.sock:close()
+        local sock, err = socket.tcp()
+        if err then return nil, err end
+        self.sock = sock
         self.protocol_version = self.protocol_version - 1
         if self.protocol_version < cql.min_protocol_version then
           return nil, 'could not find a supported protocol version'

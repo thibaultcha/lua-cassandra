@@ -71,7 +71,9 @@ function _M.ccm_start(opts)
   end
 
   exec("ccm switch "..cluster_name)
-  exec("ccm updateconf 'enable_user_defined_functions: true'")
+  if _M.cassandra_version_num >= 30000 then
+    exec("ccm updateconf 'enable_user_defined_functions: true'")
+  end
   exec("ccm start --wait-for-binary-proto")
 
   local hosts = {}

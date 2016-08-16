@@ -108,9 +108,24 @@ local ERRORS            = {
   UNPREPARED            = 0x2500
 }
 
-local FRAME_FLAGS = {
-  COMPRESSION     = 0x01,
-  TRACING         = 0x02
+local ERROR_TRANSLATIONS         = {
+  [ERRORS.SERVER]                = 'Server error',
+  [ERRORS.PROTOCOL]              = 'Protocol error',
+  [ERRORS.BAD_CREDENTIALS]       = 'Bad credentials',
+  [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
+  [ERRORS.OVERLOADED]            = 'Overloaded',
+  [ERRORS.IS_BOOTSTRAPPING]      = 'Is bootstrapping',
+  [ERRORS.TRUNCATE_ERROR]        = 'Truncate error',
+  [ERRORS.WRITE_TIMEOUT]         = 'Write timeout',
+  [ERRORS.READ_TIMEOUT]          = 'Read timeout',
+  [ERRORS.READ_FAILURE]          = 'Read failure',
+  [ERRORS.FUNCTION_FAILURE]      = 'Function failure',
+  [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
+  [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
+  [ERRORS.INVALID]               = 'Invalid',
+  [ERRORS.CONFIG_ERROR]          = 'Config error',
+  [ERRORS.ALREADY_EXISTS]        = 'Already exists',
+  [ERRORS.UNPREPARED]            = 'Unprepared'
 }
 
 local OP_CODES   = {
@@ -130,6 +145,13 @@ local OP_CODES   = {
   AUTH_CHALLENGE = 0x0E,
   AUTH_RESPONSE  = 0x0F,
   AUTH_SUCCESS   = 0x10
+}
+
+local FRAME_FLAGS  = {
+  --COMPRESSION    = 0x01,
+  TRACING          = 0x02,
+  --CUSTOM_PAYLOAD = 0x04,
+  WARNING          = 0x08
 }
 
 local function is_array(t)
@@ -888,10 +910,10 @@ do
   local CQL_VERSION = '3.0.0'
   local QUERY_FLAGS = {
     VALUES                 = 0x01,
-    SKIP_METADATA          = 0x02,
+    --SKIP_METADATA        = 0x02,
     PAGE_SIZE              = 0x04,
     WITH_PAGING_STATE      = 0x08,
-    WITH_SERIAL_CONSITENCY = 0x10,
+    WITH_SERIAL_CONSISTENCY = 0x10,
     WITH_DEFAULT_TIMESTAMP = 0x20,
     WITH_NAMES_FOR_VALUES  = 0x40
   }
@@ -971,7 +993,7 @@ do
 
     if body.version >= 3 then
       if opts.serial_consistency then
-        flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSITENCY)
+        flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
         buf:write_short(opts.serial_consistency)
       end
       if opts.timestamp then
@@ -1100,7 +1122,7 @@ do
           local flags = 0x00
           local buf = Buffer.new(body.version)
           if opts.serial_consistency then
-            flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSITENCY)
+            flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
             buf:write_short(opts.serial_consistency)
           end
           if opts.timestamp then
@@ -1157,26 +1179,6 @@ do
     GLOBAL_TABLES_SPEC    = 0x01,
     HAS_MORE_PAGES        = 0x02,
     NO_METADATA           = 0x04
-  }
-
-  local ERROR_TRANSLATIONS         = {
-    [ERRORS.SERVER]                = 'Server error',
-    [ERRORS.PROTOCOL]              = 'Protocol error',
-    [ERRORS.BAD_CREDENTIALS]       = 'Bad credentials',
-    [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
-    [ERRORS.OVERLOADED]            = 'Overloaded',
-    [ERRORS.IS_BOOTSTRAPPING]      = 'Is bootstrapping',
-    [ERRORS.TRUNCATE_ERROR]        = 'Truncate error',
-    [ERRORS.WRITE_TIMEOUT]         = 'Write timeout',
-    [ERRORS.READ_TIMEOUT]          = 'Read timeout',
-    [ERRORS.READ_FAILURE]          = 'Read failure',
-    [ERRORS.FUNCTION_FAILURE]      = 'Function failure',
-    [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
-    [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
-    [ERRORS.INVALID]               = 'Invalid',
-    [ERRORS.CONFIG_ERROR]          = 'Config error',
-    [ERRORS.ALREADY_EXISTS]        = 'Already exists',
-    [ERRORS.UNPREPARED]            = 'Unprepared'
   }
 
   function frame_reader.version(b)
@@ -1279,10 +1281,10 @@ do
       local metadata = parse_metadata(body)
       local result_metadata = parse_metadata(body)
       return {
-        type = 'PREPARED',
-        meta = metadata,
+        type     = 'PREPARED',
+        meta     = metadata,
         query_id = query_id,
-        result = result_metadata
+        result   = result_metadata
       }
     end,
     [RESULT_KINDS.SCHEMA_CHANGE] = function(body)
@@ -1315,14 +1317,18 @@ do
     local body = Buffer.new(header.version, bytes)
 
     if op_code == OP_CODES.RESULT then
-      local tracing_id
+      local tracing_id, warnings
       if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
         tracing_id = body:read_uuid()
+      end
+      if band(header.flags, FRAME_FLAGS.WARNING) ~= 0 then
+        warnings = body:read_string_list()
       end
       local result_kind = body:read_int()
       local parser = results_parsers[result_kind]
       local res = parser(body)
       res.tracing_id = tracing_id
+      res.warnings = warnings
       return res
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()

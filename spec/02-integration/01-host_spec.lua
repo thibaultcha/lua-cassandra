@@ -52,19 +52,16 @@ describe("cassandra (host)", function()
       local peer = assert(cassandra.new())
       assert.equal("127.0.0.1", peer.host)
       assert.equal(9042, peer.port)
-      assert.equal(3, peer.protocol_version)
       assert.is_nil(peer.ssl)
       assert.truthy(peer.sock)
     end)
     it("accepts options", function()
       local peer = assert(cassandra.new {
         host = "192.168.1.1",
-        port = 9043,
-        protocol_version = 2
+        port = 9043
       })
       assert.equal("192.168.1.1", peer.host)
       assert.equal(9043, peer.port)
-      assert.equal(2, peer.protocol_version)
       assert.is_nil(peer.ssl)
       assert.truthy(peer.sock)
     end)
@@ -165,7 +162,9 @@ describe("cassandra (host)", function()
       peer = p
     end)
     teardown(function()
-      peer:close()
+      if peer then
+        peer:close()
+      end
     end)
 
     describe("execute()", function()
@@ -254,8 +253,8 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"}))
         assert.equal("local", rows[1].key)
       end)
-      describe("bonary protocols", function()
-        it("#o connects with desired protocol version if specifically asked", function()
+      describe("binary protocols", function()
+        it("connects with desired protocol version if specifically asked", function()
           local min_protocol_version = helpers.cassandra_version_num < 30000 and 2 or 3
           local max_protocol_version = helpers.cassandra_version_num >= 22000 and 4 or 3
           for i = min_protocol_version, max_protocol_version do
@@ -387,8 +386,7 @@ describe("cassandra (host)", function()
             end
 
             local trace = assert(peer:get_trace(res.tracing_id))
-            assert.equal("127.0.0.1", trace.client)
-            assert.equal("QUERY", trace.command)
+            assert.is_table(trace)
             assert.is_table(trace.events)
             assert.True(#trace.events > 0)
             assert.is_table(trace.parameters)

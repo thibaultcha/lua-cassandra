@@ -15,6 +15,7 @@ Notes:
   - does not implement decimal format serialization
   - does not implement parsing of specific error codes
     (unavailable/write_timeout/read_timeout/already_exists/etc...)
+  - v4: does not implement custom payloads for custom QueryHandler
 --]]
 
 local bit = require 'bit'
@@ -97,6 +98,8 @@ local ERRORS            = {
   TRUNCATE_ERROR        = 0x1003,
   WRITE_TIMEOUT         = 0x1100,
   READ_TIMEOUT          = 0x1200,
+  READ_FAILURE          = 0x1300,
+  FUNCTION_FAILURE      = 0x1400,
   SYNTAX_ERROR          = 0x2000,
   UNAUTHORIZED          = 0x2100,
   INVALID               = 0x2200,
@@ -1162,6 +1165,8 @@ do
     [ERRORS.TRUNCATE_ERROR]        = 'Truncate error',
     [ERRORS.WRITE_TIMEOUT]         = 'Write timeout',
     [ERRORS.READ_TIMEOUT]          = 'Read timeout',
+    [ERRORS.READ_FAILURE]          = 'Read failure',
+    [ERRORS.FUNCTION_FAILURE]      = 'Function failure',
     [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
     [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
     [ERRORS.INVALID]               = 'Invalid',

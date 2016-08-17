@@ -410,6 +410,7 @@ end
 -- @treturn boolean `ok`: `true` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Cluster:refresh()
+  local protocol_version
   local old_peers, err = get_peers(self)
   if err then return nil, err
   elseif old_peers then
@@ -448,6 +449,8 @@ function _Cluster:refresh()
     ]]
     if not rows then return nil, err end
 
+    protocol_version = coordinator.protocol_version
+
     coordinator:setkeepalive()
 
     rows[#rows+1] = { -- local host
@@ -479,6 +482,7 @@ function _Cluster:refresh()
   local ok, err = lock:unlock()
   if not ok then return nil, 'failed to unlock refresh lock: '..err end
 
+  self.peers_opts.protocol_version = protocol_version
   self.lb_policy:init(peers)
   self.init = true
   return true

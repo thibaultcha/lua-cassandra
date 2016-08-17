@@ -1212,6 +1212,44 @@ do
     }
   end
 
+  local function parse_v4_prepared_metadata(body)
+    local partition_keys, columns = {}, {}
+    local k_name, t_name
+
+    local flags = body:read_int()
+    local columns_count = body:read_int()
+    local pk_count = body:read_int()
+    local has_global_table_spec = band(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC) ~= 0
+
+    for _ = 1, pk_count do
+      partition_keys[#partition_keys+1] = body:read_short()
+    end
+
+    if has_global_table_spec then
+      k_name = body:read_string()
+      t_name = body:read_string()
+    end
+
+    for _ = 1, columns_count do
+      if not has_global_table_spec then
+        k_name = body:read_string()
+        t_name = body:read_string()
+      end
+      columns[#columns+1] = {
+        name = body:read_string(),
+        type = body:read_options(),
+        keysapce = k_name,
+        table = t_name
+      }
+    end
+
+    return {
+      columns        = columns,
+      columns_count  = columns_count,
+      partition_keys = partition_keys
+    }
+  end
+
   local function parse_metadata(body)
     local columns = {}
     local k_name, t_name, paging_state
@@ -1285,7 +1323,12 @@ do
     end,
     [RESULT_KINDS.PREPARED] = function(body)
       local query_id = body:read_short_bytes()
-      local metadata = parse_metadata(body)
+      local metadata
+      if body.version == 4 then
+        metadata = parse_v4_prepared_metadata(body)
+      else
+        metadata = parse_metadata(body)
+      end
       local result_metadata = parse_metadata(body)
       return {
         type     = 'PREPARED',

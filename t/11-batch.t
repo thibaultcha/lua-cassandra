@@ -108,7 +108,7 @@ true
             }
             if not cluster then
                 ngx.log(ngx.ERR, err)
-                return
+                return ngx.exit(500)
             end
 
             local rows, err = cluster:execute('SELECT n FROM metrics WHERE id = ?', {
@@ -116,7 +116,7 @@ true
             })
             if not rows then
                 ngx.log(ngx.ERR, err)
-                return
+                return ngx.exit(500)
             end
 
             local n = #rows > 0 and rows[1].n or 0
@@ -132,7 +132,7 @@ true
             })
             if not res then
                 ngx.log(ngx.ERR, err)
-                return
+                return ngx.exit(500)
             end
 
             rows, err = cluster:execute('SELECT n FROM metrics WHERE id = ?', {
@@ -140,7 +140,7 @@ true
             })
             if not rows then
                 ngx.log(ngx.ERR, err)
-                return
+                return ngx.exit(500)
             end
 
             ngx.say(rows[1].n == n + 3)

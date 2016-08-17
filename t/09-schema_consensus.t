@@ -19,7 +19,9 @@ __DATA__
     location /t {
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
-            local cluster, err = Cluster.new()
+            local cluster, err = Cluster.new {
+                timeout_read = 5000
+            }
             if not cluster then
                 ngx.say(err)
             end

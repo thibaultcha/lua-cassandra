@@ -49,6 +49,7 @@ local requests = {}
 local frame_reader = {}
 
 local cql_t_unset = {}
+local cql_t_null = {}
 local cql_types = {
   custom    = 0x00,
   ascii     = 0x01,
@@ -257,6 +258,10 @@ do
 
   local function marsh_unset()
     return marsh_int(-2)
+  end
+
+  local function marsh_null()
+    return marsh_int(-1)
   end
 
   local function unmarsh_int(buffer)
@@ -821,6 +826,8 @@ do
   marsh_cql_value = function(val, version)
     if val == cql_t_unset then
       return marsh_unset()
+    elseif val == cql_t_null then
+      return marsh_null()
     end
 
     local cql_t
@@ -1355,6 +1362,7 @@ return {
   requests             = requests,
   types                = cql_types,
   t_unset              = cql_t_unset,
+  t_null               = cql_t_null,
   frame_reader         = frame_reader,
   consistencies        = consistencies,
   min_protocol_version = 2,

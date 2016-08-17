@@ -656,6 +656,7 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
         assert.equal(1, #rows)
         assert.is_string(rows[1].ascii_sample)
+        local original = rows[1].ascii_sample
 
         local res = assert(peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {
           cassandra.unset,
@@ -665,8 +666,32 @@ describe("cassandra (host)", function()
 
         rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
         assert.equal(1, #rows)
-        assert.is_nil(rows[1].ascii_sample)
+        if peer.protocol_version >= 4 then
+          assert.is_string(rows[1].ascii_sample)
+          assert.equal(original, rows[1].ascii_sample)
+        else
+          assert.is_nil(rows[1].ascii_sample)
+        end
       end)
+      if peer.protocol_version >= 4 then
+        it("[null]", function()
+          assert.is_table(cassandra.null)
+
+          local rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
+          assert.equal(1, #rows)
+          assert.is_string(rows[1].ascii_sample)
+
+          local res = assert(peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {
+            cassandra.null,
+            _id
+          }))
+          assert.equal("VOID", res.type)
+
+          rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
+          assert.equal(1, #rows)
+          assert.is_nil(rows[1].ascii_sample)
+        end)
+      end
       it("[map<type, type>]", function()
         for _, fixture in ipairs(helpers.cql_map_fixtures) do
           local insert_q = fmt("INSERT INTO cql_types(id, %s) VALUES(?, ?)", fixture.name)

@@ -608,7 +608,11 @@ end
 --   cassandra.set({"john@foo.com", "john@bar.com"})
 -- })
 --
--- @field unset Equivalent to the `null` CQL value. Useful to unset a field.
+-- @field null (native protocol v4 only) Equivalent to the `null` CQL value.
+-- Useful to unset a field.
+--     cassandra.null()
+-- @field unset Equivalent to the `not set` CQL value. Leaves field untouched
+-- for binary protocol v4+, or unset it for v2/v3.
 --     cassandra.unset()
 -- @field uuid Serialize a 32 lowercase characters string to a CQL uuid.
 --     cassandra.uuid("123e4567-e89b-12d3-a456-426655440000")
@@ -657,5 +661,6 @@ for cql_t_name, cql_t in pairs(cql.types) do
 end
 
 _Host.unset = cql.t_unset
+_Host.null = cql.t_null
 
 return _Host

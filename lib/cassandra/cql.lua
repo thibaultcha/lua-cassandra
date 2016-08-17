@@ -1,5 +1,5 @@
 --[[
-Implement Cassandra's native protocol v2/v3
+Implement Cassandra's native protocol v2/v3/v4
 See:
   - v2: https://github.com/apache/cassandra/blob/cassandra-2.2.7/doc/native_protocol_v2.spec
   - v3: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v3.spec
@@ -11,10 +11,11 @@ Notes:
   - does not implement EVENTS parsing
   - does not implement compression
   - does not set stream ids for frames
-  - does not implement `no_matadata` query flag and ROWS results flag
-  - does not implement decimal format serialization
+  - does not implement no_metadata query flag and ROWS results flag
+  - does not implement decimal data type
   - does not implement parsing of specific error codes
     (unavailable/write_timeout/read_timeout/already_exists/etc...)
+  - v4: does not implement date/time/smallint/tinyint data types
   - v4: does not implement custom payloads for custom QueryHandler
 --]]
 

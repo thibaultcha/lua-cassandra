@@ -156,8 +156,13 @@ Refer to the online [manual] and detailed [documentation]. You will also find
 
 ## Roadmap
 
+Cluster:
+- new load balancing policies (token-aware)
+
 CQL:
-- Support for native protocol v4
+- implement `decimal` data type
+- v4: implement `date` and `time` data types
+- v4: implement `smallint` and `tinyint` data types
 
 [Back to TOC](#table-of-contents)
 

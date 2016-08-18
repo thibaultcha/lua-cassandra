@@ -622,6 +622,7 @@ end
 -- @field counter CQL counter.
 --     cassandra.counter(1)
 -- @field decimal CQL decimal.
+--     cassandra.decimal({value = 256, scale = 5})
 -- @field float CQL float.
 --     cassandra.float(1.618033)
 -- @field int CQL int.

@@ -153,6 +153,10 @@ _M.cql_fixtures = {
   bigint = {0, 42, -42, 42000000000},
   boolean = {true, false},
   -- counter
+  decimal = {
+    {value = 256, scale = 5},
+    {value = 4, scale = 3}
+  },
   double = {0, 1.0000000000000004, -1.0000000000000004},
   float = {0, 3.14151, -3.14151},
   inet = {

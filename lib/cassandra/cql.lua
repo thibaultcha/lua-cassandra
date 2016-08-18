@@ -583,6 +583,24 @@ do
     return ldexp(mantissa, exponent - 0x7F)
   end
 
+  local function marsh_decimal(t)
+    local scale_t = type(t.scale)
+    local value_t = type(t.value)
+    if scale_t ~= 'number' then
+      error('bad scale (number expected, got '..scale_t..')')
+    elseif value_t ~= 'number' then
+      error('bad value (number expected, got '..value_t..')')
+    end
+    return marsh_int(t.scale)..marsh_int(t.value)
+  end
+
+  local function unmarsh_decimal(buffer)
+    return {
+      scale = buffer:read_int(),
+      value = buffer:read_int(),
+    }
+  end
+
   -------------------
   -- Nested CQL types
   -------------------
@@ -705,29 +723,29 @@ do
   -- CQL Marshalling
   ------------------
 
-  local cql_marshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = marsh_raw,
-    [cql_types.bigint] = marsh_bigint,
-    [cql_types.blob] = marsh_raw,
-    [cql_types.boolean] = marsh_boolean,
-    [cql_types.counter] = marsh_bigint,
-    -- decimal 0x06
-    [cql_types.double] = marsh_double,
-    [cql_types.float] = marsh_float,
-    [cql_types.inet] = marsh_inet,
-    [cql_types.int] = marsh_int,
-    [cql_types.text] = marsh_raw,
-    [cql_types.list] = marsh_set,
-    [cql_types.map] = marsh_map,
-    [cql_types.set] = marsh_set,
-    [cql_types.uuid] = marsh_uuid,
+  local cql_marshallers   = {
+    -- custom             = 0x00,
+    [cql_types.ascii]     = marsh_raw,
+    [cql_types.bigint]    = marsh_bigint,
+    [cql_types.blob]      = marsh_raw,
+    [cql_types.boolean]   = marsh_boolean,
+    [cql_types.counter]   = marsh_bigint,
+    [cql_types.decimal]   = marsh_decimal,
+    [cql_types.double]    = marsh_double,
+    [cql_types.float]     = marsh_float,
+    [cql_types.inet]      = marsh_inet,
+    [cql_types.int]       = marsh_int,
+    [cql_types.text]      = marsh_raw,
+    [cql_types.list]      = marsh_set,
+    [cql_types.map]       = marsh_map,
+    [cql_types.set]       = marsh_set,
+    [cql_types.uuid]      = marsh_uuid,
     [cql_types.timestamp] = marsh_bigint,
-    [cql_types.varchar] = marsh_raw,
-    [cql_types.varint] = marsh_int,
-    [cql_types.timeuuid] = marsh_uuid,
-    [cql_types.udt] = marsh_udt,
-    [cql_types.tuple] = marsh_tuple
+    [cql_types.varchar]   = marsh_raw,
+    [cql_types.varint]    = marsh_int,
+    [cql_types.timeuuid]  = marsh_uuid,
+    [cql_types.udt]       = marsh_udt,
+    [cql_types.tuple]     = marsh_tuple
   }
 
   marsh_cql_value = function(val, version)
@@ -776,28 +794,28 @@ do
   --------------------
 
   local cql_unmarshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = unmarsh_raw,
-    [cql_types.bigint] = unmarsh_bigint,
-    [cql_types.blob] = unmarsh_raw,
-    [cql_types.boolean] = unmarsh_boolean,
-    [cql_types.counter] = unmarsh_bigint,
-    -- decimal 0x06
-    [cql_types.double] = unmarsh_double,
-    [cql_types.float] = unmarsh_float,
-    [cql_types.inet] = unmarsh_inet,
-    [cql_types.int] = unmarsh_int,
-    [cql_types.text] = unmarsh_raw,
-    [cql_types.list] = unmarsh_set,
-    [cql_types.map] = unmarsh_map,
-    [cql_types.set] = unmarsh_set,
-    [cql_types.uuid] = unmarsh_uuid,
+    -- custom             = 0x00,
+    [cql_types.ascii]     = unmarsh_raw,
+    [cql_types.bigint]    = unmarsh_bigint,
+    [cql_types.blob]      = unmarsh_raw,
+    [cql_types.boolean]   = unmarsh_boolean,
+    [cql_types.counter]   = unmarsh_bigint,
+    [cql_types.decimal]   = unmarsh_decimal,
+    [cql_types.double]    = unmarsh_double,
+    [cql_types.float]     = unmarsh_float,
+    [cql_types.inet]      = unmarsh_inet,
+    [cql_types.int]       = unmarsh_int,
+    [cql_types.text]      = unmarsh_raw,
+    [cql_types.list]      = unmarsh_set,
+    [cql_types.map]       = unmarsh_map,
+    [cql_types.set]       = unmarsh_set,
+    [cql_types.uuid]      = unmarsh_uuid,
     [cql_types.timestamp] = unmarsh_bigint,
-    [cql_types.varchar] = unmarsh_raw,
-    [cql_types.varint] = unmarsh_int,
-    [cql_types.timeuuid] = unmarsh_uuid,
-    [cql_types.udt] = unmarsh_udt,
-    [cql_types.tuple] = unmarsh_tuple
+    [cql_types.varchar]   = unmarsh_raw,
+    [cql_types.varint]    = unmarsh_int,
+    [cql_types.timeuuid]  = unmarsh_uuid,
+    [cql_types.udt]       = unmarsh_udt,
+    [cql_types.tuple]     = unmarsh_tuple
   }
 
   -- Read a CQL value with a given CQL type

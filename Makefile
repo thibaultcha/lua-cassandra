@@ -38,7 +38,7 @@ coverage: clean
 lint:
 	@luacheck -q . \
 		--std 'ngx_lua+busted' \
-		--exclude-files 'doc/examples/*.lua'  \
+		--exclude-files 'docs/examples/*.lua'  \
 		--no-redefined --no-unused-args
 
 doc:

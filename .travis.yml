@@ -13,9 +13,9 @@ addons:
       - build-essential
 env:
   global:
-    - CASSANDRA=2.1.12
+    - CASSANDRA=2.1.15
     - LUAROCKS=2.3.0
-    - OPENRESTY=1.9.7.3
+    - OPENRESTY=1.9.15.1
     - CASSANDRA_LOAD=100
     - OPENRESTY_DIR=$HOME/openresty-$OPENRESTY
   matrix:

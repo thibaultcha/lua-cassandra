@@ -27,7 +27,7 @@ local LOAD = os.getenv("CASSANDRA_LOAD")
 local SSL_PATH = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 
 _M.n_inserts = LOAD and tonumber(LOAD) or 1000
-_M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.12"
+_M.CASSANDRA_VERSION = os.getenv("CASSANDRA") or "2.1.15"
 
 --- CCM
 

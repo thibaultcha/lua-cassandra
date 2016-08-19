@@ -1,5 +1,11 @@
 ### [Unreleased][unreleased]
 
+### [0.5.3] - 2016/08/19
+
+##### Added
+
+- Use lua-resty-socket
+
 ### [0.5.2] - 2016/04/19
 
 ##### Added

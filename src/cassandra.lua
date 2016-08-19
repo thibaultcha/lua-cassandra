@@ -15,6 +15,7 @@ local log = require "cassandra.log"
 local opts = require "cassandra.options"
 local types = require "cassandra.types"
 local cache = require "cassandra.cache"
+local socket = require "cassandra.socket"
 local Errors = require "cassandra.errors"
 local Requests = require "cassandra.requests"
 local time_utils = require "cassandra.utils.time"
@@ -27,13 +28,6 @@ local resty_lock
 local status, res = pcall(require, "resty.lock")
 if status then
   resty_lock = res
-end
-
-local get_phase
-local get_socket
-if ngx ~= nil then
-  get_phase = ngx.get_phase
-  get_socket = ngx.socket.tcp
 end
 
 local CQL_Errors = types.ERRORS
@@ -89,30 +83,13 @@ local Host = {}
 Host.__index = Host
 
 local function new_socket(self)
-  local tcp_sock, sock_type
-
-  if get_phase ~= nil and get_phase() ~= "init" then
-    -- lua-nginx-module
-    sock_type = "ngx"
-    tcp_sock = get_socket
-  else
-    -- fallback to luasocket
-    sock_type = "luasocket"
-    local status, res = pcall(require, "socket")
-    if status then
-      tcp_sock = res.tcp
-    else
-      error("Error requiring LuaSocket while outside of ngx_lua: "..res)
-    end
-  end
-
-  local socket, err = tcp_sock()
-  if not socket then
+  local sock, err = socket.tcp()
+  if not sock then
     error("Could not create socket: "..err)
   end
 
-  self.socket = socket
-  self.socket_type = sock_type
+  self.socket = socket.tcp()
+  self.socket_type = getmetatable(sock) == socket.luasocket_mt and "luasocket" or "ngx"
 end
 
 function Host:new(address, options)

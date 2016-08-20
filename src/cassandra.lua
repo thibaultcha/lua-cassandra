@@ -37,7 +37,6 @@ local string_format = string.format
 local setmetatable = setmetatable
 local ipairs = ipairs
 local pairs = pairs
-local pcall = pcall
 
 local function lock_mutex(shm, key)
   if resty_lock then

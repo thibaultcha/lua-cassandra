@@ -27,6 +27,7 @@ local DEFAULTS = {
     retry_on_timeout = true
   },
   protocol_options = {
+    version = 3,
     default_port = 9042,
     max_schema_consensus_wait = 10000
   },
@@ -172,8 +173,6 @@ local function parse_cluster(options)
   if #options.contact_points < 1 then
     return nil, "contact_points must contain at least one contact point"
   end
-
-  options.keyspace = nil -- it makes no sense to use keyspace in this context
 
   return options
 end

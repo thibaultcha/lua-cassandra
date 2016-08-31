@@ -98,7 +98,7 @@ function Host:new(address, options)
     host = host,
     port = port,
     address = address,
-    protocol_version = DEFAULT_PROTOCOL_VERSION,
+    protocol_version = options.protocol_options.version or DEFAULT_PROTOCOL_VERSION,
     options = options,
     reconnection_policy = options.policies.reconnection
   }
@@ -259,7 +259,6 @@ function Host:connect()
 
   if ready then
     log.debug("Host at "..self.address.." is ready with protocol v"..self.protocol_version)
-
     if self.options.keyspace ~= nil then
       local _, err = change_keyspace(self, self.options.keyspace)
       if err then
@@ -267,7 +266,6 @@ function Host:connect()
         return false, err
       end
     end
-
     self.connected = true
     return true
   end
@@ -1004,9 +1002,11 @@ function Cassandra.spawn_session(options)
 end
 
 local SELECT_PEERS_QUERY = "SELECT peer,data_center,rack,rpc_address,release_version FROM system.peers"
+local SELECT_LOCAL_QUERY = "SELECT release_version FROM system.local"
 
 -- Retrieve cluster informations from a connected contact_point
-function Cassandra.refresh_hosts(options)
+function Cassandra.refresh_hosts(ops)
+  local options = opts.parse_cluster(ops)
   local addresses = {}
 
   local lock, lock_err, elapsed = lock_mutex(options.shm, "refresh_hosts")
@@ -1029,6 +1029,7 @@ function Cassandra.refresh_hosts(options)
     end
 
     local peers_query = Requests.QueryRequest(SELECT_PEERS_QUERY)
+    local local_query = Requests.QueryRequest(SELECT_LOCAL_QUERY)
     local hosts = {}
 
     local local_host = {
@@ -1036,6 +1037,18 @@ function Cassandra.refresh_hosts(options)
       reconnection_delay = 0
     }
     hosts[coordinator.address] = local_host
+
+    local rows, err = coordinator:send(local_query)
+    if not rows then
+      return nil, err
+    end
+
+    local release_version = rows[1].release_version
+    local ok, cache_err = cache.set_cluster_info(options.shm, release_version)
+    if not ok then
+      return nil, cache_err
+    end
+
     log.info("Local info retrieved")
 
     local rows, err = coordinator:send(peers_query)
@@ -1043,7 +1056,11 @@ function Cassandra.refresh_hosts(options)
       return nil, err
     end
 
-    for _, row in ipairs(rows) do
+    for i, row in ipairs(rows) do
+      if i > 1 and release_version ~= row.release_version then
+        return nil, Errors.DriverError("nodes have different release versions ("..release_version.." vs "..row.release_version..")")
+      end
+
       local address = options.policies.address_resolution(row["rpc_address"], options.protocol_options.default_port)
       log.info("Adding host "..address)
       hosts[address] = {
@@ -1127,6 +1144,10 @@ function Cassandra.spawn_cluster(options)
   end
 
   return true
+end
+
+function Cassandra.get_cluster_info(options)
+  return cache.get_cluster_info(options.shm)
 end
 
 --- Type serializer shorthands.

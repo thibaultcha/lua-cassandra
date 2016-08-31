@@ -202,6 +202,28 @@ local function get_prepared_query_id(options, query)
   return value, nil, prepared_key
 end
 
+local function set_cluster_info(shm, release_version)
+  local dict = get_dict(shm)
+  local ok, err = dict:safe_set("cluster:release_version", release_version)
+  if not ok then
+    return false, Errors.SharedDictError("Cannot store cluster info in shm "..shm..": "..err, shm)
+  end
+  return true
+end
+
+local function get_cluster_info(shm)
+  local dict = get_dict(shm)
+  local release_version, err = dict:get("cluster:release_version")
+  if err then
+    return nil, Errors.SharedDictError("Cannot retrieve cluster info in shm "..shm..": "..err, shm)
+  elseif not release_version then
+    return nil, Errors.DriverError("No cluster info in shm "..shm)
+  end
+  return {
+    release_version = release_version
+  }
+end
+
 return {
   get_dict = get_dict,
   get_host = get_host,
@@ -209,5 +231,7 @@ return {
   set_hosts = set_hosts,
   get_hosts = get_hosts,
   set_prepared_query_id = set_prepared_query_id,
-  get_prepared_query_id = get_prepared_query_id
+  get_prepared_query_id = get_prepared_query_id,
+  set_cluster_info = set_cluster_info,
+  get_cluster_info = get_cluster_info
 }

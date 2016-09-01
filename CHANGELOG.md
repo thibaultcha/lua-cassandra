@@ -1,5 +1,11 @@
 ### [Unreleased][unreleased]
 
+### [0.5.4] - 2016/08/31
+
+##### Added
+
+- Support for Cassandra 3.x (prefer lua-cassandra 1.0)
+
 ### [0.5.3] - 2016/08/19
 
 ##### Added

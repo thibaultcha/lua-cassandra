@@ -1,6 +1,6 @@
 # lua-cassandra ![Module Version][badge-version-image] [![Build Status][badge-travis-image]][badge-travis-url] [![Coverage Status][badge-coveralls-image]][badge-coveralls-url]
 
-A pure Lua client library for Apache Cassandra (2.0+), compatible with [ngx_lua]/[OpenResty] and plain Lua.
+A pure Lua client library for Apache Cassandra, compatible with [ngx_lua]/[OpenResty] and plain Lua.
 
 It is implemented following the example of the official Datastax drivers, and tries to offer the same behaviors, options and features.
 
@@ -215,5 +215,4 @@ $ make doc
 [badge-coveralls-url]: https://coveralls.io/r/thibaultCha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultCha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-0.5.3-blue.svg?style=flat
-
+[badge-version-image]: https://img.shields.io/badge/version-0.5.4-blue.svg?style=flat

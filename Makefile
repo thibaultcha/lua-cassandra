@@ -8,13 +8,13 @@ install:
 	@luarocks make
 
 dev: install
-	@for rock in $(DEV_ROCKS); do\
-		if ! command -v $$rock > /dev/null; then\
-			echo $$rock not found, installing via luarocks...;\
-			luarocks install $$rock;\
-		else\
-			echo $$rock already installed, skipping;\
-		fi\
+	@for rock in $(DEV_ROCKS) ; do \
+		if ! luarocks list | grep $$rock > /dev/null ; then \
+			echo $$rock not found, installing via luarocks... ; \
+			luarocks install $$rock ; \
+		else \
+			echo $$rock already installed, skipping ; \
+		fi \
 	done;
 
 busted:

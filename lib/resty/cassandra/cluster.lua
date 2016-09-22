@@ -142,8 +142,6 @@ local function spawn_peer(host, port, opts)
 end
 
 local function check_peer_health(self, host, retry)
-  -- TODO: maybe we ought not to care about the keyspace set in
-  -- peers_opts when simply checking the connction to a node.
   local peer, err = spawn_peer(host, self.default_port, self.peers_opts)
   if not peer then return nil, err
   else
@@ -257,10 +255,9 @@ function _Cluster.new(opts)
 
   for k, v in pairs(opts) do
     if k == 'keyspace' then
-      if type(v) ~= 'string' then
+      if v and type(v) ~= 'string' then
         return nil, 'keyspace must be a string'
       end
-      peers_opts.keyspace = v
     elseif k == 'ssl' then
       if type(v) ~= 'boolean' then
         return nil, 'ssl must be a boolean'
@@ -308,6 +305,7 @@ function _Cluster.new(opts)
     dict_name = dict_name,
     prepared_ids = {},
     peers_opts = peers_opts,
+    keyspace = opts.keyspace,
     default_port = opts.default_port or 9042,
     contact_points = opts.contact_points or {'127.0.0.1'},
     timeout_read = opts.timeout_read or 2000,
@@ -641,6 +639,38 @@ do
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
 
+  --- Coordinator options.
+  -- Options to pass to coordinators chosen by the load balancing policy
+  -- on `execute`/`batch`/`iterate`.
+  -- @field keyspace Keyspace to use for the current request.
+  -- (`string`, optional)
+  -- @table `coordinator_options`
+
+  local function prepare_coordinator(self, coordinator, coordinator_options)
+    local reused, err = coordinator:getreusedtimes()
+    if not reused then return nil, err end
+
+    local keyspace
+
+    if coordinator_options and coordinator_options.keyspace then
+      keyspace = coordinator_options.keyspace
+    elseif self.keyspace then
+    --elseif self.keyspace and reused < 1 then
+      -- Note: ideally we would not set the keyspace on each query, but for now there
+      -- is no way to know if a reused connection has its keyspace set or not,
+      -- so we must set the keyspace regardless of if the connection is coming
+      -- from the pool or is a new one.
+      keyspace = self.keyspace
+    end
+
+    if keyspace then
+      local res, err = coordinator:set_keyspace(keyspace)
+      if not res then return nil, err end
+    end
+
+    return true
+  end
+
   --- Execute a query.
   -- Sends a request to the coordinator chosen by the configured load
   -- balancing policy. The policy always chooses nodes that are considered
@@ -672,12 +702,13 @@ do
   --
   -- @param[type=string] query CQL query to execute.
   -- @param[type=table] args (optional) Arguments to bind to the query.
-  -- @param[type=table] options (optional) Options from `query_options`
+  -- @param[type=table] options (optional) Options from `query_options`.
+  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`.
   -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:execute(query, args, options)
+  function _Cluster:execute(query, args, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
@@ -685,6 +716,9 @@ do
 
     local coordinator, err = next_coordinator(self)
     if not coordinator then return nil, err end
+
+    local ok, err = prepare_coordinator(self, coordinator, coordinator_options)
+    if not ok then return nil, err end
 
     local request
     local opts = get_request_opts(options)
@@ -734,6 +768,9 @@ do
 
     local coordinator, err = next_coordinator(self)
     if not coordinator then return nil, err end
+
+    local ok, err = prepare_coordinator(self, coordinator, options)
+    if not ok then return nil, err end
 
     local opts = get_request_opts(options)
 

@@ -168,7 +168,95 @@ local
 
 
 
-=== TEST 6: opts.prepared: prepares a query
+=== TEST 6: keyspace is optional
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local rows, err = cluster:execute('SELECT * FROM local WHERE key = ?', {
+                'local'
+            })
+            if not rows then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say(rows[1].key)
+        }
+    }
+--- request
+GET /t
+--- response_body
+
+--- error_log eval
+qr{\[error\] .*? \[Invalid\] No keyspace has been specified\. USE a keyspace, or explicitly specify keyspace\.tablename}
+
+
+
+=== TEST 7: opts.keyspace overrides the cluster's keyspace
+--- http_config eval
+qq{
+    $::HttpConfig
+    init_worker_by_lua_block {
+        local Cluster = require 'resty.cassandra.cluster'
+        local cluster, err = Cluster.new {
+            timeout_read = 10000
+        }
+        if not cluster then
+            ngx.log(ngx.ERR, 'could not create cluster: ', err)
+            return
+        end
+
+        assert(cluster:execute [[
+            CREATE KEYSPACE IF NOT EXISTS lua_resty_tests WITH REPLICATION = {
+                'class': 'SimpleStrategy',
+                'replication_factor': 1
+            }
+        ]])
+    }
+}
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new {
+                keyspace = 'lua_resty_tests'
+            }
+            if not cluster then
+                ngx.log(ngx.ERR, 'could not create cluster: ', err)
+                return
+            end
+
+            local rows, err = cluster:execute('SELECT * FROM local WHERE key = ?', {
+                'local'
+            }, nil, {
+                keyspace = 'system'
+            })
+            if not rows then
+                ngx.log(ngx.ERR, 'could not select local: ', err)
+                return
+            end
+
+            ngx.say(rows[1].key)
+        }
+    }
+--- request
+GET /t
+--- response_body
+local
+--- no_error_log
+[error]
+
+
+
+=== TEST 8: opts.prepared: prepares a query
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -204,7 +292,7 @@ has shm cache: true
 
 
 
-=== TEST 7: opts.prepared: returns errors
+=== TEST 9: opts.prepared: returns errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

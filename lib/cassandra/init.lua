@@ -223,7 +223,7 @@ function _Host:connect()
     if not ok then return nil, err end
   end
 
-  local reused, err = self.sock:getreusedtimes()
+  local reused, err = self:getreusedtimes()
   if not reused then return nil, err end
 
   if reused < 1 then
@@ -263,6 +263,13 @@ function _Host:connect()
   end
 
   return true
+end
+
+function _Host:getreusedtimes(...)
+  if not self.sock then
+    return nil, 'no socket created'
+  end
+  return self.sock:getreusedtimes(...)
 end
 
 --- Set the timeout value.

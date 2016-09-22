@@ -51,6 +51,11 @@ GET /t
             if not cluster then
                 ngx.say(err)
             end
+
+            cluster, err = Cluster.new({keyspace = 123})
+            if not cluster then
+                ngx.say(err)
+            end
         }
     }
 --- request
@@ -59,6 +64,7 @@ GET /t
 opts must be a table
 shm must be a string
 no shared dict invalid_shm
+keyspace must be a string
 --- no_error_log
 [error]
 
@@ -125,7 +131,7 @@ true opt: true
 
 
 
-=== TEST 5: cluster.new() peers opts
+=== TEST 5: cluster.new() peers opts and keyspace
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -143,7 +149,7 @@ true opt: true
                 return
             end
 
-            ngx.say('keyspace: ', cluster.peers_opts.keyspace)
+            ngx.say('keyspace: ', cluster.keyspace)
             ngx.say('ssl: ', cluster.peers_opts.ssl)
             ngx.say('verify: ', cluster.peers_opts.verify)
             ngx.say('auth: ', type(cluster.peers_opts.auth))

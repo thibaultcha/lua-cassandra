@@ -108,12 +108,12 @@ local function get_peers(self)
 end
 
 local function set_peer_down(self, host)
-  log(WARN, _log_prefix, 'setting host at ', host.coordinator, ' DOWN')
+  log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
-  log(NOTICE, _log_prefix, 'setting host at ', host.coordinator, ' UP')
+  log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
   self.reconn_policy:reset(host)
   return set_peer(self, host, true, 0, 0)
 end

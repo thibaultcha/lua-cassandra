@@ -383,6 +383,7 @@ end
 _Host.get_request_opts = get_opts
 
 local function page_iterator(self, query, args, opts)
+  opts = opts or {}
   local page = 0
   return function(_, p_rows)
     local meta = p_rows.meta

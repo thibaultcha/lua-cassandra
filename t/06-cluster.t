@@ -286,7 +286,52 @@ GET /t
 
 
 
-=== TEST 9: cluster.refresh() inits cluster
+=== TEST 9: cluster.refresh() sets data_center/release_version of each host
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, 'could not spawn cluster: ', err)
+                return
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, 'could not refresh: ', err)
+                return
+            end
+
+            local shm = ngx.shared.cassandra
+            local keys = shm:get_keys()
+            assert(#keys > 0)
+
+            local peers, err = cluster:get_peers()
+            if not peers then
+                ngx.log(ngx.ERR, 'could not get shm peers: ', err)
+                return
+            end
+
+            for i = 1, #peers do
+                local p = peers[i]
+                ngx.say(p.host, ' ', p.data_center, ' ', p.release_version)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body_like
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
+--- no_error_log
+[error]
+
+
+
+=== TEST 10: cluster.refresh() inits cluster
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -318,7 +363,7 @@ init: true
 
 
 
-=== TEST 10: cluster.refresh() removes old peers records and status
+=== TEST 11: cluster.refresh() removes old peers details/status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -330,8 +375,8 @@ init: true
             end
 
             -- insert fake peers
-            cluster:set_peer('127.0.0.253', true, 0, 0)
-            cluster:set_peer('127.0.0.254', true, 0, 0)
+            cluster:set_peer('127.0.0.253', true, 0, 0, 'foocenter1', '0.0')
+            cluster:set_peer('127.0.0.254', true, 0, 0, 'foocenter1', '0.0')
 
             local ok, err = cluster:refresh()
             if not ok then
@@ -352,6 +397,11 @@ init: true
 
             ngx.say('status: ', cluster.shm:get('127.0.0.253'))
             ngx.say('status: ', cluster.shm:get('127.0.0.254'))
+
+            local _, err = cluster:get_peer('127.0.0.253')
+            ngx.say('info: ', err)
+            local _, err = cluster:get_peer('127.0.0.254')
+            ngx.say('info: ', err)
         }
     }
 --- request
@@ -362,6 +412,8 @@ GET /t
 127.0.0.1 true
 status: nil
 status: nil
+info: no host details for 127.0.0.253
+info: no host details for 127.0.0.254
 --- no_error_log
 [error]
 
@@ -379,7 +431,7 @@ status: nil
             end
 
             -- insert previous peers with some infos
-            cluster:set_peer('127.0.0.1', false, 1000, 1461030739000)
+            cluster:set_peer('127.0.0.1', false, 1000, 1461030739000, '', '')
 
             local ok, err = cluster:refresh()
             if not ok then
@@ -420,7 +472,7 @@ up: false
 
 
 
-=== TEST 12: get_peers() corrupted shm
+=== TEST 14: get_peers() corrupted shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -448,7 +500,7 @@ corrupted shm
 
 
 
-=== TEST 13: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes health
+=== TEST 15: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -510,7 +562,7 @@ GET /t
 
 
 
-=== TEST 14: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
+=== TEST 16: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -596,7 +648,7 @@ reconn_delay: true
 
 
 
-=== TEST 15: can_try_peer() use reconnection policy to decide when node is down
+=== TEST 17: can_try_peer() use reconnection policy to decide when node is down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -635,7 +687,7 @@ reconn_delay: true
             ngx.say('until delay: ', ok, ' ', is_retry)
 
             -- still down but speed up reconnection delay
-            ok, err = cluster:set_peer('127.0.0.1', false, 1000, 1460780710809)
+            ok, err = cluster:set_peer('127.0.0.1', false, 1000, 1460780710809, '', '')
             if not ok then
                 ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
                 return
@@ -884,7 +936,7 @@ can try peer 255.255.255.253: false
                 end
 
                 -- still down, but simulate delay for retry from reconnection policy
-                ok, err = cluster:set_peer(peers[i].host, false, 1000, 1460780710809)
+                ok, err = cluster:set_peer(peers[i].host, false, 1000, 1460780710809, '', '')
                 if not ok then
                     ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
                     return

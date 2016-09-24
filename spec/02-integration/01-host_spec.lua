@@ -547,6 +547,7 @@ describe("cassandra (host)", function()
             bigint_sample bigint,
             blob_sample blob,
             boolean_sample boolean,
+            decimal_sample decimal,
             double_sample double,
             float_sample float,
             int_sample int,

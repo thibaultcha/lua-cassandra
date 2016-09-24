@@ -35,6 +35,23 @@ for protocol_version = 2, 3 do
       end)
     end
 
+    describe("[decimal]", function()
+      it("errors with invalid value", function()
+        assert.has_error(function()
+          local decimal = cassandra.decimal({value = "", scale = 1})
+          local buf = Buffer.new(protocol_version)
+          buf:write_cql_value(decimal)
+        end, "bad value (number expected, got string)")
+      end)
+      it("errors with invalid scale", function()
+        assert.has_error(function()
+          local decimal = cassandra.decimal({value = 1, scale = ""})
+          local buf = Buffer.new(protocol_version)
+          buf:write_cql_value(decimal)
+        end, "bad scale (number expected, got string)")
+      end)
+    end)
+
     it("[list<T>]", function()
       local fixtures = helpers.cql_list_fixtures
       for i = 1, #fixtures do

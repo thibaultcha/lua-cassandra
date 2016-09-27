@@ -24,40 +24,50 @@ local log = ngx.log
 local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
+local C = ffi.C
 
 local _log_prefix = '[lua-cassandra] '
-local _rec_key = 'host:rec:'
+local _host_rec_key = 'host:rec:'
+local _host_info_key = 'host:info:'
 local _prepared_key = 'prepared:id:'
 
 ffi.cdef [[
-    struct peer_rec {
+    size_t strlen(const char *str);
+
+    struct peer_health {
         uint64_t      reconn_delay;
         uint64_t      unhealthy_at;
     };
+
+    struct peer_info {
+        char         *data_center;
+        char         *release_version;
+    };
 ]]
-local rec_peer_const = ffi.typeof('const struct peer_rec*')
-local rec_peer_size = ffi.sizeof('struct peer_rec')
-local rec_peer_cdata = ffi.new('struct peer_rec')
+local str_const = ffi.typeof('char *')
+local health_peer_const = ffi.typeof('const struct peer_health*')
+local health_peer_size = ffi.sizeof('struct peer_health')
+local health_peer_cdata = ffi.new('struct peer_health')
+local info_peer_const = ffi.typeof('const struct peer_info*')
+local info_peer_size = ffi.sizeof('struct peer_info')
+local info_peer_cdata = ffi.new('struct peer_info')
 
 local function get_now()
   return now() * 1000
 end
 
------------------------------
--- Hosts health stored in shm
------------------------------
+-----------------------------------------
+-- Hosts status+health+info stored in shm
+-----------------------------------------
 
-local function set_peer(self, host, up, reconn_delay, unhealthy_at)
-  -- status
-  local ok, err = self.shm:set(host, up)
-  if not ok then
-    return nil, 'could not set host status in shm: '..err
-  end
+local function set_peer_info(self, host, data_center, release_version)
+  data_center = data_center or ''
+  release_version = release_version or ''
 
-  -- health details
-  rec_peer_cdata.reconn_delay = reconn_delay
-  rec_peer_cdata.unhealthy_at = unhealthy_at
-  ok, err = self.shm:set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
+  info_peer_cdata.data_center = ffi_cast(str_const, data_center)
+  info_peer_cdata.release_version = ffi_cast(str_const, release_version)
+
+  local ok, err = self.shm:set(_host_info_key..host, ffi_str(info_peer_cdata, info_peer_size))
   if not ok then
     return nil, 'could not set host info in shm: '..err
   end
@@ -65,12 +75,48 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at)
   return true
 end
 
-local function get_peer(self, host, status)
-  local v, err = self.shm:get(_rec_key .. host)
+local function set_peer_health(self, host, up, reconn_delay, unhealthy_at)
+  -- status
+  local ok, err = self.shm:set(host, up)
+  if not ok then
+    return nil, 'could not set host health in shm: '..err
+  end
+
+  -- health details
+  health_peer_cdata.reconn_delay = reconn_delay
+  health_peer_cdata.unhealthy_at = unhealthy_at
+  ok, err = self.shm:set(_host_rec_key..host, ffi_str(health_peer_cdata, health_peer_size))
+  if not ok then
+    return nil, 'could not set host health in shm: '..err
+  end
+
+  return true
+end
+
+local function get_peer(self, host, status, with_info)
+  local rec_v, err = self.shm:get(_host_rec_key .. host)
   if err then
-    return nil, 'could not get host details in shm: '..err
-  elseif type(v) ~= 'string' or #v ~= rec_peer_size then
+    return nil, 'could not get host health in shm: '..err
+  elseif not rec_v then
+    return nil, 'no host health for '..host
+  elseif type(rec_v) ~= 'string' or #rec_v ~= health_peer_size then
     return nil, 'corrupted shm'
+  end
+
+  local data_center, release_version
+  if with_info then
+    local info_v, err = self.shm:get(_host_info_key .. host)
+    if err then
+      return nil, 'could not get host info in shm: '..err
+    elseif not info_v then
+      return nil, 'no host info for '..host
+    elseif info_v and type(info_v) ~= 'string' or #info_v ~= info_peer_size then
+      return nil, 'corrupted shm'
+    end
+
+    local peer_info = ffi_cast(info_peer_const, info_v)
+    data_center = ffi_str(peer_info.data_center, C.strlen(peer_info.data_center))
+    release_version = ffi_str(peer_info.release_version, C.strlen(peer_info.release_version))
   end
 
   if status == nil then
@@ -78,25 +124,27 @@ local function get_peer(self, host, status)
     if err then return nil, 'could not get host status in shm: '..err end
   end
 
-  local peer_rec = ffi_cast(rec_peer_const, v)
+  local peer_health = ffi_cast(health_peer_const, rec_v)
 
   return {
     up = status,
     host = host,
-    reconn_delay = tonumber(peer_rec.reconn_delay),
-    unhealthy_at = tonumber(peer_rec.unhealthy_at)
+    data_center = data_center,
+    release_version = release_version,
+    reconn_delay = tonumber(peer_health.reconn_delay),
+    unhealthy_at = tonumber(peer_health.unhealthy_at)
   }
 end
 
-local function get_peers(self)
+local function get_peers(self, with_info)
   local peers = {}
   local keys = self.shm:get_keys() -- 1024 keys
   -- we shall have a relatively small number of keys, but in any case this
   -- function is not to be called in hot paths anyways.
   for i = 1, #keys do
-    if sub(keys[i], 1, #_rec_key) == _rec_key then
-      local host = sub(keys[i], #_rec_key + 1)
-      local peer, err = get_peer(self, host)
+    if sub(keys[i], 1, #_host_rec_key) == _host_rec_key then
+      local host = sub(keys[i], #_host_rec_key + 1)
+      local peer, err = get_peer(self, host, nil, with_info)
       if not peer then return nil, err end
       peers[#peers+1] = peer
     end
@@ -109,13 +157,13 @@ end
 
 local function set_peer_down(self, host)
   log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
-  return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
+  return set_peer_health(self, host, false, self.reconn_policy:next_delay(host), get_now())
 end
 
 local function set_peer_up(self, host)
   log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
   self.reconn_policy:reset(host)
-  return set_peer(self, host, true, 0, 0)
+  return set_peer_health(self, host, true, 0, 0)
 end
 
 local function can_try_peer(self, host)
@@ -124,9 +172,9 @@ local function can_try_peer(self, host)
   elseif err then return nil, err
   else
     -- reconnection policy steps in before making a decision
-    local peer_rec, err = get_peer(self, host, up)
-    if not peer_rec then return nil, err end
-    return get_now() - peer_rec.unhealthy_at >= peer_rec.reconn_delay, nil, true
+    local peer_health, err = get_peer(self, host, up)
+    if not peer_health then return nil, err end
+    return get_now() - peer_health.unhealthy_at >= peer_health.reconn_delay, nil, true
   end
 end
 
@@ -349,20 +397,20 @@ end
 local function next_coordinator(self)
   local errors = {}
 
-  for _, peer_rec in self.lb_policy:iter() do
-    local ok, err, retry = can_try_peer(self, peer_rec.host)
+  for _, peer_health in self.lb_policy:iter() do
+    local ok, err, retry = can_try_peer(self, peer_health.host)
     if ok then
-      local peer, err = check_peer_health(self, peer_rec.host, retry)
+      local peer, err = check_peer_health(self, peer_health.host, retry)
       if peer then
         log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
         return peer
       else
-        errors[peer_rec.host] = err
+        errors[peer_health.host] = err
       end
     elseif err then
       return nil, err
     else
-      errors[peer_rec.host] = 'host still considered down'
+      errors[peer_health.host] = 'host still considered down'
     end
   end
 
@@ -387,8 +435,9 @@ function _Cluster:refresh()
     for i = 1, #old_peers do
       local host = old_peers[i].host
       old_peers[host] = old_peers[i] -- alias as a hash
-      self.shm:delete(_rec_key .. host)
-      self.shm:delete(host)
+      self.shm:delete(_host_rec_key .. host)  -- health
+      self.shm:delete(_host_info_key .. host) -- info
+      self.shm:delete(host) -- status bool
     end
   else
     old_peers = {} -- empty shm
@@ -399,21 +448,30 @@ function _Cluster:refresh()
   if not elapsed then return nil, 'failed to acquire lock: '..err end
 
   -- did someone else got the hosts?
-  local peers, err = get_peers(self)
+  local peers, err = get_peers(self, true) -- with_info
   if err then return nil, err
   elseif not peers then
     -- we are the first ones to get there
     local coordinator, err = first_coordinator(self)
     if not coordinator then return nil, err end
 
+    local local_rows, err = coordinator:execute [[
+      SELECT data_center,rpc_address,release_version FROM system.local
+    ]]
+    if not local_rows then return nil, err end
+
     local rows, err = coordinator:execute [[
-      SELECT peer,data_center,rpc_address FROM system.peers
+      SELECT peer,data_center,rpc_address,release_version FROM system.peers
     ]]
     if not rows then return nil, err end
 
     coordinator:setkeepalive()
 
-    rows[#rows+1] = {rpc_address = coordinator.host} -- local host
+    rows[#rows+1] = { -- local host
+      rpc_address = local_rows[1].rpc_address,
+      data_center = local_rows[1].data_center,
+      release_version = local_rows[1].release_version
+    }
 
     for i = 1, #rows do
       local host = rows[i].rpc_address
@@ -426,11 +484,14 @@ function _Cluster:refresh()
         unhealthy_at = old_peer.unhealthy_at
       end
 
-      local ok, err = set_peer(self, host, up, reconn_delay, unhealthy_at)
+      local ok, err = set_peer_health(self, host, up, reconn_delay, unhealthy_at)
+      if not ok then return nil, err end
+
+      ok, err = set_peer_info(self, host, rows[i].data_center, rows[i].release_version)
       if not ok then return nil, err end
     end
 
-    peers, err = get_peers(self)
+    peers, err = get_peers(self, true) -- with_info
     if err then return nil, err end
   end
 
@@ -815,14 +876,15 @@ do
   end
 end
 
-_Cluster.set_peer = set_peer
 _Cluster.get_peer = get_peer
 _Cluster.get_peers = get_peers
 _Cluster.set_peer_up = set_peer_up
 _Cluster.can_try_peer = can_try_peer
 _Cluster.handle_error = handle_error
+_Cluster.set_peer_info = set_peer_info
 _Cluster.set_peer_down = set_peer_down
 _Cluster.get_or_prepare = get_or_prepare
+_Cluster.set_peer_health = set_peer_health
 _Cluster.next_coordinator = next_coordinator
 
 return _Cluster

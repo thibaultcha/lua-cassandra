@@ -323,9 +323,9 @@ GET /t
 --- request
 GET /t
 --- response_body_like
-\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
-\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
-\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d?
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d*
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d*
+\d+\.\d+\.\d+\.\d+.*?\S+.*?\d+\.\d+\.?\d*
 --- no_error_log
 [error]
 
@@ -620,12 +620,12 @@ GET /t
 --- request
 GET /t
 --- response_body_like
-127\.0\.0\.3 after down: datacenter1 \d+\.\d+\.?\d?
-127\.0\.0\.3 after up: datacenter1 \d+\.\d+\.?\d?
-127\.0\.0\.2 after down: datacenter1 \d+\.\d+\.?\d?
-127\.0\.0\.2 after up: datacenter1 \d+\.\d+\.?\d?
-127\.0\.0\.1 after down: datacenter1 \d+\.\d+\.?\d?
-127\.0\.0\.1 after up: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.3 after down: datacenter1 \d+\.\d+\.?\d*
+127\.0\.0\.3 after up: datacenter1 \d+\.\d+\.?\d*
+127\.0\.0\.2 after down: datacenter1 \d+\.\d+\.?\d*
+127\.0\.0\.2 after up: datacenter1 \d+\.\d+\.?\d*
+127\.0\.0\.1 after down: datacenter1 \d+\.\d+\.?\d*
+127\.0\.0\.1 after up: datacenter1 \d+\.\d+\.?\d*
 --- no_error_log
 [error]
 

@@ -61,7 +61,7 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   -- status
   local ok, err = self.shm:set(host, up)
   if not ok then
-    return nil, 'could not set host status in shm: '..err
+    return nil, 'could not set host details in shm: '..err
   end
 
   -- host health and info
@@ -94,12 +94,14 @@ local function get_peer(self, host, status)
   end
 
   local peer = ffi_cast(rec_peer_const, rec_v)
+  local data_center = ffi_str(peer.data_center, C.strlen(peer.data_center))
+  local release_version = ffi_str(peer.release_version, C.strlen(peer.release_version))
 
   return {
     up = status,
     host = host,
-    data_center = ffi_str(peer.data_center, C.strlen(peer.data_center)),
-    release_version = ffi_str(peer.release_version, C.strlen(peer.release_version)),
+    data_center = data_center ~= '' and data_center or nil,
+    release_version = release_version ~= '' and release_version or nil,
     reconn_delay = tonumber(peer.reconn_delay),
     unhealthy_at = tonumber(peer.unhealthy_at)
   }
@@ -404,7 +406,6 @@ end
 -- called if further updates are required.
 -- @treturn boolean `ok`: `true` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
--- @treturn table `peers`: A list of peers retrieved from the cluster
 function _Cluster:refresh()
   local old_peers, err = get_peers(self)
   if err then return nil, err
@@ -477,7 +478,7 @@ function _Cluster:refresh()
 
   self.lb_policy:init(peers)
   self.init = true
-  return true, nil, peers
+  return true
 end
 
 --------------------

@@ -419,41 +419,7 @@ info: no host details for 127.0.0.254
 
 
 
-=== TEST 12: cluster.refresh() peers in 3rd return value
---- http_config eval: $::HttpConfig
---- config
-    location /t {
-        content_by_lua_block {
-            local Cluster = require 'resty.cassandra.cluster'
-            local cluster, err = Cluster.new()
-            if not cluster then
-                ngx.log(ngx.ERR, err)
-            end
-
-            local ok, err, peers = cluster:refresh()
-            if not ok then
-                ngx.log(ngx.ERR, err)
-                return
-            end
-
-            for i = 1, #peers do
-                local p = peers[i]
-                ngx.say(p.host, ' ', p.up)
-            end
-        }
-    }
---- request
-GET /t
---- response_body
-127.0.0.3 true
-127.0.0.2 true
-127.0.0.1 true
---- no_error_log
-[error]
-
-
-
-=== TEST 13: cluster.refresh() does not alter existing peers records and status
+=== TEST 12: cluster.refresh() does not alter existing peers records and status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -506,7 +472,7 @@ up: false
 
 
 
-=== TEST 14: get_peers() corrupted shm
+=== TEST 13: get_peers() corrupted shm
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -534,7 +500,7 @@ corrupted shm
 
 
 
-=== TEST 15: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes status
+=== TEST 14: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -596,7 +562,135 @@ GET /t
 
 
 
-=== TEST 16: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
+=== TEST 15: set_peer_down()/set_peer_up() use existing host details if exists
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                 ngx.log(ngx.ERR, err)
+                 return
+            end
+
+            local peers, err = cluster:get_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            for i = 1, #peers do
+                ok, err = cluster:set_peer_down(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                local peer, err = cluster:get_peer(peers[i].host)
+                if not peer then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say(peer.host, ' after down: ', peer.data_center, ' ', peer.release_version)
+
+                ok, err = cluster:set_peer_up(peers[i].host)
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                peer, err = cluster:get_peer(peers[i].host)
+                if not peer then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say(peer.host, ' after up: ', peer.data_center, ' ', peer.release_version)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body_like
+127\.0\.0\.3 after down: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.3 after up: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.2 after down: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.2 after up: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.1 after down: datacenter1 \d+\.\d+\.?\d?
+127\.0\.0\.1 after up: datacenter1 \d+\.\d+\.?\d?
+--- no_error_log
+[error]
+
+
+
+=== TEST 16: set_peer_down()/set_peer_up() defaults hosts details if not exists
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local fixtures = {'127.0.0.253', '127.0.0.254'}
+
+            for i = 1, #fixtures do
+                ok, err = cluster:set_peer_down(fixtures[i])
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                local peer, err = cluster:get_peer(fixtures[i])
+                if not peer then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say(peer.host, ' after down: ', peer.up, ' ', peer.data_center,
+                        ' ', peer.release_version)
+
+                ok, err = cluster:set_peer_up(fixtures[i])
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                peer, err = cluster:get_peer(fixtures[i])
+                if not peer then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+
+                ngx.say(peer.host, ' after up: ', peer.up, ' ', peer.data_center,
+                        ' ', peer.release_version)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+127.0.0.253 after down: false nil nil
+127.0.0.253 after up: true nil nil
+127.0.0.254 after down: false nil nil
+127.0.0.254 after up: true nil nil
+--- no_error_log
+[error]
+
+
+
+=== TEST 17: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -682,7 +776,7 @@ reconn_delay: true
 
 
 
-=== TEST 17: can_try_peer() use reconnection policy to decide when node is down
+=== TEST 18: can_try_peer() use reconnection policy to decide when node is down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -746,7 +840,7 @@ after delay: true true
 
 
 
-=== TEST 18: next_coordinator() uses load balancing policy
+=== TEST 19: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -783,7 +877,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 19: next_coordinator() returns no host available errors
+=== TEST 20: next_coordinator() returns no host available errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -827,7 +921,7 @@ all hosts tried for query failed. 127.0.0.2: host still considered down. 127.0.0
 
 
 
-=== TEST 20: next_coordinator() avoids down hosts
+=== TEST 21: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -871,7 +965,7 @@ GET /t
 
 
 
-=== TEST 21: next_coordinator() marks nodes as down
+=== TEST 22: next_coordinator() marks nodes as down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -935,7 +1029,7 @@ can try peer 255.255.255.253: false
 
 
 
-=== TEST 22: next_coordinator() retries down host as per reconnection policy and ups them back
+=== TEST 23: next_coordinator() retries down host as per reconnection policy and ups them back
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

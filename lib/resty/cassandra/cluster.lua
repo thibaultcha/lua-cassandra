@@ -61,7 +61,7 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   -- status
   local ok, err = self.shm:set(host, up)
   if not ok then
-    return nil, 'could not set host details in shm: '..err
+    return nil, 'could not set host status in shm: '..err
   end
 
   -- host health and info
@@ -404,6 +404,7 @@ end
 -- called if further updates are required.
 -- @treturn boolean `ok`: `true` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
+-- @treturn table `peers`: A list of peers retrieved from the cluster
 function _Cluster:refresh()
   local old_peers, err = get_peers(self)
   if err then return nil, err
@@ -476,7 +477,7 @@ function _Cluster:refresh()
 
   self.lb_policy:init(peers)
   self.init = true
-  return true
+  return true, nil, peers
 end
 
 --------------------

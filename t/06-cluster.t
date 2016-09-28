@@ -419,7 +419,41 @@ info: no host details for 127.0.0.254
 
 
 
-=== TEST 11: cluster.refresh() does not alter existing peers records and status
+=== TEST 12: cluster.refresh() peers in 3rd return value
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err, peers = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            for i = 1, #peers do
+                local p = peers[i]
+                ngx.say(p.host, ' ', p.up)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+127.0.0.3 true
+127.0.0.2 true
+127.0.0.1 true
+--- no_error_log
+[error]
+
+
+
+=== TEST 13: cluster.refresh() does not alter existing peers records and status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -712,7 +746,7 @@ after delay: true true
 
 
 
-=== TEST 16: next_coordinator() uses load balancing policy
+=== TEST 18: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -749,7 +783,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 17: next_coordinator() returns no host available errors
+=== TEST 19: next_coordinator() returns no host available errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -793,7 +827,7 @@ all hosts tried for query failed. 127.0.0.2: host still considered down. 127.0.0
 
 
 
-=== TEST 18: next_coordinator() avoids down hosts
+=== TEST 20: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -837,7 +871,7 @@ GET /t
 
 
 
-=== TEST 19: next_coordinator() marks nodes as down
+=== TEST 21: next_coordinator() marks nodes as down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -901,7 +935,7 @@ can try peer 255.255.255.253: false
 
 
 
-=== TEST 20: next_coordinator() retries down host as per reconnection policy and ups them back
+=== TEST 22: next_coordinator() retries down host as per reconnection policy and ups them back
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

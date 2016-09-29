@@ -425,7 +425,7 @@ function _Cluster:refresh()
 
   local lock = resty_lock:new(self.dict_name)
   local elapsed, err = lock:lock('refresh')
-  if not elapsed then return nil, 'failed to acquire lock: '..err end
+  if not elapsed then return nil, 'failed to acquire refresh lock: '..err end
 
   -- did someone else got the hosts?
   local peers, err = get_peers(self)

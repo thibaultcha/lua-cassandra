@@ -9,6 +9,7 @@ local cql = require 'cassandra.cql'
 
 local setmetatable = setmetatable
 local requests = cql.requests
+local fmt = string.format
 local pairs = pairs
 local find = string.find
 
@@ -215,7 +216,9 @@ function _Host:connect()
     return nil, 'no socket created'
   end
 
-  local ok, err = self.sock:connect(self.host, self.port)
+  local ok, err = self.sock:connect(self.host, self.port, {
+    pool = fmt('%s:%d:%s', self.host, self.port, self.keyspace or '')
+  })
   if not ok then return nil, err, true end
 
   if self.ssl then
@@ -253,10 +256,6 @@ function _Host:connect()
     end
 
     if self.keyspace then
-      -- TODO: since this not sent when the socket was retrieved
-      -- from the connection pool, we must document that manually
-      -- calling set_keyspace() is required if users interact with
-      -- several at once.
       local res, err = self:set_keyspace(self.keyspace)
       if not res then return nil, err end
     end

@@ -130,7 +130,7 @@ local function set_peer_down(self, host)
   log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
 
   local peer = get_peer(self, host, false)
-  peer = peer or {}
+  peer = peer or {} -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now(),
                   peer.data_center, peer.release_version)
@@ -141,7 +141,7 @@ local function set_peer_up(self, host)
   self.reconn_policy:reset(host)
 
   local peer = get_peer(self, host, true)
-  peer = peer or {}
+  peer = peer or {} -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, true, 0, 0,
                   peer.data_center, peer.release_version)
@@ -284,7 +284,7 @@ function _Cluster.new(opts)
 
   for k, v in pairs(opts) do
     if k == 'keyspace' then
-      if v and type(v) ~= 'string' then
+      if type(v) ~= 'string' then
         return nil, 'keyspace must be a string'
       end
     elseif k == 'ssl' then
@@ -474,7 +474,7 @@ function _Cluster:refresh()
   end
 
   local ok, err = lock:unlock()
-  if not ok then return nil, 'failed to unlock: '..err end
+  if not ok then return nil, 'failed to unlock refresh lock: '..err end
 
   self.lb_policy:init(peers)
   self.init = true
@@ -742,7 +742,7 @@ do
   -- @param[type=string] query CQL query to execute.
   -- @param[type=table] args (optional) Arguments to bind to the query.
   -- @param[type=table] options (optional) Options from `query_options`.
-  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`.
+  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`
   -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
@@ -796,6 +796,10 @@ do
   --   ngx.exit(500)
   -- end
   --
+  -- @param[type=table] queries CQL queries to execute.
+  -- @param[type=table] options (optional) Options from `query_options`.
+  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`
+  -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.

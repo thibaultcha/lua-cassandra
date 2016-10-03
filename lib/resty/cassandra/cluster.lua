@@ -24,17 +24,23 @@ local log = ngx.log
 local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
+local C = ffi.C
 
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
 
 ffi.cdef [[
+    size_t strlen(const char *str);
+
     struct peer_rec {
         uint64_t      reconn_delay;
         uint64_t      unhealthy_at;
+        char         *data_center;
+        char         *release_version;
     };
 ]]
+local str_const = ffi.typeof('char *')
 local rec_peer_const = ffi.typeof('const struct peer_rec*')
 local rec_peer_size = ffi.sizeof('struct peer_rec')
 local rec_peer_cdata = ffi.new('struct peer_rec')
@@ -43,33 +49,42 @@ local function get_now()
   return now() * 1000
 end
 
------------------------------
--- Hosts health stored in shm
------------------------------
+-----------------------------------------
+-- Hosts status+info stored in shm
+-----------------------------------------
 
-local function set_peer(self, host, up, reconn_delay, unhealthy_at)
-  -- status
+local function set_peer(self, host, up, reconn_delay, unhealthy_at,
+                        data_center, release_version)
+  data_center = data_center or ''
+  release_version = release_version or ''
+
+  -- host status
   local ok, err = self.shm:set(host, up)
   if not ok then
-    return nil, 'could not set host status in shm: '..err
+    return nil, 'could not set host details in shm: '..err
   end
 
-  -- health details
+  -- host info
   rec_peer_cdata.reconn_delay = reconn_delay
   rec_peer_cdata.unhealthy_at = unhealthy_at
+  rec_peer_cdata.data_center = ffi_cast(str_const, data_center)
+  rec_peer_cdata.release_version = ffi_cast(str_const, release_version)
+
   ok, err = self.shm:set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
   if not ok then
-    return nil, 'could not set host info in shm: '..err
+    return nil, 'could not set host details in shm: '..err
   end
 
   return true
 end
 
 local function get_peer(self, host, status)
-  local v, err = self.shm:get(_rec_key .. host)
+  local rec_v, err = self.shm:get(_rec_key .. host)
   if err then
     return nil, 'could not get host details in shm: '..err
-  elseif type(v) ~= 'string' or #v ~= rec_peer_size then
+  elseif not rec_v then
+    return nil, 'no host details for '..host
+  elseif type(rec_v) ~= 'string' or #rec_v ~= rec_peer_size then
     return nil, 'corrupted shm'
   end
 
@@ -78,13 +93,17 @@ local function get_peer(self, host, status)
     if err then return nil, 'could not get host status in shm: '..err end
   end
 
-  local peer_rec = ffi_cast(rec_peer_const, v)
+  local peer = ffi_cast(rec_peer_const, rec_v)
+  local data_center = ffi_str(peer.data_center, C.strlen(peer.data_center))
+  local release_version = ffi_str(peer.release_version, C.strlen(peer.release_version))
 
   return {
     up = status,
     host = host,
-    reconn_delay = tonumber(peer_rec.reconn_delay),
-    unhealthy_at = tonumber(peer_rec.unhealthy_at)
+    data_center = data_center ~= '' and data_center or nil,
+    release_version = release_version ~= '' and release_version or nil,
+    reconn_delay = tonumber(peer.reconn_delay),
+    unhealthy_at = tonumber(peer.unhealthy_at)
   }
 end
 
@@ -108,14 +127,24 @@ local function get_peers(self)
 end
 
 local function set_peer_down(self, host)
-  log(WARN, _log_prefix, 'setting host at ', host.coordinator, ' DOWN')
-  return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now())
+  log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
+
+  local peer = get_peer(self, host, false)
+  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+
+  return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now(),
+                  peer.data_center, peer.release_version)
 end
 
 local function set_peer_up(self, host)
-  log(NOTICE, _log_prefix, 'setting host at ', host.coordinator, ' UP')
+  log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
   self.reconn_policy:reset(host)
-  return set_peer(self, host, true, 0, 0)
+
+  local peer = get_peer(self, host, true)
+  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+
+  return set_peer(self, host, true, 0, 0,
+                  peer.data_center, peer.release_version)
 end
 
 local function can_try_peer(self, host)
@@ -134,17 +163,18 @@ end
 -- utils
 ----------------------------
 
-local function spawn_peer(host, port, opts)
+local function spawn_peer(host, port, keyspace, opts)
   opts = opts or {}
   opts.host = host
   opts.port = port
+  opts.keyspace = keyspace
   return cassandra.new(opts)
 end
 
-local function check_peer_health(self, host, retry)
-  -- TODO: maybe we ought not to care about the keyspace set in
-  -- peers_opts when simply checking the connction to a node.
-  local peer, err = spawn_peer(host, self.default_port, self.peers_opts)
+local function check_peer_health(self, host, keyspace, retry)
+  local peer, err = spawn_peer(host, self.default_port,
+                               keyspace or self.keyspace,
+                               self.peers_opts)
   if not peer then return nil, err
   else
     peer:settimeout(self.timeout_connect)
@@ -260,7 +290,6 @@ function _Cluster.new(opts)
       if type(v) ~= 'string' then
         return nil, 'keyspace must be a string'
       end
-      peers_opts.keyspace = v
     elseif k == 'ssl' then
       if type(v) ~= 'boolean' then
         return nil, 'ssl must be a boolean'
@@ -308,6 +337,7 @@ function _Cluster.new(opts)
     dict_name = dict_name,
     prepared_ids = {},
     peers_opts = peers_opts,
+    keyspace = opts.keyspace,
     default_port = opts.default_port or 9042,
     contact_points = opts.contact_points or {'127.0.0.1'},
     timeout_read = opts.timeout_read or 2000,
@@ -348,13 +378,13 @@ local function first_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
-local function next_coordinator(self)
+local function next_coordinator(self, keyspace)
   local errors = {}
 
   for _, peer_rec in self.lb_policy:iter() do
     local ok, err, retry = can_try_peer(self, peer_rec.host)
     if ok then
-      local peer, err = check_peer_health(self, peer_rec.host, retry)
+      local peer, err = check_peer_health(self, peer_rec.host, keyspace, retry)
       if peer then
         log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
         return peer
@@ -389,8 +419,8 @@ function _Cluster:refresh()
     for i = 1, #old_peers do
       local host = old_peers[i].host
       old_peers[host] = old_peers[i] -- alias as a hash
-      self.shm:delete(_rec_key .. host)
-      self.shm:delete(host)
+      self.shm:delete(_rec_key .. host)  -- details
+      self.shm:delete(host) -- status bool
     end
   else
     old_peers = {} -- empty shm
@@ -398,7 +428,7 @@ function _Cluster:refresh()
 
   local lock = resty_lock:new(self.dict_name)
   local elapsed, err = lock:lock('refresh')
-  if not elapsed then return nil, 'failed to acquire lock: '..err end
+  if not elapsed then return nil, 'failed to acquire refresh lock: '..err end
 
   -- did someone else got the hosts?
   local peers, err = get_peers(self)
@@ -408,14 +438,23 @@ function _Cluster:refresh()
     local coordinator, err = first_coordinator(self)
     if not coordinator then return nil, err end
 
+    local local_rows, err = coordinator:execute [[
+      SELECT data_center,rpc_address,release_version FROM system.local
+    ]]
+    if not local_rows then return nil, err end
+
     local rows, err = coordinator:execute [[
-      SELECT peer,data_center,rpc_address FROM system.peers
+      SELECT peer,data_center,rpc_address,release_version FROM system.peers
     ]]
     if not rows then return nil, err end
 
     coordinator:setkeepalive()
 
-    rows[#rows+1] = {rpc_address = coordinator.host} -- local host
+    rows[#rows+1] = { -- local host
+      rpc_address = local_rows[1].rpc_address,
+      data_center = local_rows[1].data_center,
+      release_version = local_rows[1].release_version
+    }
 
     for i = 1, #rows do
       local host = rows[i].rpc_address
@@ -428,7 +467,8 @@ function _Cluster:refresh()
         unhealthy_at = old_peer.unhealthy_at
       end
 
-      local ok, err = set_peer(self, host, up, reconn_delay, unhealthy_at)
+      local ok, err = set_peer(self, host, up, reconn_delay, unhealthy_at,
+                               rows[i].data_center, rows[i].release_version)
       if not ok then return nil, err end
     end
 
@@ -437,7 +477,7 @@ function _Cluster:refresh()
   end
 
   local ok, err = lock:unlock()
-  if not ok then return nil, 'failed to unlock: '..err end
+  if not ok then return nil, 'failed to unlock refresh lock: '..err end
 
   self.lb_policy:init(peers)
   self.init = true
@@ -640,6 +680,7 @@ do
   local query_req = requests.query.new
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
+  local empty_t = {}
 
   --- Execute a query.
   -- Sends a request to the coordinator chosen by the configured load
@@ -672,18 +713,21 @@ do
   --
   -- @param[type=string] query CQL query to execute.
   -- @param[type=table] args (optional) Arguments to bind to the query.
-  -- @param[type=table] options (optional) Options from `query_options`
+  -- @param[type=table] options (optional) Options from `query_options`.
+  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`
   -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:execute(query, args, options)
+  function _Cluster:execute(query, args, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
     end
 
-    local coordinator, err = next_coordinator(self)
+    coordinator_options = coordinator_options or empty_t
+
+    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
     if not coordinator then return nil, err end
 
     local request
@@ -723,16 +767,22 @@ do
   --   ngx.exit(500)
   -- end
   --
+  -- @param[type=table] queries CQL queries to execute.
+  -- @param[type=table] options (optional) Options from `query_options`.
+  -- @param[type=table] coordinator_options (optional) Options from `coordinator_options`
+  -- for this query.
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:batch(queries_t, options)
+  function _Cluster:batch(queries_t, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
     end
 
-    local coordinator, err = next_coordinator(self)
+    coordinator_options = coordinator_options or empty_t
+
+    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
     if not coordinator then return nil, err end
 
     local opts = get_request_opts(options)

@@ -3,6 +3,8 @@
 CASSANDRA=${1}
 
 ccm stop
-ccm create lua_cassandra_prove -v binary:$CASSANDRA -n 3
+if [[ ! $(ccm list | grep lua_cassandra_prove) ]]; then
+  ccm create lua_cassandra_prove -v binary:$CASSANDRA -n 3
+fi
 ccm switch lua_cassandra_prove
 ccm start --wait-for-binary-proto

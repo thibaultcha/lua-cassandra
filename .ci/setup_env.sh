@@ -19,6 +19,7 @@ luarocks install luasocket
 pip install --user PyYAML six
 git clone https://github.com/pcmanus/ccm.git
 pushd ccm
+  git checkout 18a50dfde2069e64a3124e2300ad1f0c1e08f908
   ./setup.py install --user
 popd
 

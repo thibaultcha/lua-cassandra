@@ -1128,3 +1128,39 @@ GET /t
 127.0.0.1 is back up: true
 --- no_error_log
 [error]
+
+
+
+=== TEST 25: next_coordinator() sets coordinator keyspace on connect
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local coordinator, err = cluster:next_coordinator('system')
+            if not coordinator then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say(coordinator.keyspace)
+        }
+    }
+--- request
+GET /t
+--- response_body
+system
+--- no_error_log
+[error]

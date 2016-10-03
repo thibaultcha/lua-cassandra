@@ -97,6 +97,13 @@ describe("cassandra (host)", function()
       assert.equal("timeout", err)
       assert.True(maybe_down)
     end)
+    it("connects directly in a keyspace", function()
+      local peer_k = assert(cassandra.new {keyspace = "system"})
+      assert(peer_k:connect())
+
+      local rows = assert(peer_k:execute "SELECT * FROM local")
+      assert.equal("local", rows[1].key)
+    end)
   end)
 
   describe("close()", function()
@@ -249,7 +256,7 @@ describe("cassandra (host)", function()
       end)
       describe("protocol v3 options", function()
         setup(function()
-          assert(peer:set_keyspace(helpers.keyspace))
+          assert(peer:change_keyspace(helpers.keyspace))
           assert(peer:execute [[
             CREATE TABLE IF NOT EXISTS options(
               id int PRIMARY KEY,
@@ -344,22 +351,13 @@ describe("cassandra (host)", function()
       end)
     end)
 
-    describe("set_keyspace()", function()
-      it("sets a peer's keyspace", function()
+    describe("change_keyspace()", function()
+      it("changes a peer's keyspace", function()
         local peer_k = assert(cassandra.new())
         assert(peer_k:connect())
 
-        local res = assert(peer_k:set_keyspace "system")
-        assert.equal(0, #res)
-        assert.equal("SET_KEYSPACE", res.type)
-        assert.equal("system", res.keyspace)
-
-        local rows = assert(peer_k:execute "SELECT * FROM local")
-        assert.equal("local", rows[1].key)
-      end)
-      it("connects directly in a keyspace", function()
-        local peer_k = assert(cassandra.new {keyspace = "system"})
-        assert(peer_k:connect())
+        assert(peer_k:change_keyspace "system")
+        assert.equal("system", peer_k.keyspace)
 
         local rows = assert(peer_k:execute "SELECT * FROM local")
         assert.equal("local", rows[1].key)
@@ -368,7 +366,7 @@ describe("cassandra (host)", function()
 
     describe("batch()", function()
       setup(function()
-        assert(peer:set_keyspace(helpers.keyspace))
+        assert(peer:change_keyspace(helpers.keyspace))
         assert(peer:execute [[
           CREATE TABLE IF NOT EXISTS things(
             id uuid PRIMARY KEY,
@@ -531,7 +529,7 @@ describe("cassandra (host)", function()
 
     describe("Types marshalling", function()
       setup(function()
-        assert(peer:set_keyspace(helpers.keyspace))
+        assert(peer:change_keyspace(helpers.keyspace))
         assert(peer:execute [[
           CREATE TYPE IF NOT EXISTS address(
             street text,

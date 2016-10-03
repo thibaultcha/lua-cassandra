@@ -50,7 +50,7 @@ local function get_now()
 end
 
 -----------------------------------------
--- Hosts status+health+info stored in shm
+-- Hosts status+info stored in shm
 -----------------------------------------
 
 local function set_peer(self, host, up, reconn_delay, unhealthy_at,
@@ -58,13 +58,13 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   data_center = data_center or ''
   release_version = release_version or ''
 
-  -- status
+  -- host status
   local ok, err = self.shm:set(host, up)
   if not ok then
     return nil, 'could not set host details in shm: '..err
   end
 
-  -- host health and info
+  -- host info
   rec_peer_cdata.reconn_delay = reconn_delay
   rec_peer_cdata.unhealthy_at = unhealthy_at
   rec_peer_cdata.data_center = ffi_cast(str_const, data_center)
@@ -163,15 +163,18 @@ end
 -- utils
 ----------------------------
 
-local function spawn_peer(host, port, opts)
+local function spawn_peer(host, port, keyspace, opts)
   opts = opts or {}
   opts.host = host
   opts.port = port
+  opts.keyspace = keyspace
   return cassandra.new(opts)
 end
 
-local function check_peer_health(self, host, retry)
-  local peer, err = spawn_peer(host, self.default_port, self.peers_opts)
+local function check_peer_health(self, host, keyspace, retry)
+  local peer, err = spawn_peer(host, self.default_port,
+                               keyspace or self.keyspace,
+                               self.peers_opts)
   if not peer then return nil, err
   else
     peer:settimeout(self.timeout_connect)
@@ -375,13 +378,13 @@ local function first_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
-local function next_coordinator(self)
+local function next_coordinator(self, keyspace)
   local errors = {}
 
   for _, peer_rec in self.lb_policy:iter() do
     local ok, err, retry = can_try_peer(self, peer_rec.host)
     if ok then
-      local peer, err = check_peer_health(self, peer_rec.host, retry)
+      local peer, err = check_peer_health(self, peer_rec.host, keyspace, retry)
       if peer then
         log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
         return peer
@@ -677,38 +680,7 @@ do
   local query_req = requests.query.new
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
-
-  --- Coordinator options.
-  -- Options to pass to coordinators chosen by the load balancing policy
-  -- on `execute`/`batch`/`iterate`.
-  -- @field keyspace Keyspace to use for the current request.
-  -- (`string`, optional)
-  -- @table `coordinator_options`
-
-  local function prepare_coordinator(self, coordinator, coordinator_options)
-    local reused, err = coordinator:getreusedtimes()
-    if not reused then return nil, err end
-
-    local keyspace
-
-    if coordinator_options and coordinator_options.keyspace then
-      keyspace = coordinator_options.keyspace
-    elseif self.keyspace then
-    --elseif self.keyspace and reused < 1 then
-      -- Note: ideally we would not set the keyspace on each query, but for now there
-      -- is no way to know if a reused connection has its keyspace set or not,
-      -- so we must set the keyspace regardless of if the connection is coming
-      -- from the pool or is a new one.
-      keyspace = self.keyspace
-    end
-
-    if keyspace then
-      local res, err = coordinator:set_keyspace(keyspace)
-      if not res then return nil, err end
-    end
-
-    return true
-  end
+  local empty_t = {}
 
   --- Execute a query.
   -- Sends a request to the coordinator chosen by the configured load
@@ -753,11 +725,10 @@ do
       if not ok then return nil, 'could not refresh cluster: '..err end
     end
 
-    local coordinator, err = next_coordinator(self)
-    if not coordinator then return nil, err end
+    coordinator_options = coordinator_options or empty_t
 
-    local ok, err = prepare_coordinator(self, coordinator, coordinator_options)
-    if not ok then return nil, err end
+    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
+    if not coordinator then return nil, err end
 
     local request
     local opts = get_request_opts(options)
@@ -803,17 +774,16 @@ do
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:batch(queries_t, options)
+  function _Cluster:batch(queries_t, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
     end
 
-    local coordinator, err = next_coordinator(self)
-    if not coordinator then return nil, err end
+    coordinator_options = coordinator_options or empty_t
 
-    local ok, err = prepare_coordinator(self, coordinator, options)
-    if not ok then return nil, err end
+    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
+    if not coordinator then return nil, err end
 
     local opts = get_request_opts(options)
 

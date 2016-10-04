@@ -683,7 +683,7 @@ send_request = function(self, coordinator, request)
   elseif res.warnings then
     -- protocol v4 can return warnings to the client
     for i = 1, #res.warnings do
-      log(WARN, _log_prefix, ' ', res.warnings[i])
+      log(WARN, _log_prefix, res.warnings[i])
     end
   end
 

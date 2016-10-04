@@ -5,7 +5,7 @@ our $HttpConfig = <<_EOC_;
     lua_package_path 'lib/?.lua;lib/?/init.lua;;';
 _EOC_
 
-plan tests => repeat_each() * blocks() * 3;
+plan tests => repeat_each() * blocks() * 3 - 2;
 
 run_tests();
 
@@ -142,3 +142,48 @@ local_dc: dc1
 6 10.0.0.1
 --- no_error_log
 [error]
+
+
+
+=== TEST 3: rr_lb with missing local_dc
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local dc_rr = require 'resty.cassandra.policies.lb.dc_rr'
+            local lb = dc_rr.new()
+        }
+    }
+--- request
+GET /t
+--- error_code: 500
+--- error_log
+local_dc must be a string
+
+
+
+=== TEST 4: rr_lb with missing data_center fields
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local dc_rr = require 'resty.cassandra.policies.lb.dc_rr'
+
+            local peers = {
+                {host = '10.0.0.1', data_center = 'dc2'},
+
+                {host = '127.0.0.1', data_center = 'dc1'},
+                {host = '127.0.0.2', data_center = 'dc1'},
+                {host = '127.0.0.3'}
+            }
+
+            local lb = dc_rr.new('dc1')
+
+            lb:init(peers)
+        }
+    }
+--- request
+GET /t
+--- error_code: 500
+--- error_log
+peer 127.0.0.3 data_center field must be a string

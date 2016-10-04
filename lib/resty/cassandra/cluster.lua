@@ -29,6 +29,7 @@ local C = ffi.C
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
+local _protocol_version_key = 'protocol:version:'
 
 ffi.cdef [[
     size_t strlen(const char *str);
@@ -410,7 +411,6 @@ end
 -- @treturn boolean `ok`: `true` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Cluster:refresh()
-  local protocol_version
   local old_peers, err = get_peers(self)
   if err then return nil, err
   elseif old_peers then
@@ -449,8 +449,6 @@ function _Cluster:refresh()
     ]]
     if not rows then return nil, err end
 
-    protocol_version = coordinator.protocol_version
-
     coordinator:setkeepalive()
 
     rows[#rows+1] = { -- local host
@@ -477,14 +475,27 @@ function _Cluster:refresh()
 
     peers, err = get_peers(self)
     if err then return nil, err end
+
+    local ok, err = self.shm:set(_protocol_version_key, coordinator.protocol_version)
+    if not ok then return nil, 'could not set protocol_version in shm: '..err end
   end
 
   local ok, err = lock:unlock()
   if not ok then return nil, 'failed to unlock refresh lock: '..err end
 
+  local protocol_version, err = self.shm:get(_protocol_version_key)
+  if not protocol_version then return nil, 'could not get protocol_version: '..err end
+
+  -- setting protocol_version early so we don't always attempt a connection
+  -- with an incompatible one, triggerring more round trips
   self.peers_opts.protocol_version = protocol_version
+
+  -- initiate the load balancing policy
   self.lb_policy:init(peers)
+
+  -- cluster is ready to be queried
   self.init = true
+
   return true
 end
 

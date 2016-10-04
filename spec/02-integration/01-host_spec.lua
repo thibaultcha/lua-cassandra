@@ -52,19 +52,16 @@ describe("cassandra (host)", function()
       local peer = assert(cassandra.new())
       assert.equal("127.0.0.1", peer.host)
       assert.equal(9042, peer.port)
-      assert.equal(3, peer.protocol_version)
       assert.is_nil(peer.ssl)
       assert.truthy(peer.sock)
     end)
     it("accepts options", function()
       local peer = assert(cassandra.new {
         host = "192.168.1.1",
-        port = 9043,
-        protocol_version = 2
+        port = 9043
       })
       assert.equal("192.168.1.1", peer.host)
       assert.equal(9043, peer.port)
-      assert.equal(2, peer.protocol_version)
       assert.is_nil(peer.ssl)
       assert.truthy(peer.sock)
     end)
@@ -165,7 +162,9 @@ describe("cassandra (host)", function()
       peer = p
     end)
     teardown(function()
-      peer:close()
+      if peer then
+        peer:close()
+      end
     end)
 
     describe("execute()", function()
@@ -254,7 +253,21 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM system.local WHERE key = ?", {"local"}))
         assert.equal("local", rows[1].key)
       end)
-      describe("protocol v3 options", function()
+      describe("binary protocols", function()
+        it("connects with desired protocol version if specifically asked", function()
+          local min_protocol_version = helpers.cassandra_version_num < 30000 and 2 or 3
+          local max_protocol_version = helpers.cassandra_version_num >= 22000 and 4 or 3
+          for i = min_protocol_version, max_protocol_version do
+            local peer_v = assert(cassandra.new {
+              protocol_version = i
+            })
+            assert(peer_v:connect())
+            assert.equal(i, peer_v.protocol_version)
+            peer_v:close()
+          end
+        end)
+      end)
+      describe("protocol v3", function()
         setup(function()
           assert(peer:change_keyspace(helpers.keyspace))
           assert(peer:execute [[
@@ -299,6 +312,51 @@ describe("cassandra (host)", function()
           assert.equal(30, rows[1].n)
         end)
       end)
+      if helpers.cassandra_version_num >= 30000 then
+        describe("protocol v4", function()
+          it("uses protocol v4 by default", function()
+            assert.equal(4, peer.protocol_version)
+          end)
+          it("parses SCHEMA_CHANGE for FUNCTION", function()
+            local res = assert(peer:execute [[
+              CREATE OR REPLACE FUNCTION avgState(state tuple<int,bigint>, val int)
+              CALLED ON NULL INPUT RETURNS tuple<int,bigint> LANGUAGE java AS
+                'if (val !=null) {
+                   state.setInt(0, state.getInt(0)+1);
+                   state.setLong(1, state.getLong(1)+val.intValue());
+                 }
+                 return state;
+                '
+            ]])
+            assert.equal("FUNCTION", res.target)
+            assert.equal("avgstate", res.name)
+
+            res = assert(peer:execute [[
+              CREATE OR REPLACE FUNCTION avgFinal(state tuple<int,bigint>)
+              CALLED ON NULL INPUT RETURNS double LANGUAGE java AS
+                'double r = 0;
+                 if (state.getInt(0) == 0)
+                   return null;
+                 r = state.getLong(1);
+                 r/= state.getInt(0);
+                 return Double.valueOf(r);
+                '
+            ]])
+            assert.equal("FUNCTION", res.target)
+            assert.equal("avgfinal", res.name)
+            assert.same({"frozen<tuple<int, bigint>>"}, res.arguments_types)
+          end)
+          it("parses SCHEMA_CHANGE for AGGREGATE", function()
+            local res = assert(peer:execute [[
+              CREATE OR REPLACE AGGREGATE average(int)
+              SFUNC avgState STYPE tuple<int,bigint> FINALFUNC avgFinal INITCOND (0,0);
+            ]])
+            assert.equal("AGGREGATE", res.target)
+            assert.equal("average", res.name)
+            assert.same({"int"}, res.arguments_types)
+          end)
+        end)
+      end
       describe("tracing", function()
         it("appends tracing_id field to result", function()
           local res = assert(peer:execute("INSERT INTO options(id,n) VALUES(4, 10)", nil, {
@@ -328,8 +386,7 @@ describe("cassandra (host)", function()
             end
 
             local trace = assert(peer:get_trace(res.tracing_id))
-            assert.equal("127.0.0.1", trace.client)
-            assert.equal("QUERY", trace.command)
+            assert.is_table(trace)
             assert.is_table(trace.events)
             assert.True(#trace.events > 0)
             assert.is_table(trace.parameters)
@@ -339,12 +396,12 @@ describe("cassandra (host)", function()
     end) -- execute()
 
     describe("prepared queries", function()
-      it("should prepare a query", function()
+      it("prepares a query", function()
         local res = assert(peer:prepare "SELECT * FROM system.local WHERE key = ?")
         assert.truthy(res.query_id)
         assert.equal("PREPARED", res.type)
       end)
-      it("should execute a prepared query", function()
+      it("executes a prepared query", function()
         local res = assert(peer:prepare "SELECT * FROM system.local WHERE key = ?")
         local rows = assert(peer:execute(res.query_id, {"local"}, {prepared = true}))
         assert.equal("local", rows[1].key)
@@ -599,6 +656,7 @@ describe("cassandra (host)", function()
         local rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
         assert.equal(1, #rows)
         assert.is_string(rows[1].ascii_sample)
+        local original = rows[1].ascii_sample
 
         local res = assert(peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {
           cassandra.unset,
@@ -608,8 +666,32 @@ describe("cassandra (host)", function()
 
         rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
         assert.equal(1, #rows)
-        assert.is_nil(rows[1].ascii_sample)
+        if peer.protocol_version >= 4 then
+          assert.is_string(rows[1].ascii_sample)
+          assert.equal(original, rows[1].ascii_sample)
+        else
+          assert.is_nil(rows[1].ascii_sample)
+        end
       end)
+      if peer.protocol_version >= 4 then
+        it("[null]", function()
+          assert.is_table(cassandra.null)
+
+          local rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
+          assert.equal(1, #rows)
+          assert.is_string(rows[1].ascii_sample)
+
+          local res = assert(peer:execute("UPDATE cql_types SET ascii_sample = ? WHERE id = ?", {
+            cassandra.null,
+            _id
+          }))
+          assert.equal("VOID", res.type)
+
+          rows = assert(peer:execute("SELECT * FROM cql_types WHERE id = ".._id))
+          assert.equal(1, #rows)
+          assert.is_nil(rows[1].ascii_sample)
+        end)
+      end
       it("[map<type, type>]", function()
         for _, fixture in ipairs(helpers.cql_map_fixtures) do
           local insert_q = fmt("INSERT INTO cql_types(id, %s) VALUES(?, ?)", fixture.name)

@@ -29,6 +29,7 @@ local C = ffi.C
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
+local _protocol_version_key = 'protocol:version:'
 
 ffi.cdef [[
     size_t strlen(const char *str);
@@ -474,13 +475,27 @@ function _Cluster:refresh()
 
     peers, err = get_peers(self)
     if err then return nil, err end
+
+    local ok, err = self.shm:set(_protocol_version_key, coordinator.protocol_version)
+    if not ok then return nil, 'could not set protocol_version in shm: '..err end
   end
 
   local ok, err = lock:unlock()
   if not ok then return nil, 'failed to unlock refresh lock: '..err end
 
+  local protocol_version, err = self.shm:get(_protocol_version_key)
+  if not protocol_version then return nil, 'could not get protocol_version: '..err end
+
+  -- setting protocol_version early so we don't always attempt a connection
+  -- with an incompatible one, triggerring more round trips
+  self.peers_opts.protocol_version = protocol_version
+
+  -- initiate the load balancing policy
   self.lb_policy:init(peers)
+
+  -- cluster is ready to be queried
   self.init = true
+
   return true
 end
 
@@ -657,6 +672,11 @@ send_request = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
+  elseif res.warnings then
+    -- protocol v4 can return warnings to the client
+    for i = 1, #res.warnings do
+      log(WARN, _log_prefix, ' ', res.warnings[i])
+    end
   end
 
   if res.type == 'SCHEMA_CHANGE' then

@@ -105,6 +105,30 @@ for protocol_version = 2, 3 do
       end
     end)
 
+    describe("notations", function()
+      it("[string list]", function()
+        local list = {"hello", "world", "goodbye"}
+        local buffer = Buffer.new(protocol_version)
+        buffer:write_string_list(list)
+        buffer:reset()
+        local decoded = buffer:read_string_list()
+        assert.same(list, decoded)
+      end)
+
+      it("[string multimap]", function()
+        local multimap = {
+          hello = {"world", "universe"},
+          goodbye = {"universe", "world"},
+          foo = {"bar"}
+        }
+        local buffer = Buffer.new(protocol_version)
+        buffer:write_string_multimap(multimap)
+        buffer:reset()
+        local decoded = buffer:read_string_multimap()
+        assert.same(multimap, decoded)
+      end)
+    end)
+
     describe("write_cql_values()", function()
       it("writes given values and infer their types", function()
         local values = {

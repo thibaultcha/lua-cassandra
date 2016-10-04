@@ -1,3 +1,24 @@
+--[[
+Implement Cassandra's native protocol v2/v3/v4
+See:
+  - v2: https://github.com/apache/cassandra/blob/cassandra-2.2.7/doc/native_protocol_v2.spec
+  - v3: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v3.spec
+  - v4: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec
+
+Notes:
+  - does not implement REGISTER messages
+  - does not implement SUPPORTED results parsing and OPTIONS messages
+  - does not implement EVENTS parsing
+  - does not implement compression
+  - does not set stream ids for frames
+  - does not implement no_metadata query flag and ROWS results flag
+  - does not implement decimal data type
+  - does not implement parsing of specific error codes
+    (unavailable/write_timeout/read_timeout/already_exists/etc...)
+  - v4: does not implement date/time/smallint/tinyint data types
+  - v4: does not implement custom payloads for custom QueryHandler
+--]]
+
 local bit = require 'bit'
 
 local setmetatable = setmetatable
@@ -29,6 +50,7 @@ local requests = {}
 local frame_reader = {}
 
 local cql_t_unset = {}
+local cql_t_null = {}
 local cql_types = {
   custom    = 0x00,
   ascii     = 0x01,
@@ -55,59 +77,83 @@ local cql_types = {
 }
 
 local consistencies = {
-  any = 0x0000,
-  one = 0x0001,
-  two = 0x0002,
-  three = 0x0003,
-  quorum = 0x0004,
-  all = 0x0005,
-  local_quorum = 0x0006,
-  each_quorum = 0x0007,
-  serial = 0x0008,
-  local_serial = 0x0009,
-  local_one = 0x000a
+  any               = 0x0000,
+  one               = 0x0001,
+  two               = 0x0002,
+  three             = 0x0003,
+  quorum            = 0x0004,
+  all               = 0x0005,
+  local_quorum      = 0x0006,
+  each_quorum       = 0x0007,
+  serial            = 0x0008,
+  local_serial      = 0x0009,
+  local_one         = 0x000a
 }
 
-local ERRORS = {
-  SERVER = 0x0000,
-  PROTOCOL = 0x000A,
-  BAD_CREDENTIALS = 0x0100,
+local ERRORS            = {
+  SERVER                = 0x0000,
+  PROTOCOL              = 0x000A,
+  BAD_CREDENTIALS       = 0x0100,
   UNAVAILABLE_EXCEPTION = 0x1000,
-  OVERLOADED = 0x1001,
-  IS_BOOTSTRAPPING = 0x1002,
-  TRUNCATE_ERROR = 0x1003,
-  WRITE_TIMEOUT = 0x1100,
-  READ_TIMEOUT = 0x1200,
-  SYNTAX_ERROR = 0x2000,
-  UNAUTHORIZED = 0x2100,
-  INVALID = 0x2200,
-  CONFIG_ERROR = 0x2300,
-  ALREADY_EXISTS = 0x2400,
-  UNPREPARED = 0x2500
+  OVERLOADED            = 0x1001,
+  IS_BOOTSTRAPPING      = 0x1002,
+  TRUNCATE_ERROR        = 0x1003,
+  WRITE_TIMEOUT         = 0x1100,
+  READ_TIMEOUT          = 0x1200,
+  READ_FAILURE          = 0x1300,
+  FUNCTION_FAILURE      = 0x1400,
+  SYNTAX_ERROR          = 0x2000,
+  UNAUTHORIZED          = 0x2100,
+  INVALID               = 0x2200,
+  CONFIG_ERROR          = 0x2300,
+  ALREADY_EXISTS        = 0x2400,
+  UNPREPARED            = 0x2500
 }
 
-local QUERY_FLAGS = {
-  COMPRESSION = 0x01,
-  TRACING = 0x02
+local ERROR_TRANSLATIONS         = {
+  [ERRORS.SERVER]                = 'Server error',
+  [ERRORS.PROTOCOL]              = 'Protocol error',
+  [ERRORS.BAD_CREDENTIALS]       = 'Bad credentials',
+  [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
+  [ERRORS.OVERLOADED]            = 'Overloaded',
+  [ERRORS.IS_BOOTSTRAPPING]      = 'Is bootstrapping',
+  [ERRORS.TRUNCATE_ERROR]        = 'Truncate error',
+  [ERRORS.WRITE_TIMEOUT]         = 'Write timeout',
+  [ERRORS.READ_TIMEOUT]          = 'Read timeout',
+  [ERRORS.READ_FAILURE]          = 'Read failure',
+  [ERRORS.FUNCTION_FAILURE]      = 'Function failure',
+  [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
+  [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
+  [ERRORS.INVALID]               = 'Invalid',
+  [ERRORS.CONFIG_ERROR]          = 'Config error',
+  [ERRORS.ALREADY_EXISTS]        = 'Already exists',
+  [ERRORS.UNPREPARED]            = 'Unprepared'
 }
 
-local OP_CODES = {
-  ERROR = 0x00,
-  STARTUP = 0x01,
-  READY = 0x02,
-  AUTHENTICATE = 0x03,
-  OPTIONS = 0x05,
-  SUPPORTED = 0x06,
-  QUERY = 0x07,
-  RESULT = 0x08,
-  PREPARE = 0x09,
-  EXECUTE = 0x0A,
-  REGISTER = 0x0B,
-  EVENT = 0x0C,
-  BATCH = 0x0D,
+local OP_CODES   = {
+  ERROR          = 0x00,
+  STARTUP        = 0x01,
+  READY          = 0x02,
+  AUTHENTICATE   = 0x03,
+  OPTIONS        = 0x05,
+  SUPPORTED      = 0x06,
+  QUERY          = 0x07,
+  RESULT         = 0x08,
+  PREPARE        = 0x09,
+  EXECUTE        = 0x0A,
+  REGISTER       = 0x0B,
+  EVENT          = 0x0C,
+  BATCH          = 0x0D,
   AUTH_CHALLENGE = 0x0E,
-  AUTH_RESPONSE = 0x0F,
-  AUTH_SUCCESS = 0x10
+  AUTH_RESPONSE  = 0x0F,
+  AUTH_SUCCESS   = 0x10
+}
+
+local FRAME_FLAGS  = {
+  --COMPRESSION    = 0x01,
+  TRACING          = 0x02,
+  --CUSTOM_PAYLOAD = 0x04,
+  WARNING          = 0x08
 }
 
 local function is_array(t)
@@ -213,6 +259,10 @@ do
 
   local function marsh_unset()
     return marsh_int(-2)
+  end
+
+  local function marsh_null()
+    return marsh_int(-1)
   end
 
   local function unmarsh_int(buffer)
@@ -337,6 +387,26 @@ do
     end
   end
 
+  local function marsh_string_list(val)
+    local t = {}
+    local n = 0
+    for k, v in pairs(val) do
+      n = n + 1
+      t[#t+1] = marsh_string(v)
+    end
+    insert(t, 1, marsh_short(n))
+    return concat(t)
+  end
+
+  local function unmarsh_string_list(buffer)
+    local list = {}
+    local n = buffer:read_short()
+    for _ = 1, n do
+      list[#list+1] = buffer:read_string()
+    end
+    return list
+  end
+
   local function marsh_string_map(val)
     local t = {}
     local n = 0
@@ -358,6 +428,28 @@ do
       map[key] = value
     end
     return map
+  end
+
+  local function marsh_string_multimap(val)
+    local t = {}
+    local n = 0
+    for k, v in pairs(val) do
+      n = n + 1
+      t[#t+1] = marsh_string(k)
+      t[#t+1] = marsh_string_list(v)
+    end
+    insert(t, 1, marsh_short(n))
+    return concat(t)
+  end
+
+  local function unmarsh_string_multimap(buffer)
+    local multimap = {}
+    local n = buffer:read_short()
+    for _ = 1, n do
+      local key = buffer:read_string()
+      multimap[key] = buffer:read_string_list()
+    end
+    return multimap
   end
 
   local function unmarsh_udt_type(buffer)
@@ -393,19 +485,21 @@ do
 
   do
     local marshallers = {
-      byte = {marsh_byte, unmarsh_byte},
-      int = {marsh_int, unmarsh_int},
-      long = {marsh_long, unmarsh_long},
-      short = {marsh_short, unmarsh_short},
-      string = {marsh_string, unmarsh_string},
-      long_string = {marsh_long_string, unmarsh_long_string},
-      bytes = {marsh_bytes, unmarsh_bytes},
-      short_bytes = {marsh_short_bytes, unmarsh_short_bytes},
-      uuid = {marsh_uuid, unmarsh_uuid},
-      inet = {marsh_inet, unmarsh_inet},
-      string_map = {marsh_string_map, unmarsh_string_map},
-      udt_type = {nil, unmarsh_udt_type},
-      tuple_type = {nil, unmarsh_tuple_type}
+      byte            = {marsh_byte, unmarsh_byte},
+      int             = {marsh_int, unmarsh_int},
+      long            = {marsh_long, unmarsh_long},
+      short           = {marsh_short, unmarsh_short},
+      string          = {marsh_string, unmarsh_string},
+      long_string     = {marsh_long_string, unmarsh_long_string},
+      bytes           = {marsh_bytes, unmarsh_bytes},
+      short_bytes     = {marsh_short_bytes, unmarsh_short_bytes},
+      uuid            = {marsh_uuid, unmarsh_uuid},
+      inet            = {marsh_inet, unmarsh_inet},
+      string_map      = {marsh_string_map, unmarsh_string_map},
+      string_list     = {marsh_string_list, unmarsh_string_list},
+      string_multimap = {marsh_string_multimap, unmarsh_string_multimap},
+      udt_type        = {nil, unmarsh_udt_type},
+      tuple_type      = {nil, unmarsh_tuple_type}
     }
 
     for name, t in pairs(marshallers) do
@@ -706,33 +800,35 @@ do
   ------------------
 
   local cql_marshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = marsh_raw,
-    [cql_types.bigint] = marsh_bigint,
-    [cql_types.blob] = marsh_raw,
+    -- custom           = 0x00,
+    [cql_types.ascii]   = marsh_raw,
+    [cql_types.bigint]  = marsh_bigint,
+    [cql_types.blob]    = marsh_raw,
     [cql_types.boolean] = marsh_boolean,
     [cql_types.counter] = marsh_bigint,
     -- decimal 0x06
-    [cql_types.double] = marsh_double,
-    [cql_types.float] = marsh_float,
-    [cql_types.inet] = marsh_inet,
-    [cql_types.int] = marsh_int,
-    [cql_types.text] = marsh_raw,
-    [cql_types.list] = marsh_set,
-    [cql_types.map] = marsh_map,
-    [cql_types.set] = marsh_set,
-    [cql_types.uuid] = marsh_uuid,
+    [cql_types.double]    = marsh_double,
+    [cql_types.float]     = marsh_float,
+    [cql_types.inet]      = marsh_inet,
+    [cql_types.int]       = marsh_int,
+    [cql_types.text]      = marsh_raw,
+    [cql_types.list]      = marsh_set,
+    [cql_types.map]       = marsh_map,
+    [cql_types.set]       = marsh_set,
+    [cql_types.uuid]      = marsh_uuid,
     [cql_types.timestamp] = marsh_bigint,
-    [cql_types.varchar] = marsh_raw,
-    [cql_types.varint] = marsh_int,
-    [cql_types.timeuuid] = marsh_uuid,
-    [cql_types.udt] = marsh_udt,
-    [cql_types.tuple] = marsh_tuple
+    [cql_types.varchar]   = marsh_raw,
+    [cql_types.varint]    = marsh_int,
+    [cql_types.timeuuid]  = marsh_uuid,
+    [cql_types.udt]       = marsh_udt,
+    [cql_types.tuple]     = marsh_tuple
   }
 
   marsh_cql_value = function(val, version)
     if val == cql_t_unset then
       return marsh_unset()
+    elseif val == cql_t_null then
+      return marsh_null()
     end
 
     local cql_t
@@ -776,28 +872,28 @@ do
   --------------------
 
   local cql_unmarshallers = {
-    -- custom = 0x00,
-    [cql_types.ascii] = unmarsh_raw,
-    [cql_types.bigint] = unmarsh_bigint,
-    [cql_types.blob] = unmarsh_raw,
-    [cql_types.boolean] = unmarsh_boolean,
-    [cql_types.counter] = unmarsh_bigint,
+    -- custom             = 0x00,
+    [cql_types.ascii]     = unmarsh_raw,
+    [cql_types.bigint]    = unmarsh_bigint,
+    [cql_types.blob]      = unmarsh_raw,
+    [cql_types.boolean]   = unmarsh_boolean,
+    [cql_types.counter]   = unmarsh_bigint,
     -- decimal 0x06
-    [cql_types.double] = unmarsh_double,
-    [cql_types.float] = unmarsh_float,
-    [cql_types.inet] = unmarsh_inet,
-    [cql_types.int] = unmarsh_int,
-    [cql_types.text] = unmarsh_raw,
-    [cql_types.list] = unmarsh_set,
-    [cql_types.map] = unmarsh_map,
-    [cql_types.set] = unmarsh_set,
-    [cql_types.uuid] = unmarsh_uuid,
+    [cql_types.double]    = unmarsh_double,
+    [cql_types.float]     = unmarsh_float,
+    [cql_types.inet]      = unmarsh_inet,
+    [cql_types.int]       = unmarsh_int,
+    [cql_types.text]      = unmarsh_raw,
+    [cql_types.list]      = unmarsh_set,
+    [cql_types.map]       = unmarsh_map,
+    [cql_types.set]       = unmarsh_set,
+    [cql_types.uuid]      = unmarsh_uuid,
     [cql_types.timestamp] = unmarsh_bigint,
-    [cql_types.varchar] = unmarsh_raw,
-    [cql_types.varint] = unmarsh_int,
-    [cql_types.timeuuid] = unmarsh_uuid,
-    [cql_types.udt] = unmarsh_udt,
-    [cql_types.tuple] = unmarsh_tuple
+    [cql_types.varchar]   = unmarsh_raw,
+    [cql_types.varint]    = unmarsh_int,
+    [cql_types.timeuuid]  = unmarsh_uuid,
+    [cql_types.udt]       = unmarsh_udt,
+    [cql_types.tuple]     = unmarsh_tuple
   }
 
   -- Read a CQL value with a given CQL type
@@ -820,6 +916,15 @@ end -- do CQL encoding
 
 do
   local CQL_VERSION = '3.0.0'
+  local QUERY_FLAGS = {
+    VALUES                 = 0x01,
+    --SKIP_METADATA        = 0x02,
+    PAGE_SIZE              = 0x04,
+    WITH_PAGING_STATE      = 0x08,
+    WITH_SERIAL_CONSISTENCY = 0x10,
+    WITH_DEFAULT_TIMESTAMP = 0x20,
+    WITH_NAMES_FOR_VALUES  = 0x40
+  }
 
   local request_mt = {}
   request_mt.__index = request_mt
@@ -837,16 +942,11 @@ do
     local header, body = Buffer.new(version), Buffer.new(version)
 
     self:build_body(body)        -- build body (depends on protocol version)
-
-    if version == 2 then
-      header:write_byte(0x02)
-    else
-      header:write_byte(0x03)
-    end
+    header:write_byte(version)
 
     local flags = 0
     if self.opts and self.opts.tracing then
-      flags = bor(flags, QUERY_FLAGS.TRACING)
+      flags = bor(flags, FRAME_FLAGS.TRACING)
     end
 
     header:write_byte(flags)
@@ -870,10 +970,10 @@ do
     local flags = 0x00
     local buf = Buffer.new(body.version)
     if args then
-      flags = bor(flags, 0x01)
+      flags = bor(flags, QUERY_FLAGS.VALUES)
 
       if body.version >= 3 and opts.named then
-        flags = bor(flags, 0x40)
+        flags = bor(flags, QUERY_FLAGS.WITH_NAMES_FOR_VALUES)
         local n = 0
         local args_buf = Buffer.new(body.version)
         for name, val in pairs(args) do
@@ -891,21 +991,21 @@ do
       end
     end
     if opts.page_size then
-      flags = bor(flags, 0x04)
+      flags = bor(flags, QUERY_FLAGS.PAGE_SIZE)
       buf:write_int(opts.page_size)
     end
     if opts.paging_state then
-      flags = bor(flags, 0x08)
+      flags = bor(flags, QUERY_FLAGS.WITH_PAGING_STATE)
       buf:write_bytes(opts.paging_state)
     end
 
     if body.version >= 3 then
       if opts.serial_consistency then
-        flags = bor(flags, 0x10)
+        flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
         buf:write_short(opts.serial_consistency)
       end
       if opts.timestamp then
-        flags = bor(flags, 0x20)
+        flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
         buf:write_long(opts.timestamp)
       end
     end
@@ -1030,11 +1130,11 @@ do
           local flags = 0x00
           local buf = Buffer.new(body.version)
           if opts.serial_consistency then
-            flags = bor(flags, 0x10)
+            flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
             buf:write_short(opts.serial_consistency)
           end
           if opts.timestamp then
-            flags = bor(flags, 0x20)
+            flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
             buf:write_long(opts.timestamp)
           end
           --[[
@@ -1076,35 +1176,17 @@ end
 
 do
   local RESULT_KINDS = {
-    VOID = 0x01,
-    ROWS = 0x02,
-    SET_KEYSPACE = 0x03,
-    PREPARED = 0x04,
-    SCHEMA_CHANGE = 0x05
+    VOID             = 0x01,
+    ROWS             = 0x02,
+    SET_KEYSPACE     = 0x03,
+    PREPARED         = 0x04,
+    SCHEMA_CHANGE    = 0x05
   }
 
   local ROWS_RESULT_FLAGS = {
-    GLOBAL_TABLES_SPEC = 0x01,
-    HAS_MORE_PAGES = 0x02,
-    NO_METADATA = 0x04
-  }
-
-  local ERROR_TRANSLATIONS = {
-    [ERRORS.SERVER] = 'Server error',
-    [ERRORS.PROTOCOL] = 'Protocol error',
-    [ERRORS.BAD_CREDENTIALS] = 'Bad credentials',
-    [ERRORS.UNAVAILABLE_EXCEPTION] = 'Unavailable exception',
-    [ERRORS.OVERLOADED] = 'Overloaded',
-    [ERRORS.IS_BOOTSTRAPPING] = 'Is bootstrapping',
-    [ERRORS.TRUNCATE_ERROR] = 'Truncate error',
-    [ERRORS.WRITE_TIMEOUT] = 'Write timeout',
-    [ERRORS.READ_TIMEOUT] = 'Read timeout',
-    [ERRORS.SYNTAX_ERROR] = 'Syntax error',
-    [ERRORS.UNAUTHORIZED] = 'Unauthorized',
-    [ERRORS.INVALID] = 'Invalid',
-    [ERRORS.CONFIG_ERROR] = 'Config error',
-    [ERRORS.ALREADY_EXISTS] = 'Already exists',
-    [ERRORS.UNPREPARED] = 'Unprepared'
+    GLOBAL_TABLES_SPEC    = 0x01,
+    HAS_MORE_PAGES        = 0x02,
+    NO_METADATA           = 0x04
   }
 
   function frame_reader.version(b)
@@ -1123,11 +1205,49 @@ do
       stream_id = buf:read_short()
     end
     return {
-      flags = flags,
-      version = version,
-      stream_id = stream_id,
-      op_code = buf:read_byte(),
+      flags       = flags,
+      version     = version,
+      stream_id   = stream_id,
+      op_code     = buf:read_byte(),
       body_length = buf:read_int()
+    }
+  end
+
+  local function parse_v4_prepared_metadata(body)
+    local partition_keys, columns = {}, {}
+    local k_name, t_name
+
+    local flags = body:read_int()
+    local columns_count = body:read_int()
+    local pk_count = body:read_int()
+    local has_global_table_spec = band(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC) ~= 0
+
+    for _ = 1, pk_count do
+      partition_keys[#partition_keys+1] = body:read_short()
+    end
+
+    if has_global_table_spec then
+      k_name = body:read_string()
+      t_name = body:read_string()
+    end
+
+    for _ = 1, columns_count do
+      if not has_global_table_spec then
+        k_name = body:read_string()
+        t_name = body:read_string()
+      end
+      columns[#columns+1] = {
+        name = body:read_string(),
+        type = body:read_options(),
+        keysapce = k_name,
+        table = t_name
+      }
+    end
+
+    return {
+      columns        = columns,
+      columns_count  = columns_count,
+      partition_keys = partition_keys
     }
   end
 
@@ -1162,10 +1282,10 @@ do
       }
     end
     return {
-      columns = columns,
-      columns_count = columns_count,
+      columns        = columns,
+      columns_count  = columns_count,
       has_more_pages = has_more_pages,
-      paging_state = paging_state
+      paging_state   = paging_state
     }
   end
 
@@ -1204,29 +1324,39 @@ do
     end,
     [RESULT_KINDS.PREPARED] = function(body)
       local query_id = body:read_short_bytes()
-      local metadata = parse_metadata(body)
+      local metadata
+      if body.version == 4 then
+        metadata = parse_v4_prepared_metadata(body)
+      else
+        metadata = parse_metadata(body)
+      end
       local result_metadata = parse_metadata(body)
       return {
-        type = 'PREPARED',
-        meta = metadata,
+        type     = 'PREPARED',
+        meta     = metadata,
         query_id = query_id,
-        result = result_metadata
+        result   = result_metadata
       }
     end,
     [RESULT_KINDS.SCHEMA_CHANGE] = function(body)
       local change_type = body:read_string()
       local target = body:read_string()
       local keyspace = body:read_string()
-      local name
+      local name, args_types
       if target == 'TABLE' or target == 'TYPE' then
         name = body:read_string()
+      elseif target == 'FUNCTION' or target == 'AGGREGATE' then
+        -- v4 only
+        name = body:read_string()
+        args_types = body:read_string_list()
       end
       return {
-        type = 'SCHEMA_CHANGE',
-        name = name,
-        target = target,
-        keyspace = keyspace,
-        change_type = change_type
+        type            = 'SCHEMA_CHANGE',
+        name            = name,
+        target          = target,
+        keyspace        = keyspace,
+        arguments_types = args_types,
+        change_type     = change_type
       }
     end
   }
@@ -1238,14 +1368,18 @@ do
     local body = Buffer.new(header.version, bytes)
 
     if op_code == OP_CODES.RESULT then
-      local tracing_id
-      if band(header.flags, QUERY_FLAGS.TRACING) ~= 0 then
+      local tracing_id, warnings
+      if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
         tracing_id = body:read_uuid()
+      end
+      if band(header.flags, FRAME_FLAGS.WARNING) ~= 0 then
+        warnings = body:read_string_list()
       end
       local result_kind = body:read_int()
       local parser = results_parsers[result_kind]
       local res = parser(body)
       res.tracing_id = tracing_id
+      res.warnings = warnings
       return res
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()
@@ -1268,16 +1402,17 @@ end
 ----------
 
 return {
-  errors = ERRORS,
-  requests = requests,
-  types = cql_types,
-  t_unset = cql_t_unset,
-  frame_reader = frame_reader,
-  consistencies = consistencies,
+  errors               = ERRORS,
+  requests             = requests,
+  types                = cql_types,
+  t_unset              = cql_t_unset,
+  t_null               = cql_t_null,
+  frame_reader         = frame_reader,
+  consistencies        = consistencies,
   min_protocol_version = 2,
-  def_protocol_version = 3,
+  def_protocol_version = 4,
 
   -- for testing only
   is_array = is_array,
-  buffer = Buffer
+  buffer   = Buffer
 }

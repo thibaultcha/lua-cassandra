@@ -172,10 +172,13 @@ local function spawn_peer(host, port, keyspace, opts)
   return cassandra.new(opts)
 end
 
-local function check_peer_health(self, host, keyspace, retry)
-  local peer, err = spawn_peer(host, self.default_port,
-                               keyspace or self.keyspace,
-                               self.peers_opts)
+local function check_peer_health(self, host, coordinator_options, retry)
+  local keyspace
+  if not coordinator_options.no_keyspace then
+    keyspace = coordinator_options.keyspace or self.keyspace
+  end
+
+  local peer, err = spawn_peer(host, self.default_port, keyspace, self.peers_opts)
   if not peer then return nil, err
   else
     peer:settimeout(self.timeout_connect)
@@ -368,7 +371,9 @@ local function first_coordinator(self)
   local cp = self.contact_points
 
   for i = 1, #cp do
-    local peer, err = check_peer_health(self, cp[i])
+    local peer, err = check_peer_health(self, cp[i], {
+      no_keyspace = true
+    })
     if not peer then
       errors[cp[i]] = err
     else
@@ -379,13 +384,13 @@ local function first_coordinator(self)
   return nil, no_host_available_error(errors)
 end
 
-local function next_coordinator(self, keyspace)
+local function next_coordinator(self, coordinator_options)
   local errors = {}
 
   for _, peer_rec in self.lb_policy:iter() do
     local ok, err, retry = can_try_peer(self, peer_rec.host)
     if ok then
-      local peer, err = check_peer_health(self, peer_rec.host, keyspace, retry)
+      local peer, err = check_peer_health(self, peer_rec.host, coordinator_options, retry)
       if peer then
         log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
         return peer
@@ -747,7 +752,7 @@ do
 
     coordinator_options = coordinator_options or empty_t
 
-    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
+    local coordinator, err = next_coordinator(self, coordinator_options)
     if not coordinator then return nil, err end
 
     local request
@@ -802,7 +807,7 @@ do
 
     coordinator_options = coordinator_options or empty_t
 
-    local coordinator, err = next_coordinator(self, coordinator_options.keyspace)
+    local coordinator, err = next_coordinator(self, coordinator_options)
     if not coordinator then return nil, err end
 
     local opts = get_request_opts(options)

@@ -707,6 +707,16 @@ do
   local prep_req = requests.execute_prepared.new
   local empty_t = {}
 
+  --- Coordinator options.
+  -- Options to pass to coordinators chosen by the load balancing policy
+  -- on `execute`/`batch`/`iterate`.
+  -- @field keyspace Keyspace to use for the current request connection.
+  -- (`string`, optional)
+  -- @field no_keyspace Does not set a keyspace for the current request
+  -- connection.
+  -- (`boolean`, default: `false`)
+  -- @table `coordinator_options`
+
   --- Execute a query.
   -- Sends a request to the coordinator chosen by the configured load
   -- balancing policy. The policy always chooses nodes that are considered

@@ -256,7 +256,61 @@ local
 
 
 
-=== TEST 8: opts.prepared: prepares a query
+=== TEST 8: opts.no_keyspace doesn't set any keyspace
+--- http_config eval
+qq{
+    $::HttpConfig
+    init_worker_by_lua_block {
+        local Cluster = require 'resty.cassandra.cluster'
+        local cluster, err = Cluster.new {
+            timeout_read = 10000
+        }
+        if not cluster then
+            ngx.log(ngx.ERR, 'could not create cluster: ', err)
+            return
+        end
+
+        assert(cluster:execute [[
+            CREATE KEYSPACE IF NOT EXISTS lua_resty_tests WITH REPLICATION = {
+                'class': 'SimpleStrategy',
+                'replication_factor': 1
+            }
+        ]])
+    }
+}
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new {
+                keyspace = 'system'
+            }
+            if not cluster then
+                ngx.log(ngx.ERR, 'could not create cluster: ', err)
+                return
+            end
+
+            local rows, err = cluster:execute('SELECT * FROM local WHERE key = ?', {
+                'local'
+            }, nil, {
+                no_keyspace = true
+            })
+            if not rows then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+
+--- error_log
+[Invalid] No keyspace has been specified. USE a keyspace, or explicitly specify keyspace.tablename
+
+
+
+=== TEST 9: opts.prepared: prepares a query
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -292,7 +346,7 @@ has shm cache: true
 
 
 
-=== TEST 9: opts.prepared: returns errors
+=== TEST 10: opts.prepared: returns errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

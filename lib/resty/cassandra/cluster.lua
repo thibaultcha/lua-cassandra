@@ -26,6 +26,7 @@ local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
 local C = ffi.C
 
+local empty_t = {}
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
@@ -131,7 +132,7 @@ local function set_peer_down(self, host)
   log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
 
   local peer = get_peer(self, host, false)
-  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+  peer = peer or empty_t -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now(),
                   peer.data_center, peer.release_version)
@@ -142,7 +143,7 @@ local function set_peer_up(self, host)
   self.reconn_policy:reset(host)
 
   local peer = get_peer(self, host, true)
-  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+  peer = peer or empty_t -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, true, 0, 0,
                   peer.data_center, peer.release_version)
@@ -173,6 +174,8 @@ local function spawn_peer(host, port, keyspace, opts)
 end
 
 local function check_peer_health(self, host, coordinator_options, retry)
+  coordinator_options = coordinator_options or empty_t
+
   local keyspace
   if not coordinator_options.no_keyspace then
     keyspace = coordinator_options.keyspace or self.keyspace
@@ -276,7 +279,7 @@ _Cluster.__index = _Cluster
 -- or nil if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Cluster.new(opts)
-  opts = opts or {}
+  opts = opts or empty_t
   if type(opts) ~= 'table' then
     return nil, 'opts must be a table'
   end
@@ -705,7 +708,6 @@ do
   local query_req = requests.query.new
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
-  local empty_t = {}
 
   --- Coordinator options.
   -- Options to pass to coordinators chosen by the load balancing policy

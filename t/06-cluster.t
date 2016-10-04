@@ -1185,7 +1185,9 @@ GET /t
                 return
             end
 
-            local coordinator, err = cluster:next_coordinator('system')
+            local coordinator, err = cluster:next_coordinator({
+                keyspace = 'system'
+            })
             if not coordinator then
                 ngx.log(ngx.ERR, err)
                 return

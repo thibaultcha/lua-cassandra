@@ -1130,7 +1130,9 @@ can try peer 255.255.255.253: false
                 end
 
                 -- still down, but simulate delay for retry from reconnection policy
-                ok, err = cluster:set_peer(peers[i].host, false, 1000, 1460780710809, '', '')
+                -- reconn_delay: 1000
+                -- unhealthy_at: 1460780710809 (past)
+                ok, err = cluster:set_peer(peers[i].host, false, 1000, 1460780710809)
                 if not ok then
                     ngx.log(ngx.ERR, 'could not set peer_rec: ', err)
                     return
@@ -1138,6 +1140,8 @@ can try peer 255.255.255.253: false
             end
 
             -- try to get some coordinators
+            -- since the delay is passed, they should be marked back 'up'
+            -- because of this call
             for i = 1, #peers do
                 local coordinator, err = cluster:next_coordinator()
                 if not coordinator then
@@ -1146,6 +1150,7 @@ can try peer 255.255.255.253: false
                 end
             end
 
+            -- they should all be up by now
             for i = 1, #peers do
                 local ok, err = cluster:can_try_peer(peers[i].host)
                 if err then

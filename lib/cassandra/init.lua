@@ -509,7 +509,7 @@ end
 --   logged = false
 -- }))
 --
--- @param[type=table] Array of CQL queries to execute as a batch.
+-- @param[type=table] queries Array of CQL queries to execute as a batch.
 -- @param[type=table] options (optional) Options from `query_options`
 -- for this query.
 -- @treturn table `res`: Table holding the query result if success, `nil` if failure.

@@ -811,7 +811,7 @@ do
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:batch(queries_t, options, coordinator_options)
+  function _Cluster:batch(queries, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
@@ -825,14 +825,14 @@ do
     local opts = get_request_opts(options)
 
     if opts.prepared then
-      for i = 1, #queries_t do
-        local query_id, err = get_or_prepare(self, coordinator, queries_t[i][1])
+      for i = 1, #queries do
+        local query_id, err = get_or_prepare(self, coordinator, queries[i][1])
         if not query_id then return nil, err end
-        queries_t[i][3] = query_id
+        queries[i][3] = query_id
       end
     end
 
-    return send_request(self, coordinator, batch_req(queries_t, opts))
+    return send_request(self, coordinator, batch_req(queries, opts))
   end
 
   --- Lua iterator for auto-pagination.

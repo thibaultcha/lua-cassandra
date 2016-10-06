@@ -167,9 +167,10 @@ local function is_array(t)
 end
 
 do
-  ---------
+
   -- Buffer
-  ---------
+  -- @section buffer
+
   Buffer.__index = Buffer
 
   function Buffer.new(version, str)
@@ -208,9 +209,8 @@ do
     return self.str
   end
 
-  --------
   -- Utils
-  --------
+  -- @section utils
 
   local function big_endian_representation(num, bytes)
     if num < 0 then
@@ -241,9 +241,8 @@ do
     return number
   end
 
-  ------------
   -- Raw types
-  ------------
+  -- @section raw_types
 
   local function marsh_byte(val)
     return char(val)
@@ -515,9 +514,8 @@ do
     end
   end
 
-  ------------
   -- CQL types
-  ------------
+  -- @section cql_types
 
   local function marsh_raw(val)
     return val
@@ -677,9 +675,8 @@ do
     return ldexp(mantissa, exponent - 0x7F)
   end
 
-  -------------------
   -- Nested CQL types
-  -------------------
+  -- @section nested_cql_types
 
   local marsh_cql_value
 
@@ -795,9 +792,8 @@ do
     }
   end
 
-  ------------------
   -- CQL Marshalling
-  ------------------
+  -- @section cql_marshalling
 
   local cql_marshallers = {
     -- custom           = 0x00,
@@ -867,9 +863,8 @@ do
     self:write(marsh_cql_value(val, self.version))
   end
 
-  --------------------
   -- CQL Unmarshalling
-  --------------------
+  -- @section cql_unmarshalling
 
   local cql_unmarshallers = {
     -- custom             = 0x00,
@@ -910,9 +905,8 @@ do
   end
 end -- do CQL encoding
 
----------------
 -- CQL Requests
----------------
+-- @section cql_requests
 
 do
   local CQL_VERSION = '3.0.0'
@@ -1170,9 +1164,8 @@ do
   end
 end
 
----------------
 -- Frame reader
----------------
+-- @section fame_reader
 
 do
   local RESULT_KINDS = {
@@ -1396,10 +1389,6 @@ do
     end
   end
 end
-
-----------
--- Exposed
-----------
 
 return {
   errors               = ERRORS,

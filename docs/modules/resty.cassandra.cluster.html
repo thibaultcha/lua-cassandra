@@ -38,7 +38,7 @@
 
 
 <h2>Modules</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><a href="../modules/cassandra.html">cassandra</a></li>
   <li><strong>resty.cassandra.cluster</strong></li>
   <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
@@ -48,11 +48,11 @@
   <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><a href="../manual/README.md.html">README</a></li>
 </ul>
 <h2>Examples</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
   <li><a href="../examples/intro.lua.html">intro.lua</a></li>
@@ -69,7 +69,7 @@
 <p> Cluster module for OpenResty.</p>
     <h3>Info:</h3>
     <ul>
-        <li><strong>Release</strong>: 1.0.0</li>
+        <li><strong>Release</strong>: 1.1.0</li>
         <li><strong>Author</strong>: thibaultcha</li>
     </ul>
 
@@ -85,11 +85,11 @@
 	<td class="summary">Refresh the list of nodes in the cluster.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#_Cluster:execute">_Cluster:execute (query, args, options)</a></td>
+	<td class="name" nowrap><a href="#_Cluster:execute">_Cluster:execute (query, args, options, coordinator_options)</a></td>
 	<td class="summary">Execute a query.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#_Cluster:batch">_Cluster:batch (queries_t, options)</a></td>
+	<td class="name" nowrap><a href="#_Cluster:batch">_Cluster:batch (queries, options, coordinator_options)</a></td>
 	<td class="summary">Execute a batch.</td>
 	</tr>
 	<tr>
@@ -102,6 +102,10 @@
 	<tr>
 	<td class="name" nowrap><a href="#cluster_options">cluster_options</a></td>
 	<td class="summary">New cluster options.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#coordinator_options">coordinator_options</a></td>
+	<td class="summary">Coordinator options.</td>
 	</tr>
 </table>
 
@@ -129,7 +133,7 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">opts</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          Options for the created cluster client.
         </li>
     </ul>
@@ -137,11 +141,11 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <a href="../modules/resty.cassandra.cluster.html">cluster</a>: A table holding clustering operations capabilities
  or nil if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -149,15 +153,14 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
- <span class="keyword">local</span> cluster = Cluster.new {
-   shm = <span class="string">"cassandra_shared_dict"</span>,
-   contact_points = {<span class="string">"10.0.0.1"</span>, <span class="string">"10.0.0.2"</span>},
-   keyspace = <span class="string">"my_keyspace"</span>,
-   default_port = <span class="number">9042</span>,
-   connect_timeout = <span class="number">3000</span>
- }</pre>
+        <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+<span class="keyword">local</span> cluster = Cluster.new {
+  shm = <span class="string">"cassandra_shared_dict"</span>,
+  contact_points = {<span class="string">"10.0.0.1"</span>, <span class="string">"10.0.0.2"</span>},
+  keyspace = <span class="string">"my_keyspace"</span>,
+  default_port = <span class="number">9042</span>,
+  connect_timeout = <span class="number">3000</span>
+}</pre>
     </ul>
 
 </dd>
@@ -181,7 +184,7 @@
            <span class="types"><span class="type">boolean</span></span>
         <code>ok</code>: <code>true</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -191,7 +194,7 @@
 </dd>
     <dt>
     <a name = "_Cluster:execute"></a>
-    <strong>_Cluster:execute (query, args, options)</strong>
+    <strong>_Cluster:execute (query, args, options, coordinator_options)</strong>
     </dt>
     <dd>
     Execute a query.
@@ -207,16 +210,20 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          CQL query to execute.
         </li>
         <li><span class="parameter">args</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Arguments to bind to the query.
         </li>
         <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         (optional) Options from <code>query_options</code>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <code>query_options</code>.
+        </li>
+        <li><span class="parameter">coordinator_options</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <a href="../modules/resty.cassandra.cluster.html#coordinator_options">coordinator_options</a>
  for this query.
         </li>
     </ul>
@@ -224,10 +231,10 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
         <li>
            <span class="types"><span class="type">number</span></span>
@@ -238,31 +245,30 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
- <span class="keyword">local</span> cluster, err = Cluster.new()
- <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
-   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
-   ngx.exit(<span class="number">500</span>)
- <span class="keyword">end</span>
+        <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+<span class="keyword">local</span> cluster, err = Cluster.new()
+<span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+  ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+  ngx.exit(<span class="number">500</span>)
+<span class="keyword">end</span>
 
- <span class="keyword">local</span> rows, err = cluster:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>. {
-   <span class="number">21</span>
- }, {
-   page_size = <span class="number">100</span>
- })
- <span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
-   ngx.log(ngx.ERR, <span class="string">"could not retrieve users: "</span>, err)
-   ngx.exit(<span class="number">500</span>)
- <span class="keyword">end</span>
+<span class="keyword">local</span> rows, err = cluster:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>. {
+  <span class="number">21</span>
+}, {
+  page_size = <span class="number">100</span>
+})
+<span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
+  ngx.log(ngx.ERR, <span class="string">"could not retrieve users: "</span>, err)
+  ngx.exit(<span class="number">500</span>)
+<span class="keyword">end</span>
 
- ngx.say(<span class="string">"page size: "</span>, #rows, <span class="string">" next page: "</span>, rows.meta.paging_state)</pre>
+ngx.say(<span class="string">"page size: "</span>, #rows, <span class="string">" next page: "</span>, rows.meta.paging_state)</pre>
     </ul>
 
 </dd>
     <dt>
     <a name = "_Cluster:batch"></a>
-    <strong>_Cluster:batch (queries_t, options)</strong>
+    <strong>_Cluster:batch (queries, options, coordinator_options)</strong>
     </dt>
     <dd>
     Execute a batch.
@@ -272,25 +278,28 @@
 
     <h3>Parameters:</h3>
     <ul>
-        <li><span class="parameter">queries_t</span>
-
-
-
+        <li><span class="parameter">queries</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         CQL queries to execute.
         </li>
         <li><span class="parameter">options</span>
-
-
-
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <code>query_options</code>.
+        </li>
+        <li><span class="parameter">coordinator_options</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         (optional) Options from <a href="../modules/resty.cassandra.cluster.html#coordinator_options">coordinator_options</a>
+ for this query.
         </li>
     </ul>
 
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
         <li>
            <span class="types"><span class="type">number</span></span>
@@ -301,25 +310,24 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
- <span class="keyword">local</span> cluster, err = Cluster.new()
- <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
-   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
-   ngx.exit(<span class="number">500</span>)
- <span class="keyword">end</span>
+        <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+<span class="keyword">local</span> cluster, err = Cluster.new()
+<span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+  ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+  ngx.exit(<span class="number">500</span>)
+<span class="keyword">end</span>
 
- <span class="keyword">local</span> res, err = cluster:batch({
-   {<span class="string">"INSERT INTO things(id, n) VALUES(?, 1)"</span>, {<span class="number">123</span>}},
-   {<span class="string">"UPDATE things SET n = 2 WHERE id = ?"</span>, {<span class="number">123</span>}},
-   {<span class="string">"UPDATE things SET n = 3 WHERE id = ?"</span>, {<span class="number">123</span>}}
- }, {
-   logged = <span class="keyword">false</span>
- })
- <span class="keyword">if</span> <span class="keyword">not</span> res <span class="keyword">then</span>
-   ngx.log(ngx.ERR, <span class="string">"could not execute batch: "</span>, err)
-   ngx.exit(<span class="number">500</span>)
- <span class="keyword">end</span></pre>
+<span class="keyword">local</span> res, err = cluster:batch({
+  {<span class="string">"INSERT INTO things(id, n) VALUES(?, 1)"</span>, {<span class="number">123</span>}},
+  {<span class="string">"UPDATE things SET n = 2 WHERE id = ?"</span>, {<span class="number">123</span>}},
+  {<span class="string">"UPDATE things SET n = 3 WHERE id = ?"</span>, {<span class="number">123</span>}}
+}, {
+  logged = <span class="keyword">false</span>
+})
+<span class="keyword">if</span> <span class="keyword">not</span> res <span class="keyword">then</span>
+  ngx.log(ngx.ERR, <span class="string">"could not execute batch: "</span>, err)
+  ngx.exit(<span class="number">500</span>)
+<span class="keyword">end</span></pre>
     </ul>
 
 </dd>
@@ -337,15 +345,15 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          CQL query to execute.
         </li>
         <li><span class="parameter">args</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Arguments to bind to the query.
         </li>
         <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Options from <code>query_options</code>
  for this query.
         </li>
@@ -356,21 +364,20 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
- <span class="keyword">local</span> cluster, err = Cluster.new()
- <span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
-   ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
-   ngx.exit(<span class="number">500</span>)
- <span class="keyword">end</span>
+        <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
+<span class="keyword">local</span> cluster, err = Cluster.new()
+<span class="keyword">if</span> <span class="keyword">not</span> cluster <span class="keyword">then</span>
+  ngx.log(ngx.ERR, <span class="string">"could not create cluster: "</span>, err)
+  ngx.exit(<span class="number">500</span>)
+<span class="keyword">end</span>
 
- <span class="keyword">for</span> rows, err, page <span class="keyword">in</span> cluster:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
-   <span class="keyword">if</span> err <span class="keyword">then</span>
-     ngx.log(ngx.ERR, <span class="string">"could not retrieve page: "</span>, err)
-     ngx.exit(<span class="number">500</span>)
-   <span class="keyword">end</span>
-   ngx.say(<span class="string">"page "</span>, page, <span class="string">" has "</span>, #rows, <span class="string">" rows"</span>)
- <span class="keyword">end</span></pre>
+<span class="keyword">for</span> rows, err, page <span class="keyword">in</span> cluster:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
+  <span class="keyword">if</span> err <span class="keyword">then</span>
+    ngx.log(ngx.ERR, <span class="string">"could not retrieve page: "</span>, err)
+    ngx.exit(<span class="number">500</span>)
+  <span class="keyword">end</span>
+  ngx.say(<span class="string">"page "</span>, page, <span class="string">" has "</span>, #rows, <span class="string">" rows"</span>)
+<span class="keyword">end</span></pre>
     </ul>
 
 </dd>
@@ -391,18 +398,18 @@
     <ul>
         <li><span class="parameter">shm</span>
          Name of the lua<em>shared</em>dict to use for this cluster's
- information. (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, default: <a href="../modules/cassandra.html#">cassandra</a>)
+ information. (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, default: <a href="../modules/cassandra.html#">cassandra</a>)
         </li>
         <li><span class="parameter">contact_points</span>
          Array of addresses for this cluster's
- contact points. (<a href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a>, default: <code>{&quot;127.0.0.1&quot;}</code>)
+ contact points. (<a href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a>, default: <code>{&quot;127.0.0.1&quot;}</code>)
         </li>
         <li><span class="parameter">default_port</span>
          The port on which all nodes from the cluster are
  listening on. (<code>number</code>, default: <code>9042</code>)
         </li>
         <li><span class="parameter">keyspace</span>
-         Keyspace to use for this cluster. (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+         Keyspace to use for this cluster. (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">connect_timeout</span>
          The timeout value when connecing to a node, in ms.
@@ -457,14 +464,42 @@
 
 
 </dd>
+    <dt>
+    <a name = "coordinator_options"></a>
+    <strong>coordinator_options</strong>
+    </dt>
+    <dd>
+    Coordinator options.
+ Options to pass to coordinators chosen by the load balancing policy
+ on <a href="../modules/resty.cassandra.cluster.html#_Cluster:execute">execute</a>/<a href="../modules/resty.cassandra.cluster.html#_Cluster:batch">batch</a>/<a href="../modules/resty.cassandra.cluster.html#_Cluster:iterate">iterate</a>.
+
+
+    <h3>Fields:</h3>
+    <ul>
+        <li><span class="parameter">keyspace</span>
+         Keyspace to use for the current request connection.
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+        </li>
+        <li><span class="parameter">no_keyspace</span>
+         Does not set a keyspace for the current request
+ connection.
+ (<code>boolean</code>, default: <code>false</code>)
+        </li>
+    </ul>
+
+
+
+
+
+</dd>
 </dl>
 
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
-<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-08-11 13:52:01 </i>
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.5</a></i>
+<i style="float:right;">Last updated 2016-10-06 18:45:55 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

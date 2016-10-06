@@ -2,7 +2,7 @@
 -- Cluster module for OpenResty.
 -- @module resty.cassandra.cluster
 -- @author thibaultcha
--- @release 1.0.0
+-- @release 1.1.0
 
 local resty_lock = require 'resty.lock'
 local cassandra = require 'cassandra'
@@ -26,6 +26,7 @@ local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
 local C = ffi.C
 
+local empty_t = {}
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
@@ -131,7 +132,7 @@ local function set_peer_down(self, host)
   log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
 
   local peer = get_peer(self, host, false)
-  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+  peer = peer or empty_t -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, false, self.reconn_policy:next_delay(host), get_now(),
                   peer.data_center, peer.release_version)
@@ -142,7 +143,7 @@ local function set_peer_up(self, host)
   self.reconn_policy:reset(host)
 
   local peer = get_peer(self, host, true)
-  peer = peer or {} -- this can be called from refresh() so no host in shm yet
+  peer = peer or empty_t -- this can be called from refresh() so no host in shm yet
 
   return set_peer(self, host, true, 0, 0,
                   peer.data_center, peer.release_version)
@@ -173,6 +174,8 @@ local function spawn_peer(host, port, keyspace, opts)
 end
 
 local function check_peer_health(self, host, coordinator_options, retry)
+  coordinator_options = coordinator_options or empty_t
+
   local keyspace
   if not coordinator_options.no_keyspace then
     keyspace = coordinator_options.keyspace or self.keyspace
@@ -211,7 +214,7 @@ end
 -----------
 
 local _Cluster = {
-  _VERSION = '1.0.0'
+  _VERSION = '1.1.0'
 }
 
 _Cluster.__index = _Cluster
@@ -276,7 +279,7 @@ _Cluster.__index = _Cluster
 -- or nil if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Cluster.new(opts)
-  opts = opts or {}
+  opts = opts or empty_t
   if type(opts) ~= 'table' then
     return nil, 'opts must be a table'
   end
@@ -680,7 +683,7 @@ send_request = function(self, coordinator, request)
   elseif res.warnings then
     -- protocol v4 can return warnings to the client
     for i = 1, #res.warnings do
-      log(WARN, _log_prefix, ' ', res.warnings[i])
+      log(WARN, _log_prefix, res.warnings[i])
     end
   end
 
@@ -705,7 +708,6 @@ do
   local query_req = requests.query.new
   local batch_req = requests.batch.new
   local prep_req = requests.execute_prepared.new
-  local empty_t = {}
 
   --- Coordinator options.
   -- Options to pass to coordinators chosen by the load balancing policy
@@ -809,7 +811,7 @@ do
   -- @treturn table `res`: Table holding the query result if success, `nil` if failure.
   -- @treturn string `err`: String describing the error if failure.
   -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
-  function _Cluster:batch(queries_t, options, coordinator_options)
+  function _Cluster:batch(queries, options, coordinator_options)
     if not self.init then
       local ok, err = self:refresh()
       if not ok then return nil, 'could not refresh cluster: '..err end
@@ -823,14 +825,14 @@ do
     local opts = get_request_opts(options)
 
     if opts.prepared then
-      for i = 1, #queries_t do
-        local query_id, err = get_or_prepare(self, coordinator, queries_t[i][1])
+      for i = 1, #queries do
+        local query_id, err = get_or_prepare(self, coordinator, queries[i][1])
         if not query_id then return nil, err end
-        queries_t[i][3] = query_id
+        queries[i][3] = query_id
       end
     end
 
-    return send_request(self, coordinator, batch_req(queries_t, opts))
+    return send_request(self, coordinator, batch_req(queries, opts))
   end
 
   --- Lua iterator for auto-pagination.

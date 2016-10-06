@@ -1,5 +1,52 @@
 ### [Unreleased][unreleased]
 
+### [1.1.0]
+
+##### Changed
+
+- :warning: Peers are now part of different connection pools depending on their
+keyspace. This can fix eventual issues when using several keyspaces with a
+single peer/cluster instance. This is a breaking change:
+  ```lua
+    -- before:
+    local peer = cassandra.new()
+    peer:connect()
+    peer:set_keyspace('my_keyspace')
+
+    -- after:
+    local peer = cassandra.new()
+    peer:connect()
+    peer:change_keyspace('my_keyspace') -- close the connection and opens a new one
+  ```
+
+##### Added
+
+- New `coordinator_options` for `execute()`/`batch()`/`iterate()` allowing for
+more granularity in keyspace settings. Example:
+  ```lua
+    local Cluster = cluster.new {
+      keyspace = 'my_keyspace'
+    }
+
+    local res = cluster:execute('SELECT * FROM local', nil, {
+      keyspace = 'system' -- will spawn or reuse a peer with 'system' keyspace
+      --no_keyspace = true -- would disable setting a keyspace for this request
+    })
+  ```
+- Support for binary protocol v4.
+[#61](https://github.com/thibaultcha/lua-cassandra/pull/61)
+  - New `cassandra.null` CQL marshalling type. This type is different than
+  `cassandra.unset` for protocol v4 and will set to **null** existing columns
+  (in protocol v4 usage only).
+  - Parse `SCHEMA_CHANGE` results for `FUNCTION` and `AGGREGATE`.
+  - The Cluster module now parses warnings contained in response frames and
+  logs them at the `ngx.WARN` level.
+
+##### Fixed
+
+- Correctly logs the address of peers being set UP or DOWN in the warning logs.
+- Better error messages for SSL handshake/locking failures.
+
 ### [1.0.0] - 2016/07/27
 
 :warning: This release contains **breaking changes**. The library has been rewritten to greatly increase performance, usability and maintanability. The result is very pleasant and eleguant: we now offer 2 modules, one "single host", compatible with PUC Lua 5.1/5.2, and a "cluster" module, greatly optimized and only compatible with OpenResty.
@@ -167,7 +214,8 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.0.0...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.1...1.0.0
 [0.5.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...0.5.0

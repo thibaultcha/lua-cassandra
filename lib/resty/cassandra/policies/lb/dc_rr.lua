@@ -20,7 +20,7 @@ local _M = require('resty.cassandra.policies.lb').new_policy('dc_aware_round_rob
 --   lb_policy = policy
 -- })
 --
--- @param[type=string] local_dc_name Name of the local/closest datacenter.
+-- @param[type=string] local_dc Name of the local/closest datacenter.
 -- @treturn table `policy`: A DC-aware round robin policy.
 function _M.new(local_dc)
   assert(type(local_dc) == 'string', 'local_dc must be a string')

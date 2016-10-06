@@ -29,16 +29,16 @@ local pow = math.pow
 -- @param[type=number] max_delay The maximum allowed delay for a reconnection
 -- attempt.
 -- @treturn table `policy`: An exponential reconnection policy.
-function _M.new(base, max)
-  if type(base) ~= 'number' or base < 1 then
-    error('arg #1 base must be a positive integer', 2)
-  elseif type(max) ~= 'number' or max < 1 then
-    error('arg #2 max must be a positive integer', 2)
+function _M.new(base_delay, max_delay)
+  if type(base_delay) ~= 'number' or base_delay < 1 then
+    error('arg #1 base_delay must be a positive integer', 2)
+  elseif type(max_delay) ~= 'number' or max_delay < 1 then
+    error('arg #2 max_delay must be a positive integer', 2)
   end
 
   local self = _M.super.new()
-  self.base = base
-  self.max = max
+  self.base_delay = base_delay
+  self.max_delay = max_delay
   self.delays = {}
   return self
 end
@@ -55,7 +55,7 @@ function _M:next_delay(host)
 
   delays[host] = idx + 1
 
-  return min(pow(idx, 2) * self.base, self.max)
+  return min(pow(idx, 2) * self.base_delay, self.max_delay)
 end
 
 return _M

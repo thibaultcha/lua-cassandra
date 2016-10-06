@@ -38,7 +38,7 @@
 
 
 <h2>Modules</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><strong>cassandra</strong></li>
   <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
   <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
@@ -48,11 +48,11 @@
   <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><a href="../manual/README.md.html">README</a></li>
 </ul>
 <h2>Examples</h2>
-<ul class="$(kind=='Topics' and '' or 'nowrap'">
+<ul class="nowrap">
   <li><a href="../examples/authentication.lua.html">authentication.lua</a></li>
   <li><a href="../examples/batch.lua.html">batch.lua</a></li>
   <li><a href="../examples/intro.lua.html">intro.lua</a></li>
@@ -69,7 +69,7 @@
 <p> Single host module for PUC Lua, LuaJIT and OpenResty.</p>
     <h3>Info:</h3>
     <ul>
-        <li><strong>Release</strong>: 1.0.0</li>
+        <li><strong>Release</strong>: 1.1.0</li>
         <li><strong>Author</strong>: thibaultcha</li>
     </ul>
 
@@ -97,8 +97,8 @@
 	<td class="summary">Close the connection.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#_Host:set_keyspace">_Host:set_keyspace (keyspace)</a></td>
-	<td class="summary">Set the client's keyspace.</td>
+	<td class="name" nowrap><a href="#_Host:change_keyspace">_Host:change_keyspace (keyspace)</a></td>
+	<td class="summary">Change the client's keyspace.</td>
 	</tr>
 	<tr>
 	<td class="name" nowrap><a href="#_Host:prepare">_Host:prepare (query)</a></td>
@@ -109,7 +109,7 @@
 	<td class="summary">Execute a query.</td>
 	</tr>
 	<tr>
-	<td class="name" nowrap><a href="#_Host:batch">_Host:batch (Array, options)</a></td>
+	<td class="name" nowrap><a href="#_Host:batch">_Host:batch (queries, options)</a></td>
 	<td class="summary">Execute a batch.</td>
 	</tr>
 	<tr>
@@ -169,7 +169,7 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">opts</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          Options for the created client.
         </li>
     </ul>
@@ -177,7 +177,7 @@
     <h3>Returns:</h3>
     <ol>
 
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>client</code>: A table able to connect to the given host and port.
     </ol>
 
@@ -185,13 +185,12 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new {
-   host = <span class="string">"10.0.0.1"</span>,
-   port = <span class="number">9042</span>,
-   keyspace = <span class="string">"my_keyspace"</span>
- }</pre>
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new {
+  host = <span class="string">"10.0.0.1"</span>,
+  port = <span class="number">9042</span>,
+  keyspace = <span class="string">"my_keyspace"</span>
+}</pre>
     </ul>
 
 </dd>
@@ -212,7 +211,7 @@
            <span class="types"><span class="type">boolean</span></span>
         <code>ok</code>: <code>true</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -220,10 +219,9 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())</pre>
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())</pre>
     </ul>
 
 </dd>
@@ -249,7 +247,7 @@
            <span class="types"><span class="type">boolean</span></span>
         <code>ok</code>: <code>true</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -290,7 +288,7 @@
            <span class="types"><span class="type">number</span></span>
         <code>success</code>: <code>1</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -324,7 +322,7 @@
            <span class="types"><span class="type">number</span></span>
         <code>success</code>: <code>1</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -336,18 +334,21 @@
 
 </dd>
     <dt>
-    <a name = "_Host:set_keyspace"></a>
-    <strong>_Host:set_keyspace (keyspace)</strong>
+    <a name = "_Host:change_keyspace"></a>
+    <strong>_Host:change_keyspace (keyspace)</strong>
     </dt>
     <dd>
-    Set the client's keyspace.
- Sends a query to change which keyspace the client is connected to.
+    Change the client's keyspace.
+ Closes the current connection and open a new one to the given
+ keyspace.
+ The connection is closed and reopen so that we use a different connection
+ pool for usage in ngx_lua.
 
 
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">keyspace</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          Name of the desired keyspace.
         </li>
     </ul>
@@ -355,14 +356,11 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
+           <span class="types"><span class="type">boolean</span></span>
+        <code>ok</code>: <code>true</code> if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
-        <li>
-           <span class="types"><span class="type">number</span></span>
-        <code>cql_err</code>: If a server-side error occurred, the CQL error code.</li>
     </ol>
 
 
@@ -383,7 +381,7 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          CQL query to prepare.
         </li>
     </ul>
@@ -391,10 +389,10 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
         <li>
            <span class="types"><span class="type">number</span></span>
@@ -405,15 +403,13 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())
 
- <span class="keyword">local</span> res = <span class="global">assert</span>(client:prepare(<span class="string">"SELECT * FROM users WHERE id = ?"</span>))
- <span class="keyword">local</span> rows = <span class="global">assert</span>(client:execute(res.query_id, {<span class="number">12345</span>}, {prepared = <span class="keyword">true</span>}))
- <span class="global">print</span>(#rows) <span class="comment">-- 1
-</span></pre>
+<span class="keyword">local</span> res = <span class="global">assert</span>(client:prepare(<span class="string">"SELECT * FROM users WHERE id = ?"</span>))
+<span class="keyword">local</span> rows = <span class="global">assert</span>(client:execute(res.query_id, {<span class="number">12345</span>}, {prepared = <span class="keyword">true</span>}))
+<span class="global">print</span>(#rows) <span class="comment">-- 1</span></pre>
     </ul>
 
 </dd>
@@ -429,15 +425,15 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          CQL query to execute.
         </li>
         <li><span class="parameter">args</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Arguments to bind to the query.
         </li>
         <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Options from <a href="../modules/cassandra.html#query_options">query_options</a>
  for this query.
         </li>
@@ -446,10 +442,10 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
         <li>
            <span class="types"><span class="type">number</span></span>
@@ -460,36 +456,34 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())
 
- <span class="keyword">local</span> rows = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users WHERE name = ? AND email = ?"</span>, {
-   <span class="string">"john"</span>,
-   <span class="string">"john@gmail.com"</span>
- }))
- <span class="global">print</span>(#rows) <span class="comment">-- 1
+<span class="keyword">local</span> rows = <span class="global">assert</span>(client:execute(<span class="string">"SELECT * FROM users WHERE name = ? AND email = ?"</span>, {
+  <span class="string">"john"</span>,
+  <span class="string">"john@gmail.com"</span>
+}))
+<span class="global">print</span>(#rows) <span class="comment">-- 1
 </span>
- <span class="keyword">local</span> rows, err, cql_code = client:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>, {
-   age = <span class="number">21</span>
- }, {
-   named = <span class="keyword">true</span>,
-   page_size = <span class="number">5000</span>
- })
- <span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
-   <span class="comment">-- can compare cql_code to determine error type
-</span>   error(err)
- <span class="keyword">end</span>
- <span class="global">print</span>(#rows) <span class="comment">-- <code>&amp;lt;= 5000</code>
-</span> <span class="global">print</span>(rows.meta.paging_state) <span class="comment">-- pagination token
-</span></pre>
+<span class="keyword">local</span> rows, err, cql_code = client:execute(<span class="string">"SELECT * FROM users WHERE age = ?"</span>, {
+  age = <span class="number">21</span>
+}, {
+  named = <span class="keyword">true</span>,
+  page_size = <span class="number">5000</span>
+})
+<span class="keyword">if</span> <span class="keyword">not</span> rows <span class="keyword">then</span>
+  <span class="comment">-- can compare cql_code to determine error type
+</span>  <span class="global">error</span>(err)
+<span class="keyword">end</span>
+<span class="global">print</span>(#rows) <span class="comment">-- <code>&amp;lt;= 5000</code>
+</span><span class="global">print</span>(rows.meta.paging_state) <span class="comment">-- pagination token</span></pre>
     </ul>
 
 </dd>
     <dt>
     <a name = "_Host:batch"></a>
-    <strong>_Host:batch (Array, options)</strong>
+    <strong>_Host:batch (queries, options)</strong>
     </dt>
     <dd>
     Execute a batch.
@@ -498,12 +492,12 @@
 
     <h3>Parameters:</h3>
     <ul>
-        <li><span class="parameter">Array</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-         of CQL queries to execute as a batch.
+        <li><span class="parameter">queries</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+         Array of CQL queries to execute as a batch.
         </li>
         <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Options from <a href="../modules/cassandra.html#query_options">query_options</a>
  for this query.
         </li>
@@ -512,10 +506,10 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>res</code>: Table holding the query result if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
         <li>
            <span class="types"><span class="type">number</span></span>
@@ -526,18 +520,17 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())
 
- <span class="keyword">local</span> res = <span class="global">assert</span>(client:batch({
-   {<span class="string">"INSERT INTO things(id, n) VALUES(?, 1)"</span>, {<span class="number">123</span>}},
-   {<span class="string">"UPDATE things SET n = 2 WHERE id = ?"</span>, {<span class="number">123</span>}},
-   {<span class="string">"UPDATE things SET n = 3 WHERE id = ?"</span>, {<span class="number">123</span>}}
- }, {
-   logged = <span class="keyword">false</span>
- }))</pre>
+<span class="keyword">local</span> res = <span class="global">assert</span>(client:batch({
+  {<span class="string">"INSERT INTO things(id, n) VALUES(?, 1)"</span>, {<span class="number">123</span>}},
+  {<span class="string">"UPDATE things SET n = 2 WHERE id = ?"</span>, {<span class="number">123</span>}},
+  {<span class="string">"UPDATE things SET n = 3 WHERE id = ?"</span>, {<span class="number">123</span>}}
+}, {
+  logged = <span class="keyword">false</span>
+}))</pre>
     </ul>
 
 </dd>
@@ -553,15 +546,15 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">query</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          CQL query to execute.
         </li>
         <li><span class="parameter">args</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Arguments to bind to the query.
         </li>
         <li><span class="parameter">options</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
          (optional) Options from <a href="../modules/cassandra.html#query_options">query_options</a>
  for this query.
         </li>
@@ -572,18 +565,17 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())
 
- <span class="keyword">for</span> rows, err, page <span class="keyword">in</span> client:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
-   <span class="keyword">if</span> err <span class="keyword">then</span>
-     error(err)
-   <span class="keyword">end</span>
-   <span class="global">print</span>(page)
-   <span class="global">print</span>(#rows)
- <span class="keyword">end</span></pre>
+<span class="keyword">for</span> rows, err, page <span class="keyword">in</span> client:iterate(<span class="string">"SELECT * FROM users"</span>) <span class="keyword">do</span>
+  <span class="keyword">if</span> err <span class="keyword">then</span>
+    <span class="global">error</span>(err)
+  <span class="keyword">end</span>
+  <span class="global">print</span>(page)
+  <span class="global">print</span>(#rows)
+<span class="keyword">end</span></pre>
     </ul>
 
 </dd>
@@ -600,7 +592,7 @@
     <h3>Parameters:</h3>
     <ul>
         <li><span class="parameter">tracing_id</span>
-            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
          The query's tracing is as returned in the
  results of a traced query.
         </li>
@@ -609,10 +601,10 @@
     <h3>Returns:</h3>
     <ol>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
         <code>trace</code>: Table holding the query's tracing events if success, <code>nil</code> if failure.</li>
         <li>
-           <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+           <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
         <code>err</code>: String describing the error if failure.</li>
     </ol>
 
@@ -620,19 +612,17 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="keyword">local</span> client = cassandra.new()
- <span class="global">assert</span>(client:connect())
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="keyword">local</span> client = cassandra.new()
+<span class="global">assert</span>(client:connect())
 
- <span class="keyword">local</span> res = <span class="global">assert</span>(client:execute(<span class="string">"INSERT INTO users(id, age) VALUES(1, 33)"</span>, <span class="keyword">nil</span>, {
-   tracing = <span class="keyword">true</span>
- }))
+<span class="keyword">local</span> res = <span class="global">assert</span>(client:execute(<span class="string">"INSERT INTO users(id, age) VALUES(1, 33)"</span>, <span class="keyword">nil</span>, {
+  tracing = <span class="keyword">true</span>
+}))
 
- <span class="keyword">local</span> trace = <span class="global">assert</span>(client:get_trace(res.tracing_id))
- <span class="global">print</span>(trace.client) <span class="comment">-- "127.0.0.1"
-</span> <span class="global">print</span>(trace.command) <span class="comment">-- "QUERY"
-</span></pre>
+<span class="keyword">local</span> trace = <span class="global">assert</span>(client:get_trace(res.tracing_id))
+<span class="global">print</span>(trace.client) <span class="comment">-- "127.0.0.1"
+</span><span class="global">print</span>(trace.command) <span class="comment">-- "QUERY"</span></pre>
     </ul>
 
 </dd>
@@ -845,14 +835,14 @@
     <ul>
         <li><span class="parameter">host</span>
          Address to which the client should connect.
- (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, default: <code>&quot;127.0.0.1&quot;</code>)
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, default: <code>&quot;127.0.0.1&quot;</code>)
         </li>
         <li><span class="parameter">port</span>
          Port to which the client should connect.
  (<code>number</code>, default: <code>9042</code>)
         </li>
         <li><span class="parameter">keyspace</span>
-         Keyspace the client should use. (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+         Keyspace the client should use. (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">protocol_version</span>
          Binary protocol version the client should try to use
@@ -869,15 +859,15 @@
         <li><span class="parameter">cafile</span>
          Path to the server certificate (LuaSec usage only, see
  <code>lua_ssl_trusted_certificate</code> directive for ngx_lua).
- (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">cert</span>
          Path to the client SSL certificate (LuaSec usage only).
- (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">key</span>
          Path to the client SSL key (LuaSec usage only).
- (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">auth</span>
          Authentication handler, created from the
@@ -919,7 +909,7 @@
          String token representing the paging state. Useful for
  manual paging: if provided, the query will be executed
  starting from the given paging state.
- (<a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
+ (<a href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a>, optional)
         </li>
         <li><span class="parameter">tracing</span>
          Enable query tracing. Use this option to diagnose performance
@@ -971,9 +961,18 @@
 
     <h3>Fields:</h3>
     <ul>
+        <li><span class="parameter">null</span>
+
+<p> (native protocol v4 only) Equivalent to the <code>null</code> CQL value.
+ Useful to unset a field.</p>
+<pre><code> cassandra.null()
+</code></pre>
+
+        </li>
         <li><span class="parameter">unset</span>
 
-<p> Equivalent to the <code>null</code> CQL value. Useful to unset a field.</p>
+<p> Equivalent to the <code>not set</code> CQL value. Leaves field untouched
+ for binary protocol v4+, or unset it for v2/v3.</p>
 <pre><code> cassandra.unset()
 </code></pre>
 
@@ -1101,18 +1100,17 @@
 
     <h3>Usage:</h3>
     <ul>
-        <pre class="example">
- <span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
- <span class="comment">-- connect client...
+        <pre class="example"><span class="keyword">local</span> cassandra = <span class="global">require</span> <span class="string">"cassandra"</span>
+<span class="comment">-- connect client...
 </span>
- client:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, {
-   cassandra.uuid(<span class="string">"123e4567-e89b-12d3-a456-426655440000"</span>)
- })
+client:execute(<span class="string">"SELECT * FROM users WHERE id = ?"</span>, {
+  cassandra.uuid(<span class="string">"123e4567-e89b-12d3-a456-426655440000"</span>)
+})
 
- client:execute(<span class="string">"INSERT INTO users(id, emails) VALUES(?, ?)"</span>, {
-   <span class="number">1</span>,
-   cassandra.set({<span class="string">"john@foo.com"</span>, <span class="string">"john@bar.com"</span>})
- })</pre>
+client:execute(<span class="string">"INSERT INTO users(id, emails) VALUES(?, ?)"</span>, {
+  <span class="number">1</span>,
+  cassandra.set({<span class="string">"john@foo.com"</span>, <span class="string">"john@bar.com"</span>})
+})</pre>
     </ul>
 
 </dd>
@@ -1122,8 +1120,8 @@
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
-<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2016-08-11 13:52:01 </i>
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.5</a></i>
+<i style="float:right;">Last updated 2016-10-06 18:45:55 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

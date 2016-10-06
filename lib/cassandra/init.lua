@@ -2,7 +2,7 @@
 -- Single host module for PUC Lua, LuaJIT and OpenResty.
 -- @module cassandra
 -- @author thibaultcha
--- @release 1.0.0
+-- @release 1.1.0
 
 local socket = require 'cassandra.socket'
 local cql = require 'cassandra.cql'
@@ -74,7 +74,7 @@ local find = string.find
 -- @table cassandra.auth_providers
 
 local _Host = {
-  _VERSION = '1.0.0',
+  _VERSION = '1.1.0',
   cql_errors = cql.errors,
   consistencies = cql.consistencies,
   auth_providers = require 'cassandra.auth'
@@ -509,7 +509,7 @@ end
 --   logged = false
 -- }))
 --
--- @param[type=table] Array of CQL queries to execute as a batch.
+-- @param[type=table] queries Array of CQL queries to execute as a batch.
 -- @param[type=table] options (optional) Options from `query_options`
 -- for this query.
 -- @treturn table `res`: Table holding the query result if success, `nil` if failure.

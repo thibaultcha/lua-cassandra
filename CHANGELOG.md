@@ -49,35 +49,52 @@ more granularity in keyspace settings. Example:
 
 ### [1.0.0] - 2016/07/27
 
-:warning: This release contains **breaking changes**. The library has been rewritten to greatly increase performance, usability and maintanability. The result is very pleasant and eleguant: we now offer 2 modules, one "single host", compatible with PUC Lua 5.1/5.2, and a "cluster" module, greatly optimized and only compatible with OpenResty.
+:warning: This release contains **breaking changes**. The library has been
+rewritten to greatly increase performance, usability and maintanability. The
+result is very pleasant and eleguant: we now offer 2 modules, one "single
+host", compatible with PUC Lua 5.1/5.2, and a "cluster" module, greatly
+optimized and only compatible with OpenResty.
 
 ##### Changed
 
-- New single host `cassandra` module, able to connect to a single Cassandra node.
-- New cluster `resty.cassandra.cluster` module, which leverages the single host module and is able to efficiently deal with a multi-nodes Cassandra cluster.
-- No more tables as errors. All errors returned by those modules are now strings.
-- Some considerable performance improvements compared to the previous versions: according to the benchmarks I ran while writing this new implementation (on a late 2013 Macbook Pro), this new version allows up to 10k q/sec compared to 2k q/s with its old version. I plan on making those benchmarks available publicly in the near future.
+- New single host `cassandra` module, able to connect to a single Cassandra
+node.
+- New cluster `resty.cassandra.cluster` module, which leverages the single host
+ module and is able to efficiently deal with a multi-nodes Cassandra cluster.
+- No more tables as errors. All errors returned by those modules are now
+strings.
+- Some considerable performance improvements compared to the previous
+versions: according to the benchmarks I ran while writing this new
+implementation (on a late 2013 Macbook Pro), this new version allows up to
+10k q/sec compared to 2k q/s with its old version. I plan on making those
+benchmarks available publicly in the near future.
 
 ##### Added
 
-- Support for named arguments when binding query parameters (binary protocol v3).
+- Support for named arguments when binding query parameters (binary protocol
+v3).
 - Support for client-side timestamps (binary protocol v3).
 - Support for query tracing.
-- New "datacenter-aware round robin" load balancing policy. This policy will prioritize nodes from the local datacenter in multi-DC setups.
+- New "datacenter-aware round robin" load balancing policy. This policy will
+prioritize nodes from the local datacenter in multi-DC setups.
 - A much more complete and reliable test suite (yay!).
-- A more complete documentation, including the available policies and better usage examples.
+- A more complete documentation, including the available policies and better
+usage examples.
 
 ### [0.5.1] - 2016/04/11
 
 ##### Fixed
 
-- Use the `default_port` option when connecting to peers instead of the CQL default (`9042`). [#49](https://github.com/thibaultCha/lua-cassandra/pull/49)
+- Use the `default_port` option when connecting to peers instead of the CQL
+default (`9042`). [#49](https://github.com/thibaultCha/lua-cassandra/pull/49)
 
 ### [0.5.0] - 2016/02/02
 
 ##### Changed
 
-- Following Datastax's model and allowing better flexibility with various C* providers, authentication now happens with an AuthProvider table that must be instanciated and passed to a session's options. Example:
+- Following Datastax's model and allowing better flexibility with various C*
+providers, authentication now happens with an AuthProvider table that must be
+instanciated and passed to a session's options. Example:
     ```lua
     local session, err = cassandra.spawn_session {
       shm = "...",
@@ -96,7 +113,8 @@ more granularity in keyspace settings. Example:
     }
     ```
 
-    The `cassandra` module contains AuthProviders in `cassandra.auth`. Only `PlainTextProvider` is currently implemented.
+    The `cassandra` module contains AuthProviders in `cassandra.auth`.
+    Only `PlainTextProvider` is currently implemented.
 
 - Remove the `set_log_lvl()` function from the `cassandra` module.
 
@@ -108,7 +126,9 @@ more granularity in keyspace settings. Example:
 
 ##### Fixed
 
-- Correct timeout check for schema consensus. Prior to this, schema consensus systematically timed out after 0.5s. [#24](https://github.com/thibaultCha/lua-cassandra/pull/24)
+- Correct timeout check for schema consensus. Prior to this, schema consensus
+systematically timed out after 0.5s.
+[#24](https://github.com/thibaultCha/lua-cassandra/pull/24)
 
 ##### Added
 
@@ -119,7 +139,10 @@ more granularity in keyspace settings. Example:
 
 ##### Fixed
 
-- Compatibility for C* < 2.1.6. The query to retrieve the local node's details does not rely on the existance of an `rpc_address` field anymore, since that field was only added in 2.1.6. See https://issues.apache.org/jira/browse/CASSANDRA-9436.
+- Compatibility for C* < 2.1.6. The query to retrieve the local node's details
+does not rely on the existance of an `rpc_address` field anymore, since that
+field was only added in 2.1.6.
+See https://issues.apache.org/jira/browse/CASSANDRA-9436.
 
 ### [0.4.0] - 2015/12/17
 
@@ -127,29 +150,45 @@ Complete rewrite of the driver, to the exception of the serializers.
 
 ##### Breaking changes
 
-This release is a complete breaking change with previous versions of the driver. [#15](https://github.com/thibaultCha/lua-cassandra/pull/15)
+This release is a complete breaking change with previous versions of the
+driver. [#15](https://github.com/thibaultCha/lua-cassandra/pull/15)
 
 ##### Added
 
-- Cluster topology auto detection. `contact_points` are not used as the only available nodes anymore but as entry point to discover the cluster's topology.
-- Cluster awareness capabilities. The driver is now capable of keeping track of which nodes are healthy or unhealthy.
-- Load balancing, reconnection, retry and address resolution policies. Only one of each is currently implemented.
-  - Load balancing: shared round-robin accross all workers. Used to load-balance the queries in the cluster.
-  - Reconnection: shared exponential (exponential reconnection time shared accross all workers). Used to determine when an unhealthy node should be retried.
-  - Retry: a basic retry policy. Used to determine which queries to retry or throw errors.
-  - Address resolution: a basic address resolution policy. Used to resolve `rpc_address` fields.
+- Cluster topology auto detection. `contact_points` are not used as the only
+available nodes anymore but as entry point to discover the cluster's topology.
+- Cluster awareness capabilities. The driver is now capable of keeping track
+of which nodes are healthy or unhealthy.
+- Load balancing, reconnection, retry and address resolution policies. Only
+one of each is currently implemented.
+  - Load balancing: shared round-robin accross all workers. Used to
+  load-balance the queries in the cluster.
+  - Reconnection: shared exponential (exponential reconnection time shared
+  accross all workers). Used to determine when an unhealthy node should be
+  retried.
+  - Retry: a basic retry policy. Used to determine which queries to retry or
+  throw errors.
+  - Address resolution: a basic address resolution policy. Used to resolve
+  `rpc_address` fields.
 - Waiting for schema consensus between nodes on `SCHEMA_CHANGE` (DML queries).
-- Many more options, configurable per session/query (queries can be executed with options overriding the session's option).
-- Complete abstraction of prepared queries. A simple option to `execute()` will handle the query preparation. If a node throws an `UNPREPARED` error, the query will be prepared and retried seamlessly.
-- Stronger test suite. Unit/integration tests with Busted, and ngx_lua integration tests with Test::Nginx Perl module. Travis-CI jobs are also faster and more reliable, and run all test suites.
-- Binary protocol auto-detection: downgrade from 3 to 2 automatically when using C* 2.0.
+- Many more options, configurable per session/query (queries can be executed
+with options overriding the session's option).
+- Complete abstraction of prepared queries. A simple option to `execute()`
+will handle the query preparation. If a node throws an `UNPREPARED` error, the
+ query will be prepared and retried seamlessly.
+- Stronger test suite. Unit/integration tests with Busted, and ngx_lua
+integration tests with Test::Nginx Perl module. Travis-CI jobs are also
+faster and more reliable, and run all test suites.
+- Binary protocol auto-detection: downgrade from 3 to 2 automatically when
+using C* 2.0.
 - Compatible with Lua 5.1, 5.2, 5.3, LuaJIT.
 - Overall, a better architecture for a better maintainability.
 
 ##### Unchanged
 
 - Still optimized for ngx_lua (cosocket API) and plain Lua (with LuaSocket).
-- TLS client-to-node encryption and Authentication (PasswordAuthenticator) are still supported.
+- TLS client-to-node encryption and Authentication (PasswordAuthenticator)
+are still supported.
 - The serializers stayed the same (even if their architecture was rewritten).
 
 ##### Removed
@@ -179,7 +218,8 @@ This release is a complete breaking change with previous versions of the driver.
 ##### Fixed
 
 - Binary protocol v3 accidentally used v2 encoding methods.
-- Startup message accidentally being sent for already established connections (with reusable sockets).
+- Startup message accidentally being sent for already established connections
+(with reusable sockets).
 
 ### [0.3.0] - 2015/07/07
 
@@ -199,7 +239,8 @@ This release is a complete breaking change with previous versions of the driver.
 
 ### 0.1.0 - 2015/07/03
 
-Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additional features and bug fixes.
+Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some
+additional features and bug fixes.
 
 ##### Added
 
@@ -207,8 +248,10 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 ##### Changed
 
-- More friendly support of auto pagination. THe loop doesn't require as many parameters.
-- OOP style in order to support both binary protocols. `cassandra.new()` must now be called with `:`.
+- More friendly support of auto pagination. THe loop doesn't require as many
+parameters.
+- OOP style in order to support both binary protocols. `cassandra.new()` must
+now be called with `:`.
 
 ##### Fixed
 

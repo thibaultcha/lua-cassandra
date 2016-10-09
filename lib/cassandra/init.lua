@@ -375,7 +375,7 @@ local query_options = {
   counter = false,
   -- protocol v3+ options
   timestamp = nil,
-  named = false
+  named = false,
 }
 
 local function get_opts(o)

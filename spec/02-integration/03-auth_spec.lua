@@ -12,6 +12,19 @@ describe("plain_text auth provider", function()
     }
   end)
 
+  describe("new()", function()
+    it("requires 'username' to be a string", function()
+      assert.error_matches(function()
+        cassandra.auth_providers.plain_text()
+      end, "arg #1 must be a string (username)", nil, true)
+    end)
+    it("requires 'password' to be a string", function()
+      assert.error_matches(function()
+        cassandra.auth_providers.plain_text("")
+      end, "arg #2 must be a string (password)", nil, true)
+    end)
+  end)
+
   describe("host", function()
     it("complains if no auth provider was configured", function()
       local peer = assert(cassandra.new {

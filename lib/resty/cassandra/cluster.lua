@@ -214,7 +214,7 @@ end
 -----------
 
 local _Cluster = {
-  _VERSION = '1.1.0'
+  _VERSION = '1.1.0',
 }
 
 _Cluster.__index = _Cluster
@@ -357,7 +357,7 @@ function _Cluster.new(opts)
     reconn_policy = opts.reconn_policy
                 or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000),
     retry_policy = opts.retry_policy
-                or require('resty.cassandra.policies.retry.simple').new(3)
+                or require('resty.cassandra.policies.retry.simple').new(3),
   }, _Cluster)
 end
 
@@ -375,7 +375,7 @@ local function first_coordinator(self)
 
   for i = 1, #cp do
     local peer, err = check_peer_health(self, cp[i], {
-      no_keyspace = true
+      no_keyspace = true,
     })
     if not peer then
       errors[cp[i]] = err

@@ -1,10 +1,8 @@
 # vim:set ts=4 sw=4 et fdm=marker:
 use Test::Nginx::Socket::Lua;
+use t::Util;
 
-our $HttpConfig = <<_EOC_;
-    lua_package_path 'lib/?.lua;lib/?/init.lua;;';
-    lua_shared_dict cassandra 1m;
-_EOC_
+our $HttpConfig = $t::Util::HttpConfig;
 
 plan tests => repeat_each() * blocks() * 3;
 
@@ -50,7 +48,7 @@ qr{\[notice\] .*? preparing and retrying}
 --- http_config eval
 qq{
     $::HttpConfig
-    init_by_lua_block {
+    init_worker_by_lua_block {
         local Cluster = require 'resty.cassandra.cluster'
         Cluster.send_retry = function()
             return 'retried'
@@ -94,7 +92,7 @@ TRUNCATE_ERROR: retried nil nil
 --- http_config eval
 qq{
     $::HttpConfig
-    init_by_lua_block {
+    init_worker_by_lua_block {
         local Cluster = require 'resty.cassandra.cluster'
         Cluster.send_retry = function()
             return 'retried'
@@ -163,7 +161,7 @@ WRITE_TIMEOUT throw: nil some CQL error 4352
 --- http_config eval
 qq{
     $::HttpConfig
-    init_by_lua_block {
+    init_worker_by_lua_block {
         local Cluster = require 'resty.cassandra.cluster'
         Cluster.send_retry = function()
             return 'retried'
@@ -212,7 +210,7 @@ nil timeout nil
 --- http_config eval
 qq{
     $::HttpConfig
-    init_by_lua_block {
+    init_worker_by_lua_block {
         local Cluster = require 'resty.cassandra.cluster'
         Cluster.send_retry = function()
             return 'retried'

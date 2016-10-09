@@ -1,10 +1,8 @@
 # vim:set ts=4 sw=4 et fdm=marker:
 use Test::Nginx::Socket::Lua;
+use t::Util;
 
-our $HttpConfig = <<_EOC_;
-    lua_package_path 'lib/?.lua;lib/?/init.lua;;';
-    lua_shared_dict cassandra 1m;
-_EOC_
+our $HttpConfig = $t::Util::HttpConfig;
 
 plan tests => repeat_each() * blocks() * 3;
 

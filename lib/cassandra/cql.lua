@@ -73,7 +73,7 @@ local cql_types = {
   map       = 0x21,
   set       = 0x22,
   udt       = 0x30,
-  tuple     = 0x31
+  tuple     = 0x31,
 }
 
 local consistencies = {
@@ -87,7 +87,7 @@ local consistencies = {
   each_quorum       = 0x0007,
   serial            = 0x0008,
   local_serial      = 0x0009,
-  local_one         = 0x000a
+  local_one         = 0x000a,
 }
 
 local ERRORS            = {
@@ -107,7 +107,7 @@ local ERRORS            = {
   INVALID               = 0x2200,
   CONFIG_ERROR          = 0x2300,
   ALREADY_EXISTS        = 0x2400,
-  UNPREPARED            = 0x2500
+  UNPREPARED            = 0x2500,
 }
 
 local ERROR_TRANSLATIONS         = {
@@ -127,7 +127,7 @@ local ERROR_TRANSLATIONS         = {
   [ERRORS.INVALID]               = 'Invalid',
   [ERRORS.CONFIG_ERROR]          = 'Config error',
   [ERRORS.ALREADY_EXISTS]        = 'Already exists',
-  [ERRORS.UNPREPARED]            = 'Unprepared'
+  [ERRORS.UNPREPARED]            = 'Unprepared',
 }
 
 local OP_CODES   = {
@@ -146,14 +146,14 @@ local OP_CODES   = {
   BATCH          = 0x0D,
   AUTH_CHALLENGE = 0x0E,
   AUTH_RESPONSE  = 0x0F,
-  AUTH_SUCCESS   = 0x10
+  AUTH_SUCCESS   = 0x10,
 }
 
 local FRAME_FLAGS  = {
   --COMPRESSION    = 0x01,
   TRACING          = 0x02,
   --CUSTOM_PAYLOAD = 0x04,
-  WARNING          = 0x08
+  WARNING          = 0x08,
 }
 
 local function is_array(t)
@@ -179,7 +179,7 @@ do
       version = version,
       str = str,
       len = #str,
-      pos = 1
+      pos = 1,
     }
 
     return setmetatable(buf, Buffer)
@@ -917,7 +917,7 @@ do
     WITH_PAGING_STATE      = 0x08,
     WITH_SERIAL_CONSISTENCY = 0x10,
     WITH_DEFAULT_TIMESTAMP = 0x20,
-    WITH_NAMES_FOR_VALUES  = 0x40
+    WITH_NAMES_FOR_VALUES  = 0x40,
   }
 
   local request_mt = {}
@@ -1173,13 +1173,13 @@ do
     ROWS             = 0x02,
     SET_KEYSPACE     = 0x03,
     PREPARED         = 0x04,
-    SCHEMA_CHANGE    = 0x05
+    SCHEMA_CHANGE    = 0x05,
   }
 
   local ROWS_RESULT_FLAGS = {
     GLOBAL_TABLES_SPEC    = 0x01,
     HAS_MORE_PAGES        = 0x02,
-    NO_METADATA           = 0x04
+    NO_METADATA           = 0x04,
   }
 
   function frame_reader.version(b)

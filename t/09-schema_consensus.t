@@ -11,7 +11,7 @@ run_tests();
 __DATA__
 
 === TEST 1: cluster.execute() waits for schema consensus on DDL
---- timeout: 5
+--- timeout: 30
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

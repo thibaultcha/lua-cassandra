@@ -1,0 +1,2 @@
+include = {'lib/cassandra', 'lib/resty/cassandra'}
+exclude = {'lib/cassandra/socket'}

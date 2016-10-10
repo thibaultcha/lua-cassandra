@@ -107,6 +107,7 @@ fi
 # init_by_lua + plain Lua dependencies
 luarocks install luasec
 luarocks install luasocket
+luarocks install luacov
 luarocks install luacov-coveralls
 
 luarocks --version

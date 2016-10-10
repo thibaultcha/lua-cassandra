@@ -1,11 +1,8 @@
 # vim:set ts=4 sw=4 et fdm=marker:
 use Test::Nginx::Socket::Lua;
+use t::Util;
 
-our $HttpConfig = <<_EOC_;
-    lua_package_path 'lib/?.lua;lib/?/init.lua;;';
-    lua_shared_dict cassandra 1m;
-    lua_socket_log_errors off;
-_EOC_
+our $HttpConfig = $t::Util::HttpConfig;
 
 plan tests => repeat_each() * blocks() * 3;
 
@@ -168,7 +165,11 @@ auth: table
 
 
 === TEST 6: cluster.refresh() with invalid contact_points
---- http_config eval: $::HttpConfig
+--- http_config eval
+qq {
+    $::HttpConfig
+    lua_socket_log_errors off;
+}
 --- config
     location /t {
         content_by_lua_block {
@@ -179,6 +180,7 @@ auth: table
             }
             if not cluster then
                 ngx.log(ngx.ERR, err)
+                return
             end
 
             local ok, err = cluster:refresh()
@@ -408,6 +410,7 @@ init: true
             local cluster, err = Cluster.new()
             if not cluster then
                 ngx.log(ngx.ERR, err)
+                return
             end
 
             -- insert fake peers
@@ -1032,7 +1035,11 @@ GET /t
 
 
 === TEST 24: next_coordinator() marks nodes as down
---- http_config eval: $::HttpConfig
+--- http_config eval
+qq {
+    lua_socket_log_errors off;
+    $::HttpConfig
+}
 --- config
     location /t {
         content_by_lua_block {

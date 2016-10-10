@@ -313,6 +313,7 @@ describe("cassandra (host)", function()
         end)
       end)
       if helpers.cassandra_version_num >= 30000 then
+        -- cassandra 3.x
         describe("protocol v4", function()
           it("uses protocol v4 by default", function()
             assert.equal(4, peer.protocol_version)
@@ -321,7 +322,7 @@ describe("cassandra (host)", function()
             local res = assert(peer:execute [[
               CREATE OR REPLACE FUNCTION avgState(state tuple<int,bigint>, val int)
               CALLED ON NULL INPUT RETURNS tuple<int,bigint> LANGUAGE java AS
-                'if (val !=null) {
+                'if (val != null) {
                    state.setInt(0, state.getInt(0)+1);
                    state.setLong(1, state.getLong(1)+val.intValue());
                  }
@@ -355,6 +356,11 @@ describe("cassandra (host)", function()
             assert.equal("average", res.name)
             assert.same({"int"}, res.arguments_types)
           end)
+        end)
+      else
+        -- cassandra 2.x
+        it("automatically downgrades protocol if not supported", function()
+          assert.equal(3, peer.protocol_version)
         end)
       end
       describe("tracing", function()

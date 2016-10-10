@@ -1,4 +1,4 @@
-DEV_ROCKS=busted luacov-coveralls luacheck ldoc
+DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 BUSTED_ARGS ?= -v -o gtest
 CASSANDRA ?= 3.7
 
@@ -33,7 +33,9 @@ clean:
 
 coverage: clean
 	@busted $(BUSTED_ARGS) --coverage
-	@luacov -i lib/cassandra -e socket.lua
+	@util/prove_ccm.sh $(CASSANDRA)
+	@TEST_COVERAGE_ENABLED=true TEST_NGINX_TIMEOUT=30 prove
+	@luacov
 
 lint:
 	@luacheck -q . \

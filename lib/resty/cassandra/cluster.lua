@@ -129,7 +129,9 @@ local function get_peers(self)
 end
 
 local function set_peer_down(self, host)
-  log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
+  if self.logging then
+    log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
+  end
 
   local peer = get_peer(self, host, false)
   peer = peer or empty_t -- this can be called from refresh() so no host in shm yet
@@ -139,7 +141,9 @@ local function set_peer_down(self, host)
 end
 
 local function set_peer_up(self, host)
-  log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
+  if self.logging then
+    log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
+  end
   self.reconn_policy:reset(host)
 
   local peer = get_peer(self, host, true)
@@ -336,6 +340,10 @@ function _Cluster.new(opts)
       if type(v) ~= 'boolean' then
         return nil, 'retry_on_timeout must be a boolean'
       end
+    elseif k == 'silent' then
+      if type(v) ~= 'boolean' then
+        return nil, 'silent must be a boolean'
+      end
     end
   end
 
@@ -351,6 +359,7 @@ function _Cluster.new(opts)
     timeout_connect = opts.timeout_connect or 1000,
     retry_on_timeout = opts.retry_on_timeout == nil and true or opts.retry_on_timeout,
     max_schema_consensus_wait = opts.max_schema_consensus_wait or 10000,
+    logging = not opts.silent,
 
     lb_policy = opts.lb_policy
                 or require('resty.cassandra.policies.lb.rr').new(),
@@ -395,7 +404,9 @@ local function next_coordinator(self, coordinator_options)
     if ok then
       local peer, err = check_peer_health(self, peer_rec.host, coordinator_options, retry)
       if peer then
-        log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
+        if self.logging then
+          log(DEBUG, _log_prefix, 'load balancing policy chose host at ',  peer.host)
+        end
         return peer
       else
         errors[peer_rec.host] = err
@@ -554,7 +565,9 @@ local function wait_schema_consensus(self, coordinator)
 end
 
 local function prepare(self, coordinator, query)
-  log(DEBUG, _log_prefix, 'preparing ', query, ' on host ', coordinator.host)
+  if self.logging then
+    log(DEBUG, _log_prefix, 'preparing ', query, ' on host ', coordinator.host)
+  end
   -- we are the ones preparing the query
   local res, err = coordinator:prepare(query)
   if not res then return nil, 'could not prepare query: '..err end
@@ -607,7 +620,9 @@ function _Cluster:send_retry(request)
   local coordinator, err = next_coordinator(self)
   if not coordinator then return nil, err end
 
-  log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host)
+  if self.logging then
+    log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host)
+  end
 
   request.retries = request.retries + 1
 
@@ -617,8 +632,10 @@ end
 local function prepare_and_retry(self, coordinator, request)
   if request.queries then
     -- prepared batch
-    log(NOTICE, _log_prefix, 'some requests from this batch were not prepared on host ',
-                 coordinator.host, ', preparing and retrying')
+    if self.logging then
+      log(NOTICE, _log_prefix, 'some requests from this batch were not prepared on host ',
+                   coordinator.host, ', preparing and retrying')
+    end
     for i = 1, #request.queries do
       local query_id, err = prepare(self, coordinator, request.queries[i][1])
       if not query_id then return nil, err end
@@ -626,8 +643,10 @@ local function prepare_and_retry(self, coordinator, request)
     end
   else
     -- prepared query
-    log(NOTICE, _log_prefix, request.query, ' was not prepared on host ',
-                coordinator.host, ', preparing and retrying')
+    if self.logging then
+      log(NOTICE, _log_prefix, request.query, ' was not prepared on host ',
+                  coordinator.host, ', preparing and retrying')
+    end
     local query_id, err = prepare(self, coordinator, request.query)
     if not query_id then return nil, err end
     request.query_id = query_id
@@ -680,7 +699,7 @@ send_request = function(self, coordinator, request)
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
-  elseif res.warnings then
+  elseif res.warnings and self.logging then
     -- protocol v4 can return warnings to the client
     for i = 1, #res.warnings do
       log(WARN, _log_prefix, res.warnings[i])

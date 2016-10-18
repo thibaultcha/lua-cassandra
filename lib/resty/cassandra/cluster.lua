@@ -611,8 +611,15 @@ local function get_or_prepare(self, coordinator, query)
         query_id, err = prepare(self, coordinator, query)
         if not query_id then return nil, err end
 
-        local ok, err = shm:set(key, query_id)
-        if not ok then return nil, 'could not set query id in shm: '..err end
+        local ok, err = shm:safe_set(key, query_id)
+        if not ok then
+          if err == 'no memory' then
+            log(WARN, _log_prefix, 'could not set query id in shm: ',
+                      'running out of memory, please increase the ',
+                      self.dict_name, ' dict size')
+          else
+            return nil, 'could not set query id in shm: '..err end
+          end
       end
 
       local ok, err = lock:unlock()

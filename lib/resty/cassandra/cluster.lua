@@ -242,6 +242,11 @@ _Cluster.__index = _Cluster
 -- @field max_schema_consensus_wait Maximum waiting time allowed when executing
 -- DDL queries before timing out, in ms.
 -- (`number`, default: `10000`)
+-- @field lock_timeout Timeout value of lua-resty-lock used for the `refresh`
+-- and prepared statement mutexes, in seconds.
+-- (`number`, optional)
+-- @field silent Disables all logging (of any log_level) from this cluster.
+-- (`boolean`, default: `false`)
 -- @field lb_policy A load balancing policy created from one of the modules
 -- under `resty.cassandra.policies.lb.*`.
 -- (`lb policy`, default: `lb.rr` round robin)

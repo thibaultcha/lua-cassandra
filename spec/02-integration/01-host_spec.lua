@@ -256,7 +256,7 @@ describe("cassandra (host)", function()
       describe("binary protocols", function()
         it("connects with desired protocol version if specifically asked", function()
           local min_protocol_version = helpers.cassandra_version_num < 30000 and 2 or 3
-          local max_protocol_version = helpers.cassandra_version_num >= 22000 and 4 or 3
+          local max_protocol_version = helpers.cassandra_version_num >= 20200 and 4 or 3
           for i = min_protocol_version, max_protocol_version do
             local peer_v = assert(cassandra.new {
               protocol_version = i
@@ -916,7 +916,11 @@ describe("cassandra (host)", function()
           -- additional iteration to report error
           local opts = {page_size = n_select}
           for rows, err, page in peer:iterate("SELECT * FROM metrics WHERE col = 'a'", nil, opts) do
-            assert.equal("[Invalid] Undefined name col in where clause ('col = 'a'')", err)
+            if helpers.cassandra_version_num >= 30800 then
+              assert.equal("[Invalid] Undefined column name col", err)
+            else
+              assert.equal("[Invalid] Undefined name col in where clause ('col = 'a'')", err)
+            end
             assert.equal(0, page)
             assert.same({meta = {has_more_pages = false}}, rows)
           end

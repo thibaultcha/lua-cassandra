@@ -1,6 +1,6 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 BUSTED_ARGS ?= -v -o gtest
-CASSANDRA ?= 3.7
+CASSANDRA ?= 3.9
 
 .PHONY: install dev busted prove test clean coverage lint doc
 

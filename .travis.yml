@@ -19,7 +19,7 @@ addons:
 
 env:
   global:
-    - LUAROCKS=2.4.0
+    - LUAROCKS=2.4.1
     - OPENRESTY=1.11.2.1
     - DOWNLOAD_CACHE=$HOME/download-cache
     - INSTALL_CACHE=$HOME/install-cache
@@ -30,6 +30,7 @@ env:
     - LUA="luajit 2.0"
     - LUA="luajit 2.1"
     - OPENRESTY_TESTS=true
+      CASSANDRA=3.9
     - OPENRESTY_TESTS=true
       CASSANDRA=2.2.7
     - OPENRESTY_TESTS=true

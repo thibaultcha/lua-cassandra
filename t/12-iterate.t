@@ -13,7 +13,7 @@ run_tests();
 __DATA__
 
 === TEST 1: cluster.iterate() sanity
---- timeout: 30
+--- timeout: 45
 --- http_config eval
 qq{
     $::HttpConfig

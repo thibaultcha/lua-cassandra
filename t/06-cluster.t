@@ -53,6 +53,16 @@ GET /t
             if not cluster then
                 ngx.say(err)
             end
+
+            cluster, err = Cluster.new({timeout_read = 'foo'})
+            if not cluster then
+                ngx.say(err)
+            end
+
+            cluster, err = Cluster.new({timeout_connect = 'foo'})
+            if not cluster then
+                ngx.say(err)
+            end
         }
     }
 --- request
@@ -62,6 +72,8 @@ opts must be a table
 shm must be a string
 no shared dict invalid_shm
 keyspace must be a string
+timeout_read must be a number
+timeout_connect must be a number
 --- no_error_log
 [error]
 
@@ -1108,9 +1120,7 @@ can try peer 255.255.255.253: false
     location /t {
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
-            local cluster, err = Cluster.new {
-                timeout_connect = 100
-            }
+            local cluster, err = Cluster.new()
             if not cluster then
                 ngx.log(ngx.ERR, err)
                 return
@@ -1161,8 +1171,8 @@ can try peer 255.255.255.253: false
             for i = 1, #peers do
                 local ok, err = cluster:can_try_peer(peers[i].host)
                 if err then
-                     ngx.log(ngx.ERR, 'error in can_try_peer ', peers[i].host..': ', err)
-                     return
+                    ngx.log(ngx.ERR, 'error in can_try_peer ', peers[i].host..': ', err)
+                    return
                 end
                 ngx.say(peers[i].host, ' is back up: ', ok)
             end

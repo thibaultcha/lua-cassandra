@@ -330,13 +330,13 @@ function _Cluster.new(opts)
       if type(v) ~= 'table' then
         return nil, 'contact_points must be a table'
       end
-    elseif k == 'read_timeout' then
+    elseif k == 'timeout_read' then
       if type(v) ~= 'number' then
-        return nil, 'read_timeout must be a number'
+        return nil, 'timeout_read must be a number'
       end
-    elseif k == 'connect_timeout' then
+    elseif k == 'timeout_connect' then
       if type(v) ~= 'number' then
-        return nil, 'connect_timeout must be a number'
+        return nil, 'timeout_connect must be a number'
       end
     elseif k == 'max_schema_consensus_wait' then
       if type(v) ~= 'number' then
@@ -635,12 +635,13 @@ end
 
 local send_request
 
-function _Cluster:send_retry(request)
+function _Cluster:send_retry(request, ...)
   local coordinator, err = next_coordinator(self)
   if not coordinator then return nil, err end
 
   if self.logging then
-    log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host)
+    log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host,
+                             ' reason: ', ...)
   end
 
   request.retries = request.retries + 1
@@ -653,7 +654,7 @@ local function prepare_and_retry(self, coordinator, request)
     -- prepared batch
     if self.logging then
       log(NOTICE, _log_prefix, 'some requests from this batch were not prepared on host ',
-                   coordinator.host, ', preparing and retrying')
+                  coordinator.host, ', preparing and retrying')
     end
     for i = 1, #request.queries do
       local query_id, err = prepare(self, coordinator, request.queries[i][1])
@@ -697,18 +698,17 @@ local function handle_error(self, err, cql_code, coordinator, request)
     end
 
     if retry then
-      return self:send_retry(request)
+      return self:send_retry(request, 'CQL code: ', cql_code)
     end
   elseif err == 'timeout' then
     if self.retry_on_timeout then
-      return self:send_retry(request)
+      return self:send_retry(request, 'timeout')
     end
   else
     -- host seems down?
     local ok, err = set_peer_down(self, coordinator.host)
     if not ok then return nil, err end
-
-    return self:send_retry(request)
+    return self:send_retry(request, 'coordinator seems down')
   end
 
   return nil, err, cql_code

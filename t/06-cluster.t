@@ -1120,9 +1120,7 @@ can try peer 255.255.255.253: false
     location /t {
         content_by_lua_block {
             local Cluster = require 'resty.cassandra.cluster'
-            local cluster, err = Cluster.new {
-                timeout_connect = 100
-            }
+            local cluster, err = Cluster.new()
             if not cluster then
                 ngx.log(ngx.ERR, err)
                 return
@@ -1173,8 +1171,8 @@ can try peer 255.255.255.253: false
             for i = 1, #peers do
                 local ok, err = cluster:can_try_peer(peers[i].host)
                 if err then
-                     ngx.log(ngx.ERR, 'error in can_try_peer ', peers[i].host..': ', err)
-                     return
+                    ngx.log(ngx.ERR, 'error in can_try_peer ', peers[i].host..': ', err)
+                    return
                 end
                 ngx.say(peers[i].host, ' is back up: ', ok)
             end

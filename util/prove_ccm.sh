@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CASSANDRA=${1}
+CASSANDRA=${1:-3.9}
 
 ccm stop
 if [[ ! $(ccm list | grep lua_cassandra_prove) ]]; then

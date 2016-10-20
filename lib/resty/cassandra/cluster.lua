@@ -330,13 +330,13 @@ function _Cluster.new(opts)
       if type(v) ~= 'table' then
         return nil, 'contact_points must be a table'
       end
-    elseif k == 'read_timeout' then
+    elseif k == 'timeout_read' then
       if type(v) ~= 'number' then
-        return nil, 'read_timeout must be a number'
+        return nil, 'timeout_read must be a number'
       end
-    elseif k == 'connect_timeout' then
+    elseif k == 'timeout_connect' then
       if type(v) ~= 'number' then
-        return nil, 'connect_timeout must be a number'
+        return nil, 'timeout_connect must be a number'
       end
     elseif k == 'max_schema_consensus_wait' then
       if type(v) ~= 'number' then

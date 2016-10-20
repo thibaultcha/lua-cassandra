@@ -53,6 +53,16 @@ GET /t
             if not cluster then
                 ngx.say(err)
             end
+
+            cluster, err = Cluster.new({timeout_read = 'foo'})
+            if not cluster then
+                ngx.say(err)
+            end
+
+            cluster, err = Cluster.new({timeout_connect = 'foo'})
+            if not cluster then
+                ngx.say(err)
+            end
         }
     }
 --- request
@@ -62,6 +72,8 @@ opts must be a table
 shm must be a string
 no shared dict invalid_shm
 keyspace must be a string
+timeout_read must be a number
+timeout_connect must be a number
 --- no_error_log
 [error]
 

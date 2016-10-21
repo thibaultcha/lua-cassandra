@@ -61,7 +61,7 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   release_version = release_version or ''
 
   -- host status
-  local ok, err = self.shm:set(host, up)
+  local ok, err = self.shm:safe_set(host, up)
   if not ok then
     return nil, 'could not set host details in shm: '..err
   end
@@ -72,7 +72,7 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   rec_peer_cdata.data_center = ffi_cast(str_const, data_center)
   rec_peer_cdata.release_version = ffi_cast(str_const, release_version)
 
-  ok, err = self.shm:set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
+  ok, err = self.shm:safe_set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
   if not ok then
     return nil, 'could not set host details in shm: '..err
   end
@@ -507,7 +507,7 @@ function _Cluster:refresh()
     peers, err = get_peers(self)
     if err then return nil, err end
 
-    local ok, err = self.shm:set(_protocol_version_key, coordinator.protocol_version)
+    local ok, err = self.shm:safe_set(_protocol_version_key, coordinator.protocol_version)
     if not ok then return nil, 'could not set protocol_version in shm: '..err end
   end
 

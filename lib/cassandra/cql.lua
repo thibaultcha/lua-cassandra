@@ -681,10 +681,10 @@ do
   local marsh_cql_value
 
   -- values must be ordered as they are defined in the UDT declaration
-  local function marsh_udt(val)
+  local function marsh_udt(val, version)
     local repr = {}
     for i = 1, #val do
-      repr[#repr+1] = marsh_cql_value(val[i])
+      repr[#repr+1] = marsh_cql_value(val[i], version)
     end
     return concat(repr)
   end
@@ -718,7 +718,7 @@ do
       repr = {marsh_int(#val)}
     end
     for i = 1, #val do
-      repr[#repr+1] = marsh_cql_value(val[i])
+      repr[#repr+1] = marsh_cql_value(val[i], version)
     end
     return concat(repr)
   end
@@ -741,8 +741,8 @@ do
     local size = 0
 
     for k, v in pairs(val) do
-      repr[#repr+1] = marsh_cql_value(k)
-      repr[#repr+1] = marsh_cql_value(v)
+      repr[#repr+1] = marsh_cql_value(k, version)
+      repr[#repr+1] = marsh_cql_value(v, version)
       size = size + 1
     end
 

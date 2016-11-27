@@ -1,5 +1,6 @@
 local _M = {}
 
+
 function _M.new_policy(name)
   local retry_mt = {
     name = name,
@@ -18,5 +19,6 @@ function _M.new_policy(name)
 
   return setmetatable(retry_mt, {__index = retry_mt.super})
 end
+
 
 return _M

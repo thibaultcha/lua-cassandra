@@ -1,5 +1,6 @@
 local _M = {}
 
+
 function _M.new_policy(name)
   local reconn_mt = {
     name = name,
@@ -17,5 +18,6 @@ function _M.new_policy(name)
 
   return setmetatable(reconn_mt, {__index = reconn_mt.super})
 end
+
 
 return _M

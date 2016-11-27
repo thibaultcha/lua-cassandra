@@ -1,5 +1,6 @@
 local _M = {}
 
+
 function _M.new_policy(name)
   local lb_mt = {
     name = name,
@@ -15,7 +16,8 @@ function _M.new_policy(name)
     end
   }
 
-  return setmetatable(lb_mt, {__index = lb_mt.super})
+  return setmetatable(lb_mt, { __index = lb_mt.super })
 end
+
 
 return _M

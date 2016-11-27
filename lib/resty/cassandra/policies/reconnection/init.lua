@@ -2,22 +2,24 @@ local _M = {}
 
 
 function _M.new_policy(name)
-  local reconn_mt = {
-    name = name,
-    reset = function() error('reset() not implemented') end,
-    next_delay = function() error('next_delay() not implemented') end,
-  }
+    local reconn_mt = {
+        name = name,
+        reset = function() error('reset() not implemented') end,
+        next_delay = function() error('next_delay() not implemented') end,
+    }
 
-  reconn_mt.__index = reconn_mt
+    reconn_mt.__index = reconn_mt
 
-  reconn_mt.super = {
-    new = function()
-      return setmetatable({}, reconn_mt)
-    end
-  }
+    reconn_mt.super = {
+        new = function()
+            return setmetatable({}, reconn_mt)
+        end
+    }
 
-  return setmetatable(reconn_mt, {__index = reconn_mt.super})
+    return setmetatable(reconn_mt, {__index = reconn_mt.super})
 end
 
 
 return _M
+
+-- vim:set ts=4 sw=4 sts=4 et:

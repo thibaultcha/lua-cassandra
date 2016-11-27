@@ -33,37 +33,39 @@ local pow = math.pow
 -- attempt.
 -- @treturn table `policy`: An exponential reconnection policy.
 function _M.new(base_delay, max_delay)
-  if type(base_delay) ~= 'number' or base_delay < 1 then
-    return error('arg #1 base_delay must be a positive integer', 2)
+    if type(base_delay) ~= 'number' or base_delay < 1 then
+        return error('arg #1 base_delay must be a positive integer', 2)
 
-  elseif type(max_delay) ~= 'number' or max_delay < 1 then
-    return error('arg #2 max_delay must be a positive integer', 2)
-  end
+    elseif type(max_delay) ~= 'number' or max_delay < 1 then
+        return error('arg #2 max_delay must be a positive integer', 2)
+    end
 
-  local self = _M.super.new()
-  self.base_delay = base_delay
-  self.max_delay = max_delay
-  self.delays = {}
+    local self = _M.super.new()
+    self.base_delay = base_delay
+    self.max_delay = max_delay
+    self.delays = {}
 
-  return self
+    return self
 end
 
 
 function _M:reset(host)
-  if self.delays[host] then
-    self.delays[host] = nil
-  end
+    if self.delays[host] then
+        self.delays[host] = nil
+    end
 end
 
 
 function _M:next_delay(host)
-  local delays = self.delays
-  local idx = delays[host] or 1
+    local delays = self.delays
+    local idx = delays[host] or 1
 
-  delays[host] = idx + 1
+    delays[host] = idx + 1
 
-  return min(pow(idx, 2) * self.base_delay, self.max_delay)
+    return min(pow(idx, 2) * self.base_delay, self.max_delay)
 end
 
 
 return _M
+
+-- vim:set ts=4 sw=4 sts=4 et:

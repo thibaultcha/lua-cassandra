@@ -29,30 +29,32 @@ local type = type
 -- before aborting and reporting the error.
 -- @treturn table `policy`: A simple retry policy.
 function _M.new(max_retries)
-  if type(max_retries) ~= 'number' or max_retries < 1 then
-    return error('arg #1 max_retries must be a positive integer', 2)
-  end
+    if type(max_retries) ~= 'number' or max_retries < 1 then
+        return error('arg #1 max_retries must be a positive integer', 2)
+    end
 
-  local self = _M.super.new()
-  self.max_retries = max_retries
+    local self = _M.super.new()
+    self.max_retries = max_retries
 
-  return self
+    return self
 end
 
 
 function _M:on_unavailable(request)
-  return false
+    return false
 end
 
 
 function _M:on_read_timeout(request)
-  return request.retries < self.max_retries
+    return request.retries < self.max_retries
 end
 
 
 function _M:on_write_timeout(request)
-  return request.retries < self.max_retries
+    return request.retries < self.max_retries
 end
 
 
 return _M
+
+-- vim:set ts=4 sw=4 sts=4 et:

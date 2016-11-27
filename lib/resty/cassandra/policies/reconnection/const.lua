@@ -27,14 +27,14 @@ local type = type
 -- unhealthy node, in milliseconds.
 -- @treturn table `policy`: A constant reconnection policy.
 function _M.new(delay)
-  if type(delay) ~= 'number' or delay < 1 then
-    return error('arg #1 delay must be a positive integer', 2)
-  end
+    if type(delay) ~= 'number' or delay < 1 then
+        return error('arg #1 delay must be a positive integer', 2)
+    end
 
-  local self = _M.super.new()
-  self.delay = delay
+    local self = _M.super.new()
+    self.delay = delay
 
-  return self
+    return self
 end
 
 
@@ -42,8 +42,10 @@ function _M:reset()end
 
 
 function _M:next_delay()
-  return self.delay
+    return self.delay
 end
 
 
 return _M
+
+-- vim:set ts=4 sw=4 sts=4 et:

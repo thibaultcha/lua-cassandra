@@ -107,8 +107,8 @@ GET /t
     }
 --- request
 GET /t
---- response_body
-false arg #1 max_retries must be a positive integer
-false arg #1 max_retries must be a positive integer
+--- response_body_like
+false .*? arg #1 max_retries must be a positive integer
+false .*? arg #1 max_retries must be a positive integer
 --- no_error_log
 [error]

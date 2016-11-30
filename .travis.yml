@@ -32,9 +32,9 @@ env:
     - OPENRESTY_TESTS=true
       CASSANDRA=3.9
     - OPENRESTY_TESTS=true
-      CASSANDRA=2.2.7
+      CASSANDRA=2.2.8
     - OPENRESTY_TESTS=true
-      CASSANDRA=2.1.15
+      CASSANDRA=2.1.16
 
 before_install:
   - source .ci/setup_env.sh

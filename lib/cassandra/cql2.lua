@@ -1081,16 +1081,16 @@ local function marsh_cql_map(value, version)
     local buf_t = new_tab(4, 0)
 
     for k, v in pairs(value) do
-        len = len + 1
-        buf_t[len] = marsh_cql_value(k, version)
-        buf_t[len + 1] = marsh_cql_value(v, version)
+        buf_t[len + 1] = marsh_cql_value(k, version)
+        buf_t[len + 2] = marsh_cql_value(v, version)
+        len = len + 2
     end
 
     if version < 3 then
-        insert(buf_t, 1, marsh_short(len))
+        insert(buf_t, 1, marsh_short(len / 2))
 
     else
-        insert(buf_t, 1, marsh_int(len))
+        insert(buf_t, 1, marsh_int(len / 2))
     end
 
     return concat(buf_t)

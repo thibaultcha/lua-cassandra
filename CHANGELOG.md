@@ -24,7 +24,8 @@ This is a breaking change:
 ##### Added
 
 - New `coordinator_options` for `execute()`/`batch()`/`iterate()` allowing for
-more granularity in keyspace settings. Example:
+more granularity in keyspace settings. Accepted options are `keyspace` and
+`no_keyspace`. Example:
   ```lua
     local Cluster = cluster.new {
       keyspace = 'my_keyspace'
@@ -35,6 +36,7 @@ more granularity in keyspace settings. Example:
       --no_keyspace = true -- would disable setting a keyspace for this request
     })
   ```
+[cdc6607](https://github.com/thibaultcha/lua-cassandra/commit/cdc6607d26d23d6d9e1268d3db316aaf90ce51a8)
 - Support for binary protocol v4.
 [#61](https://github.com/thibaultcha/lua-cassandra/pull/61)
   - New `cassandra.null` CQL marshalling type. This type is different than
@@ -50,9 +52,6 @@ more granularity in keyspace settings. Example:
   waiting time in seconds for the cluster refreshing and requests preparing
   mutexes. This option prevents such mutexes to hang for too long.
   [2bd3d66](https://github.com/thibaultcha/lua-cassandra/commit/2bd3d66eb26530490391ffb0f5dc366cc9fd0874)
-- Implement a `no_keyspace` option for `cluster:execute()` to execute a given
-  query with a socket that is not connected to any keyspace in particular.
-  [cdc6607](https://github.com/thibaultcha/lua-cassandra/commit/cdc6607d26d23d6d9e1268d3db316aaf90ce51a8)
 - The `cluster:refresh()` method now returns the list of fetched Cassandra
   nodes from the cluster as a third return value.
   [34f5f11](https://github.com/thibaultcha/lua-cassandra/commit/34f5f1168f5a69dddf53c5564b8577250a7fde0a)

@@ -1,12 +1,12 @@
 package = "lua-cassandra"
 version = "1.1.0-0"
 source = {
-  url = "git://github.com/thibaultCha/lua-cassandra",
+  url = "git://github.com/thibaultcha/lua-cassandra",
   tag = "1.1.0"
 }
 description = {
   summary = "A pure Lua client library for Apache Cassandra",
-  homepage = "https://github.com/thibaultCha/lua-cassandra",
+  homepage = "https://github.com/thibaultcha/lua-cassandra",
   license = "MIT"
 }
 dependencies = {

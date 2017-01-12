@@ -1,12 +1,14 @@
 ### [Unreleased][unreleased]
 
-### [1.1.0]
+### [1.1.0] - 2016/01/12
 
 ##### Changed
 
 - :warning: Peers are now part of different connection pools depending on their
 keyspace. This can fix eventual issues when using several keyspaces with a
-single peer/cluster instance. This is a breaking change:
+single peer/cluster instance.
+[6c0db5e](https://github.com/thibaultcha/lua-cassandra/commit/6c0db5e178daa119c6df2b40ff648349cba50799)
+This is a breaking change:
   ```lua
     -- before:
     local peer = cassandra.new()
@@ -16,7 +18,7 @@ single peer/cluster instance. This is a breaking change:
     -- after:
     local peer = cassandra.new()
     peer:connect()
-    peer:change_keyspace('my_keyspace') -- close the connection and opens a new one
+    peer:change_keyspace('my_keyspace') -- closes the underlying connection and open a new one
   ```
 
 ##### Added
@@ -41,11 +43,39 @@ more granularity in keyspace settings. Example:
   - Parse `SCHEMA_CHANGE` results for `FUNCTION` and `AGGREGATE`.
   - The Cluster module now parses warnings contained in response frames and
   logs them at the `ngx.WARN` level.
+- Implement a `silent` option for `Cluster.new()` to disable logging in the
+  nginx error logs.
+  [#60](https://github.com/thibaultcha/lua-cassandra/pull/69)
+- Implement a `lock_timeout` option for `Cluster.new()` to specify a max
+  waiting time in seconds for the cluster refreshing and requests preparing
+  mutexes. This option prevents such mutexes to hang for too long.
+  [2bd3d66](https://github.com/thibaultcha/lua-cassandra/commit/2bd3d66eb26530490391ffb0f5dc366cc9fd0874)
+- Implement a `no_keyspace` option for `cluster:execute()` to execute a given
+  query with a socket that is not connected to any keyspace in particular.
+  [cdc6607](https://github.com/thibaultcha/lua-cassandra/commit/cdc6607d26d23d6d9e1268d3db316aaf90ce51a8)
+- The `cluster:refresh()` method now returns the list of fetched Cassandra
+  nodes from the cluster as a third return value.
+  [34f5f11](https://github.com/thibaultcha/lua-cassandra/commit/34f5f1168f5a69dddf53c5564b8577250a7fde0a)
 
 ##### Fixed
 
 - Correctly logs the address of peers being set UP or DOWN in the warning logs.
+  [40fd870](https://github.com/thibaultcha/lua-cassandra/commit/40fd8705b55059e55e6687394354937d2dead2c2)
 - Better error messages for SSL handshake/locking failures.
+- Better handling in case the shm containing the cluster info is full. We do
+  not override previous values at the risk of losing cluster nodes info, but
+  error out with the `"no memory"` error instead.
+  [4520a3b](https://github.com/thibaultcha/lua-cassandra/commit/4520a3b034a7b4d9d00975c95ecf834ce263f048)
+- Correctly receives read and connect timeout options.
+  [#71](https://github.com/thibaultcha/lua-cassandra/pull/71)
+- Log the reason behind retrying a request in the `cluster` module.
+  [#71](https://github.com/thibaultcha/lua-cassandra/pull/71)
+- Fallback on `listen_address` when `rpc_address` is "bind all" when refreshing
+  the cluster nodes with the `cluster` module.
+  [#72](https://github.com/thibaultcha/lua-cassandra/pull/72)
+- Propagate the CQL version in use when marshalling CQL collection types such
+  as map, set, tuple or udt. We now properly marshall such nested CQL values.
+  [#73](https://github.com/thibaultcha/lua-cassandra/pull/73)
 
 ### [1.0.0] - 2016/07/27
 

@@ -127,7 +127,13 @@ With [Luarocks]:
 $ luarocks install lua-cassandra
 ```
 
-Manually:
+Or via [opm](https://github.com/openresty/opm):
+
+```
+$ opm get thibaultcha/lua-cassandra
+```
+
+Or manually:
 
 Once you have a local copy of this module's `lib/` directory, add it to your
 `LUA_PATH` (or `lua_package_path` directive for OpenResty):

@@ -91,9 +91,10 @@ http {
             content_by_lua_block {
                 local Cluster = require 'resty.cassandra.cluster'
 
-                -- can live in an upvalue at the main chunk level of your
-                -- modules, to avoid creating it on every request.
-                -- see the intro example in the documentation.
+                -- For performance reasons, the cluster variable
+                -- should live in an upvalue at the main chunk level of your
+                -- modules to avoid creating it on every request.
+                -- see the 'intro' example in the online documentation.
                 local cluster, err = Cluster.new {
                     shm = 'cassandra', -- defined by the lua_shared_dict directive
                     contact_points = {'127.0.0.1', '127.0.0.2'},

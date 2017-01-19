@@ -84,7 +84,9 @@ http {
   lua_shared_dict cassandra 1m; # shm storing cluster information
   lua_code_cache on;            # ensure the upvalue is preserved beyond a single request
 
-  init_worker_by_lua_block {
+  init_by_lua_block {
+    -- will trigger a refresh of the cluster before the first request, but requires
+    -- LuaSocket since cosockets are not available in the 'init_by_lua' context.
     local my_module = require "my_module"
     my_module.init_cluster {
       shm = "cassandra", -- defined in http block

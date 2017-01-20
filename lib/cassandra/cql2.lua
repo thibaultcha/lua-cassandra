@@ -24,6 +24,7 @@ local gsub = string.gsub
 local fmt = string.format
 local sub = string.sub
 local rep = string.rep
+local bor = bit.bor
 local new_tab
 
 
@@ -37,7 +38,8 @@ end
 
 
 local CQL_T_UNSET = {}
-local CQL_T_NULL = {}
+local CQL_T_NULL  = {}
+local EMPTY_T     = {}
 
 
 -- CQL consants
@@ -67,6 +69,49 @@ local cql_types = {
     set         = 0x22,
     udt         = 0x30,
     tuple       = 0x31,
+}
+
+
+local OP_CODES     = {
+    ERROR          = 0x00,
+    STARTUP        = 0x01,
+    READY          = 0x02,
+    AUTHENTICATE   = 0x03,
+    OPTIONS        = 0x05,
+    SUPPORTED      = 0x06,
+    QUERY          = 0x07,
+    RESULT         = 0x08,
+    PREPARE        = 0x09,
+    EXECUTE        = 0x0A,
+    REGISTER       = 0x0B,
+    EVENT          = 0x0C,
+    BATCH          = 0x0D,
+    AUTH_CHALLENGE = 0x0E,
+    AUTH_RESPONSE  = 0x0F,
+    AUTH_SUCCESS   = 0x10,
+}
+
+
+local FRAME_FLAGS    = {
+    --COMPRESSION    = 0x01,
+    TRACING          = 0x02,
+    --CUSTOM_PAYLOAD = 0x04,
+    WARNING          = 0x08,
+}
+
+
+local CONSISTENCIES = {
+    ANY             = 0X0000,
+    ONE             = 0X0001,
+    TWO             = 0X0002,
+    THREE           = 0X0003,
+    QUORUM          = 0X0004,
+    ALL             = 0X0005,
+    LOCAL_QUORUM    = 0X0006,
+    EACH_QUORUM     = 0X0007,
+    SERIAL          = 0X0008,
+    LOCAL_SERIAL    = 0X0009,
+    LOCAL_ONE       = 0X000A,
 }
 
 
@@ -465,7 +510,7 @@ end
 local marsh_uuid
 local unmarsh_uuid
 do
-    local uuid_buf = new_tab(16, 0)
+    local uuid_buf = new_tab(20, 0)
 
     marsh_uuid = function(value)
         local str = gsub(value, "-", "")
@@ -481,6 +526,11 @@ do
     end
 
     unmarsh_uuid = function(bytes)
+        uuid_buf[20] = nil
+        uuid_buf[19] = nil
+        uuid_buf[18] = nil
+        uuid_buf[17] = nil
+
         for i = 1, 16 do
             local b = sub(bytes, i, i + 1)
             uuid_buf[i] = fmt("%02x", byte(b))
@@ -870,7 +920,7 @@ end
 
 
 local function unmarsh_cql_boolean(bytes)
-    return bytes == 1
+    return byte(bytes) == 1
 end
 
 
@@ -1221,8 +1271,8 @@ do
 
         if lua_t == "table" then
             -- set by cassandra.uuid() and the likes
-            if value.__cql_type then
-                cql_t = value.__cql_type
+            if value.cql_type then
+                cql_t = value.cql_type
                 value = value.value
 
             elseif is_list(value) then
@@ -1252,7 +1302,7 @@ do
         local marshaller = cql_marshallers[cql_t]
 
         if not marshaller then
-            return error(fmt("no marshaller for CQL type 0x%08x", cql_t))
+            return error(fmt("no marshaller for CQL type 0x%08x", tostring(cql_t)))
         end
 
         local marshalled = marshaller(value, version)
@@ -1304,6 +1354,10 @@ do
         local unmarshaller = cql_unmarshallers[cql_type_t.cql_type]
 
         if not unmarshaller then
+            if not cql_type_t.cql_type_t then
+                return error("no CQL type provided")
+            end
+
             return error(fmt("no unmarshaller for CQL type 0x%08x",
                              cql_type_t.cql_type))
         end
@@ -1328,6 +1382,9 @@ end
 -- @section cql_requests
 
 
+local _M_requests = {}
+
+
 do
     local CQL_VERSION = "3.0.0"
 
@@ -1342,6 +1399,302 @@ do
     }
 
 
+    local function new_request(op_code, body_builder)
+        return {
+            retries      = 0,
+            op_code      = op_code,
+            body_builder = body_builder,
+        }
+    end
+
+
+    function _M_requests.build_frame(request, protocol_version)
+        local header_buf = _M_buf.new_w(protocol_version, 5)
+        local body_buf   = _M_buf.new_w(protocol_version)
+
+        request.body_builder(body_buf, request)
+
+        _M_buf.write_byte(header_buf, protocol_version)
+
+        local flags = 0x00
+        if request.opts and request.opts.tracing then
+            flags = bor(flags, FRAME_FLAGS.TRACING)
+        end
+
+        _M_buf.write_byte(header_buf, flags)
+
+        if protocol_version < 3 then
+            _M_buf.write_byte(header_buf, 0) -- stream id
+
+        else
+            _M_buf.write_short(header_buf, 0) -- stream id
+        end
+
+        _M_buf.write_byte(header_buf, request.op_code)
+        _M_buf.write_int(header_buf, body_buf.len)
+
+        return _M_buf.get(header_buf) .. _M_buf.get(body_buf)
+    end
+
+
+    local function build_args(body_buf, args, opts)
+        local args_buf
+
+        if args or opts then
+            args_buf = _M_buf.new_w(body_buf.version, 5)
+        end
+
+        if not opts then
+            opts = EMPTY_T
+        end
+
+        local flags = 0x00
+        local consistency = opts.consistency or CONSISTENCIES.one
+
+        -- build args buffer
+        if args then
+            flags = bor(flags, QUERY_FLAGS.VALUES)
+
+            if body_buf.version >= 3 and opts.named then
+                flags = bor(flags, QUERY_FLAGS.WITH_NAMES_FOR_VALUES)
+
+                local n = 0
+                local named_args_buf = _M_buf.new_w(body_buf.version)
+
+                for name, val in pairs(args) do
+                    n = n + 1
+                    _M_buf.write_string(named_args_buf, name)
+                    _M_buf.write_cql_value(named_args_buf, val)
+                end
+
+                _M_buf.write_short(args_buf, n)
+                _M_buf.copy(args_buf, named_args_buf)
+
+            else
+                local n = #args
+
+                _M_buf.write_short(args_buf, n)
+
+                for i = 1, n do
+                    _M_buf.write_cql_value(args_buf, args[i])
+                end
+            end
+        end
+
+        if opts.page_size then
+            flags = bor(flags, QUERY_FLAGS.PAGE_SIZE)
+            _M_buf.write_int(args_buf, opts.page_size)
+        end
+
+        if opts.paging_state then
+            flags = bor(flags, QUERY_FLAGS.WITH_PAGING_STATE)
+            _M_buf.write_bytes(opts.paging_state)
+        end
+
+        if body_buf.version >= 3 then
+            if opts.serial_consistency then
+                flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
+                _M_buf.write_short(args_buf, opts.serial_consistency)
+            end
+
+            if opts.timestamp then
+                flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
+                _M_buf.write_long(args_buf, opts.timestamp)
+            end
+        end
+
+        _M_buf.write_short(consistency)
+        _M_buf.write_byte(flags)
+
+        if args_buf then
+            _M_buf.copy(body_buf, args_buf)
+        end
+    end
+
+
+    -- STARTUP
+
+
+    local function build_startup_body(buf)
+        _M_buf.write_string_map(buf, {
+            CQL_VERSION = CQL_VERSION
+        })
+    end
+
+
+    function _M_requests.startup()
+        return new_request(OP_CODES.STARTUP, build_startup_body)
+    end
+
+
+    -- KEYSPACE
+
+
+    local function build_keyspace_body(buf, request)
+        _M_buf.write_long_string(fmt([[USE "%s"]], request.keyspace))
+    end
+
+
+    function _M_requests.keyspace(keyspace)
+        local r = new_request(OP_CODES.QUERY, build_keyspace_body)
+        r.keyspace = keyspace
+        return r
+    end
+
+
+    -- QUERY
+
+
+    local function build_query_body(buf, request)
+        _M_buf.write_long_string(buf, request.query)
+        build_args(buf, request.args, request.opts)
+    end
+
+
+    function _M_requests.query(query, args, opts)
+        local r = new_request(OP_CODES.QUERY, build_query_body)
+        r.query = query
+        r.args = args
+        r.opts = opts
+        return r
+    end
+
+
+    -- PREPARE
+
+
+    local function build_prepare_body(buf, request)
+        _M_buf.write_long_string(buf, request.query)
+    end
+
+
+    function _M_requests.prepare(query)
+        local r = new_request(OP_CODES.PREPARE, build_prepare_body)
+        r.query = query
+        return r
+    end
+
+
+    -- EXECUTE_PREPARE
+
+
+    local function build_execute_prepared_body(buf, request)
+        _M_buf.write_short_bytes(buf, request.query_id)
+        build_args(buf, request.args, request.opts)
+    end
+
+
+    function _M_requests.execute_prepared(query_id, args, opts, query)
+        local r = new_request(OP_CODES.EXECUTE, build_execute_prepared_body)
+        r.query_id = query_id
+        r.args = args
+        r.opts = opts
+        r.query = query -- allow to be re-prepared by cluster
+        return r
+    end
+
+
+    -- BATCH
+
+
+    local function build_batch_body(buf, request)
+        local opts = request.opts
+
+        if not opts then
+            opts = EMPTY_T
+        end
+
+        local n_queries = #request.queries
+        local consistency = opts.consistency or CONSISTENCIES.one
+
+        _M_buf.write_byte(buf, request.type)
+        _M_buf.write_short(buf, n_queries)
+
+        for i = 1, n_queries do
+            local q = request.queries[i] -- {query, args, query_id}
+
+            if opts.prepared then
+                _M_buf.write_byte(buf, 1)
+                _M_buf.write_short_bytes(buf, q[3])
+
+            else
+                _M_buf.write_byte(buf, 0)
+                _M_buf.write_long_string(buf, q[1])
+            end
+
+            if q[2] then
+                local args = q[2]
+                local n_args = #args
+
+                -- no support for named args in batch, we reported the issue
+                -- at: https://issues.apache.org/jira/browse/CASSANDRA-10246
+
+                _M_buf.write_short(buf, n_args)
+
+                for i = 1, n_args do
+                    _M_buf.write_cql_value(buf, args[i])
+                end
+
+            else
+                _M_buf.write_short(buf, 0)
+            end
+        end
+
+        _M_buf.write_short(buf, consistency)
+
+        if buf.version >= 3 then
+            local flags = 0x00
+            local opts_buf = _M_buf.new_w(buf.version)
+
+            if opts.serial_consistency then
+                flags = bor(flags, QUERY_FLAGS.WITH_SERIAL_CONSISTENCY)
+                _M_buf.write_short(opts_buf, opts.serial_consistency)
+            end
+
+            if opts.timestamp then
+                flags = bor(flags, QUERY_FLAGS.WITH_DEFAULT_TIMESTAMP)
+                _M_buf.write_long(opts_buf, opts.timestamp)
+            end
+
+            _M_buf.write_byte(buf, flags)
+            _M_buf.copy(buf, opts_buf)
+        end
+    end
+
+
+    function _M_requests.batch(queries, opts)
+        local r = new_request(OP_CODES.BATCH, build_batch_body)
+        r.queries = queries
+        r.opts    = opts
+
+        if opts.counter then
+            r.type = 2
+
+        elseif opts.logged then
+            r.type = 0
+
+        else
+            -- unlogged
+            r.type = 1
+        end
+
+        return r
+    end
+
+
+    -- AUTH_RESPONSE
+
+
+    local function build_auth_response_body(buf, request)
+        _M_buf.write_bytes(buf, request.token)
+    end
+
+
+    function _M_requests.auth_response(token)
+        local r = new_request(OP_CODES.AUTH_RESPONSE, build_auth_response_body)
+        r.token = token
+        return r
+    end
 end
 
 
@@ -1350,10 +1703,13 @@ end
 
 
 local _M        = {
-    buffer      = _M_buf,
-    is_list     = is_list,
+    requests    = _M_requests,
     cql_t_unset = CQL_T_UNSET,
     cql_t_null  = CQL_T_NULL,
+
+    buffer      = _M_buf,
+    types       = cql_types,
+    is_list     = is_list,
 }
 
 

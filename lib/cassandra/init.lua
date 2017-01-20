@@ -755,8 +755,8 @@ for cql_t_name, cql_t in pairs(cql.types) do
         end
 
         return {
-            val        = val,
-            __cql_type = cql_t
+            value    = val,
+            cql_type = cql_t
         }
     end
 end

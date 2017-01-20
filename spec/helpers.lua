@@ -231,78 +231,78 @@ _M.cql_fixtures = {
 
 _M.cql_list_fixtures = {
     {
-        val = {"abc", "def"},
+        value = {"abc", "def"},
         name = "list_sample_text",
-        __cql_type = cql.types.list,
-        __cql_type_value = {__cql_type = cql.types.text},
+        cql_type = cql.types.list,
+        cql_type_value = {cql_type = cql.types.text},
     },
     {
-        val = {1, 2 , 0, -42, 42},
+        value = {1, 2 , 0, -42, 42},
         name = "list_sample_int",
-        __cql_type = cql.types.list,
-        __cql_type_value = {__cql_type = cql.types.int},
+        cql_type = cql.types.list,
+        cql_type_value = {cql_type = cql.types.int},
     }
 }
 
 
 _M.cql_set_fixtures = {
     {
-        val = {"xyz", "abc"},
+        value = {"xyz", "abc"},
         name = "set_sample_text",
-        __cql_type = cql.types.list,
-        __cql_type_value = {__cql_type = cql.types.text},
+        cql_type = cql.types.list,
+        cql_type_value = {cql_type = cql.types.text},
     },
     {
-        val = {0, 1, 2, 3, 4},
+        value = {0, 1, 2, 3, 4},
         name = "set_sample_int",
-        __cql_type = cql.types.list,
-        __cql_type_value = {__cql_type = cql.types.int},
+        cql_type = cql.types.list,
+        cql_type_value = {cql_type = cql.types.int},
     }
 }
 
 
 _M.cql_map_fixtures = {
     {
-        val = {k1 = "v1", k2 = "v2"},
+        value = {k1 = "v1", k2 = "v2"},
         name = "map_sample_text_text",
-        __cql_type = cql.types.map,
-        __cql_type_value = {{__cql_type = cql.types.text}, {__cql_type = cql.types.text}}
+        cql_type = cql.types.map,
+        cql_type_value = {{cql_type = cql.types.text}, {cql_type = cql.types.text}}
     },
     {
-        val = {k1 = 1, k2 = 2},
+        value = {k1 = 1, k2 = 2},
         name = "map_sample_text_int",
-        __cql_type = cql.types.map,
-        __cql_type_value = {{__cql_type = cql.types.text}, {__cql_type = cql.types.int}}
+        cql_type = cql.types.map,
+        cql_type_value = {{cql_type = cql.types.text}, {cql_type = cql.types.int}}
     }
 }
 
 
 _M.cql_tuple_fixtures = {
     {
-        val = {"world", "hello"},
-        __cql_type = cql.types.tuple,
-        __cql_type_value = {
+        value = {"world", "hello"},
+        cql_type = cql.types.tuple,
+        cql_type_value = {
             fields = {
-                {__cql_type = cql.types.text}, {__cql_type = cql.types.text},
+                {cql_type = cql.types.text}, {cql_type = cql.types.text},
             }
         }
     },
     {
-        val = {"hello", "world"},
-        __cql_type = cql.types.tuple,
-        __cql_type_value = {
+        value = {"hello", "world"},
+        cql_type = cql.types.tuple,
+        cql_type_value = {
             fields = {
-                {__cql_type = cql.types.text}, {__cql_type = cql.types.text},
+                {cql_type = cql.types.text}, {cql_type = cql.types.text},
             }
         }
     },
     --[[
     {
-    val = {"hello", 1},
-    __cql_type = cql.types.tuple,
-    __cql_type_value = {
+    value = {"hello", 1},
+    cql_type = cql.types.tuple,
+    cql_type_value = {
     fields = {
-    {__cql_type = cql.types.text}, {__cql_type = cql.types.int},
+    {cql_type = cql.types.text}, {cql_type = cql.types.int},
     }
     }
     }
@@ -312,15 +312,15 @@ _M.cql_tuple_fixtures = {
 
 _M.cql_udt_fixtures = {
     {
-        val = {"v1", "v2"},
+        value = {"v1", "v2"},
         read = {field1 = "v1", field2 = "v2"},
-        __cql_type = cql.types.udt,
-        __cql_type_value = {
+        cql_type = cql.types.udt,
+        cql_type_value = {
             udt_keyspace = "",
             udt_name = "",
             fields = {
-                {name = "field1", type = {__cql_type = cql.types.text}},
-                {name = "field2", type = {__cql_type = cql.types.text}},
+                {name = "field1", type = {cql_type = cql.types.text}},
+                {name = "field2", type = {cql_type = cql.types.text}},
             }
         }
     }

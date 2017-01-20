@@ -1430,10 +1430,12 @@ do
             _M_buf.write_short(header_buf, 0) -- stream id
         end
 
-        _M_buf.write_byte(header_buf, request.op_code)
-        _M_buf.write_int(header_buf, body_buf.len)
+        local body_str = _M_buf.get(body_buf)
 
-        return _M_buf.get(header_buf) .. _M_buf.get(body_buf)
+        _M_buf.write_byte(header_buf, request.op_code)
+        _M_buf.write_int(header_buf, #body_str)
+
+        return _M_buf.get(header_buf) .. body_str
     end
 
 
@@ -1449,7 +1451,7 @@ do
         end
 
         local flags = 0x00
-        local consistency = opts.consistency or CONSISTENCIES.one
+        local consistency = opts.consistency or CONSISTENCIES.ONE
 
         -- build args buffer
         if args then
@@ -1488,7 +1490,7 @@ do
 
         if opts.paging_state then
             flags = bor(flags, QUERY_FLAGS.WITH_PAGING_STATE)
-            _M_buf.write_bytes(opts.paging_state)
+            _M_buf.write_bytes(args_buf, opts.paging_state)
         end
 
         if body_buf.version >= 3 then
@@ -1503,8 +1505,8 @@ do
             end
         end
 
-        _M_buf.write_short(consistency)
-        _M_buf.write_byte(flags)
+        _M_buf.write_short(body_buf, consistency)
+        _M_buf.write_byte(body_buf, flags)
 
         if args_buf then
             _M_buf.copy(body_buf, args_buf)
@@ -1605,7 +1607,7 @@ do
         end
 
         local n_queries = #request.queries
-        local consistency = opts.consistency or CONSISTENCIES.one
+        local consistency = opts.consistency or CONSISTENCIES.ONE
 
         _M_buf.write_byte(buf, request.type)
         _M_buf.write_short(buf, n_queries)
@@ -1706,6 +1708,7 @@ local _M        = {
     requests    = _M_requests,
     cql_t_unset = CQL_T_UNSET,
     cql_t_null  = CQL_T_NULL,
+    CONSISTENCIES = CONSISTENCIES,
 
     buffer      = _M_buf,
     types       = cql_types,

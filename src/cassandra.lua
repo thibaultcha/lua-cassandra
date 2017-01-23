@@ -217,6 +217,9 @@ function Host:connect()
 
   if self.socket:getreusedtimes() > 0 then
     -- No need for startup request
+    log.debug("Socket retrieved from the connection pool, ",
+              self.socket:getreusedtimes(), " times")
+    self.connected = true
     return true
   end
 

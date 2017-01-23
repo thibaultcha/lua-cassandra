@@ -6,11 +6,12 @@
 
 
 local socket = require 'cassandra.socket'
-local cql = require 'cassandra.cql'
+local cql = require 'cassandra.cql2'
 
 
 local setmetatable = setmetatable
 local requests = cql.requests
+local frame_reader = cql.frame_reader
 local tostring = tostring
 local pairs = pairs
 local find = string.find
@@ -82,8 +83,8 @@ local fmt = string.format
 
 local _Host        = {
     _VERSION       = '1.1.0',
-    cql_errors     = cql.errors,
-    consistencies  = cql.consistencies,
+    cql_errors     = cql.ERRORS,
+    consistencies  = cql.CONSISTENCIES,
     auth_providers = require 'cassandra.auth'
 }
 
@@ -142,7 +143,7 @@ function _Host.new(opts)
         host             = opts.host or '127.0.0.1',
         port             = opts.port or 9042,
         keyspace         = opts.keyspace,
-        protocol_version = opts.protocol_version or cql.def_protocol_version,
+        protocol_version = opts.protocol_version or cql.DEFAULT_PROTOCOL_VERSION,
         ssl              = opts.ssl,
         verify           = opts.verify,
         cert             = opts.cert,
@@ -160,7 +161,7 @@ function _Host:send(request)
         return nil, 'no socket created'
     end
 
-    local frame = request:build_frame(self.protocol_version)
+    local frame = requests.build_frame(request, self.protocol_version)
 
     local sent, err = self.sock:send(frame)
     if not sent then
@@ -174,9 +175,7 @@ function _Host:send(request)
         return nil, err
     end
 
-    -- -1 because of the v_byte we just read
-
-    local version, n_bytes = cql.frame_reader.version(v_byte)
+    local version, n_bytes = frame_reader.version(v_byte)
 
     -- receive frame header
 
@@ -185,7 +184,7 @@ function _Host:send(request)
         return nil, err
     end
 
-    local header = cql.frame_reader.read_header(version, header_bytes)
+    local header = frame_reader.read_header(version, header_bytes)
 
     -- receive frame body
 
@@ -199,19 +198,19 @@ function _Host:send(request)
 
     -- res, err, cql_err_code
 
-    return cql.frame_reader.read_body(header, body_bytes)
+    return frame_reader.read_body(header, body_bytes)
 end
 
 
 local function send_startup(self)
-    local startup_req = requests.startup.new()
+    local startup_req = requests.startup()
     return self:send(startup_req)
 end
 
 
 local function send_auth(self)
     local token = self.auth:initial_response()
-    local auth_request = requests.auth_response.new(token)
+    local auth_request = requests.auth_response(token)
     local res, err = self:send(auth_request)
     if not res then
         return nil, err
@@ -286,7 +285,7 @@ function _Host:connect()
                 self.sock = sock
                 self.protocol_version = self.protocol_version - 1
 
-                if self.protocol_version < cql.min_protocol_version then
+                if self.protocol_version < cql.MIN_PROTOCOL_VERSION then
                     return nil, 'could not find a supported protocol version'
                 end
 
@@ -309,7 +308,7 @@ function _Host:connect()
         end
 
         if self.keyspace then
-            local keyspace_req = requests.keyspace.new(self.keyspace)
+            local keyspace_req = requests.keyspace(self.keyspace)
             local res, err = self:send(keyspace_req)
             if not res then
                 return nil, err
@@ -428,8 +427,8 @@ end
 
 
 local query_options    = {
-    consistency        = cql.consistencies.one,
-    serial_consistency = cql.consistencies.serial,
+    consistency        = cql.CONSISTENCIES.ONE,
+    serial_consistency = cql.CONSISTENCIES.SERIAL,
     page_size          = 1000,
     paging_state       = nil,
     tracing            = false,
@@ -524,7 +523,7 @@ _Host.page_iterator = page_iterator
 -- @treturn string `err`: String describing the error if failure.
 -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
 function _Host:prepare(query)
-    local prepare_request = requests.prepare.new(query)
+    local prepare_request = requests.prepare(query)
     return self:send(prepare_request)
 end
 
@@ -569,10 +568,10 @@ function _Host:execute(query, args, options)
     local request
     if opts.prepared then
         -- query is the prepared query id
-        request = requests.execute_prepared.new(query, args, opts)
+        request = requests.execute_prepared(query, args, opts)
 
     else
-        request = requests.query.new(query, args, opts)
+        request = requests.query(query, args, opts)
     end
 
     return self:send(request)
@@ -602,7 +601,7 @@ end
 -- @treturn string `err`: String describing the error if failure.
 -- @treturn number `cql_err`: If a server-side error occurred, the CQL error code.
 function _Host:batch(queries, options)
-    local batch_request = requests.batch.new(queries, get_opts(options))
+    local batch_request = requests.batch(queries, get_opts(options))
     return self:send(batch_request)
 end
 
@@ -762,8 +761,8 @@ for cql_t_name, cql_t in pairs(cql.types) do
 end
 
 
-_Host.unset = cql.t_unset
-_Host.null = cql.t_null
+_Host.unset = cql.TYP_UNSET
+_Host.null = cql.TYP_NULL
 
 
 return _Host

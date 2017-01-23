@@ -5,6 +5,7 @@ local bit = require "bit"
 
 local pairs = pairs
 local tonumber = tonumber
+local tostring = tostring
 local concat = table.concat
 local insert = table.insert
 local error = error
@@ -25,6 +26,7 @@ local fmt = string.format
 local sub = string.sub
 local rep = string.rep
 local bor = bit.bor
+local band = bit.band
 local new_tab
 
 
@@ -112,6 +114,27 @@ local CONSISTENCIES = {
     SERIAL          = 0X0008,
     LOCAL_SERIAL    = 0X0009,
     LOCAL_ONE       = 0X000A,
+}
+
+
+local ERRORS              = {
+    SERVER                = 0x0000,
+    PROTOCOL              = 0x000A,
+    BAD_CREDENTIALS       = 0x0100,
+    UNAVAILABLE_EXCEPTION = 0x1000,
+    OVERLOADED            = 0x1001,
+    IS_BOOTSTRAPPING      = 0x1002,
+    TRUNCATE_ERROR        = 0x1003,
+    WRITE_TIMEOUT         = 0x1100,
+    READ_TIMEOUT          = 0x1200,
+    READ_FAILURE          = 0x1300,
+    FUNCTION_FAILURE      = 0x1400,
+    SYNTAX_ERROR          = 0x2000,
+    UNAUTHORIZED          = 0x2100,
+    INVALID               = 0x2200,
+    CONFIG_ERROR          = 0x2300,
+    ALREADY_EXISTS        = 0x2400,
+    UNPREPARED            = 0x2500,
 }
 
 
@@ -509,14 +532,22 @@ end
 
 local marsh_uuid
 local unmarsh_uuid
+
+
 do
     local uuid_buf = new_tab(20, 0)
 
+
     marsh_uuid = function(value)
+        uuid_buf[20] = nil
+        uuid_buf[19] = nil
+        uuid_buf[18] = nil
+        uuid_buf[17] = nil
+
         local str = gsub(value, "-", "")
         local n = 1
 
-        for i = 1, 32, 2 do
+        for i = 1, #str, 2 do
             local b = sub(str, i, i + 1)
             uuid_buf[n] = marsh_byte(tonumber(b, 16))
             n = n + 1
@@ -524,6 +555,7 @@ do
 
         return concat(uuid_buf)
     end
+
 
     unmarsh_uuid = function(bytes)
         uuid_buf[20] = nil
@@ -557,22 +589,19 @@ end
 
 
 -- inet
--- FIXME: review initial [byte] for size and [int] for port
+-- FIXME: review [int] for port
 
 
 local function marsh_inet(value)
     local buf_t
-    local n
+    local n = 1
 
-    if match(value, ":") then
+    if match(value, ":", nil, true) then
         -- ipv6
-        buf_t = new_tab(16 + 2, 0) -- +2: initial [byte] len and [int] port
-        buf_t[1] = marsh_byte(16) -- size
+        buf_t = new_tab(16 + 1, 0) -- +1: [int] port
 
         local ip = gsub(lower(value), "::", ":0000:")
         local hexadectets = new_tab(8, 0)
-
-        n = 1
 
         for hdt in gmatch(ip, "[%x]+") do
             -- fill up hexadectets with 0 so all are 4 digits long
@@ -582,7 +611,7 @@ local function marsh_inet(value)
 
         -- reset idx var for buf_t
 
-        n = 2
+        n = 1
 
         for i, hdt in ipairs(hexadectets) do
             while hdt == "0000" and #hexadectets < 8 do
@@ -597,10 +626,7 @@ local function marsh_inet(value)
 
     else
         -- ipv4
-        buf_t = new_tab(4 + 2, 0) -- +2: initial [byte] len and [int] port
-        buf_t[1] = marsh_byte(4) -- size
-
-        n = 2
+        buf_t = new_tab(4 + 1, 0) -- +1: [int] port
 
         for d in gmatch(value, "(%d+)") do
             buf_t[n] = marsh_byte(d)
@@ -624,8 +650,8 @@ end
 
 
 function _M_buf.read_inet(buf)
-    local size = _M_buf.read_byte(buf)
-    local bytes = _M_buf.read(buf, size)
+    local bytes = _M_buf.read(buf)
+    local size = #bytes
     local t_buf = new_tab(size, 0)
 
     if size == 16 then
@@ -807,7 +833,7 @@ function _M_buf.read_udt_type(buf)
     for i = 1, len do
         fields[i] = {
             name = _M_buf.read_string(buf),
-            type = _M_buf.read_option(buf),
+            type = _M_buf.read_options(buf),
         }
     end
 
@@ -828,7 +854,7 @@ function _M_buf.read_tuple_type(buf)
     local fields = new_tab(len, 0)
 
     for i = 1, len do
-        fields[i] = _M_buf.read_option(buf)
+        fields[i] = _M_buf.read_options(buf)
     end
 
     return { fields = fields }
@@ -838,15 +864,15 @@ end
 -- option
 
 
-function _M_buf.read_option(buf)
+function _M_buf.read_options(buf)
     local id = _M_buf.read_short(buf)
     local value
 
     if id == cql_types.set or id == cql_types.list then
-        value = _M_buf.read_option(buf)
+        value = _M_buf.read_options(buf)
 
     elseif id == cql_types.map then
-        value = { _M_buf.read_option(buf), _M_buf.read_option(buf) }
+        value = { _M_buf.read_options(buf), _M_buf.read_options(buf) }
 
     elseif id == cql_types.udt then
         value = _M_buf.read_udt_type(buf)
@@ -1533,7 +1559,8 @@ do
 
 
     local function build_keyspace_body(buf, request)
-        _M_buf.write_long_string(fmt([[USE "%s"]], request.keyspace))
+        _M_buf.write_long_string(buf, fmt([[USE "%s"]], request.keyspace))
+        build_args(buf)
     end
 
 
@@ -1700,19 +1727,335 @@ do
 end
 
 
+-- Frame reader
+-- @section frame_reader
+
+
+local _M_frame_reader = {}
+
+
+do
+    local RESULT_KINDS = {
+        VOID           = 0x01,
+        ROWS           = 0x02,
+        SET_KEYSPACE   = 0x03,
+        PREPARED       = 0x04,
+        SCHEMA_CHANGE  = 0x05,
+    }
+
+    local ROWS_RESULT_FLAGS = {
+        GLOBAL_TABLES_SPEC  = 0x01,
+        HAS_MORE_PAGES      = 0x02,
+        NO_METADATA         = 0x04,
+    }
+
+
+    local ERROR_TRANSLATIONS           = {
+        [ERRORS.SERVER]                = "Server error",
+        [ERRORS.PROTOCOL]              = "Protocol error",
+        [ERRORS.BAD_CREDENTIALS]       = "Bad credentials",
+        [ERRORS.UNAVAILABLE_EXCEPTION] = "Unavailable exception",
+        [ERRORS.OVERLOADED]            = "Overloaded",
+        [ERRORS.IS_BOOTSTRAPPING]      = "Is bootstrapping",
+        [ERRORS.TRUNCATE_ERROR]        = "Truncate error",
+        [ERRORS.WRITE_TIMEOUT]         = "Write timeout",
+        [ERRORS.READ_TIMEOUT]          = "Read timeout",
+        [ERRORS.READ_FAILURE]          = "Read failure",
+        [ERRORS.FUNCTION_FAILURE]      = "Function failure",
+        [ERRORS.SYNTAX_ERROR]          = "Syntax error",
+        [ERRORS.UNAUTHORIZED]          = "Unauthorized",
+        [ERRORS.INVALID]               = "Invalid",
+        [ERRORS.CONFIG_ERROR]          = "Config error",
+        [ERRORS.ALREADY_EXISTS]        = "Already exists",
+        [ERRORS.UNPREPARED]            = "Unprepared",
+    }
+
+
+    function _M_frame_reader.version(version_byte)
+        local version = band(byte(version_byte), 0x7F)
+        local header_size = version < 3 and 8 or 9
+
+        return version, header_size - 1 -- -1 because version_byte was our first byte
+    end
+
+
+    function _M_frame_reader.read_header(version, bytes)
+        local buf   = _M_buf.new_r(version, bytes)
+        local flags = _M_buf.read_byte(buf)
+        local stream_id
+
+        if version < 3 then
+            stream_id = _M_buf.read_byte(buf)
+
+        else
+            stream_id = _M_buf.read_short(buf)
+        end
+
+        return {
+            flags       = flags,
+            version     = version,
+            stream_id   = stream_id,
+            op_code     = _M_buf.read_byte(buf),
+            body_length = _M_buf.read_int(buf)
+        }
+    end
+
+
+    local function parse_metadata(body_buf)
+        local k_name, t_name, paging_state
+
+        local flags = _M_buf.read_int(body_buf)
+        local columns_count = _M_buf.read_int(body_buf)
+
+        local has_more_pages = band(flags, ROWS_RESULT_FLAGS.HAS_MORE_PAGES) ~= 0
+        local has_global_table_spec = band(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC) ~= 0
+        --local has_no_metadata = band(flags, ROWS_RESULT_FLAGS.NO_METADATA) ~= 0
+
+        if has_more_pages then
+            paging_state = _M_buf.read_bytes(body_buf)
+        end
+
+        if has_global_table_spec then
+            k_name = _M_buf.read_string(body_buf)
+            t_name = _M_buf.read_string(body_buf)
+        end
+
+        local columns = new_tab(columns_count, 0)
+
+        for i = 1, columns_count do
+            if not has_global_table_spec then
+                k_name = _M_buf.read_string(body_buf)
+                t_name = _M_buf.read_string(body_buf)
+            end
+
+            columns[i]   = {
+                name     = _M_buf.read_string(body_buf),
+                type     = _M_buf.read_options(body_buf),
+                keyspace = k_name,
+                table    = t_name,
+            }
+        end
+
+        return {
+            columns        = columns,
+            columns_count  = columns_count,
+            has_more_pages = has_more_pages,
+            paging_state   = paging_state
+        }
+    end
+
+
+    local function parse_v4_prepared_metadata(body_buf)
+        local k_name, t_name
+
+        local flags                 = _M_buf.read_int(body_buf)
+        local columns_count         = _M_buf.read_int(body_buf)
+        local pk_count              = _M_buf.read_int(body_buf)
+        local has_global_table_spec = band(flags, ROWS_RESULT_FLAGS.GLOBAL_TABLES_SPEC) ~= 0
+
+        local partition_keys = new_tab(pk_count, 0)
+        local columns        = new_tab(columns_count, 0)
+
+        for i = 1, pk_count do
+            partition_keys[i] = _M_buf.read_short(body_buf)
+        end
+
+        if has_global_table_spec then
+            k_name = _M_buf.read_string(body_buf)
+            t_name = _M_buf.read_string(body_buf)
+        end
+
+        for i = 1, columns_count do
+            if not has_global_table_spec then
+                k_name = _M_buf.read_string(body_buf)
+                t_name = _M_buf.read_string(body_buf)
+            end
+
+            columns[i]   = {
+                name     = _M_buf.read_string(body_buf),
+                type     = _M_buf.read_options(body_buf),
+                keyspace = k_name,
+                table    = t_name,
+            }
+        end
+
+        return {
+            columns        = columns,
+            columns_count  = columns_count,
+            partition_keys = partition_keys
+        }
+    end
+
+
+    do
+        local READY_T = { ready = true }
+        local VOID_T  = { type = "VOID" }
+
+        local results_parsers = {
+            [RESULT_KINDS.VOID] = function()
+                return VOID_T
+            end,
+
+            [RESULT_KINDS.ROWS] = function(body_buf)
+                local metadata = parse_metadata(body_buf)
+                local rows_count = _M_buf.read_int(body_buf)
+
+                local rows = {
+                    type = "ROWS",
+                    meta = {
+                        has_more_pages = metadata.has_more_pages,
+                        paging_state = metadata.paging_state,
+                    }
+                }
+
+                for i = 1, rows_count do
+                    local row = new_tab(0, metadata.columns_count)
+
+                    for j = 1, metadata.columns_count do
+                        row[metadata.columns[j].name] = _M_buf.read_cql_value(body_buf,
+                                                            metadata.columns[j].type)
+                    end
+
+                    rows[i] = row
+                end
+
+                return rows
+            end,
+
+            [RESULT_KINDS.SET_KEYSPACE] = function(body_buf)
+                return {
+                    type     = "SET_KEYSPACE",
+                    keyspace = _M_buf.read_string(body_buf),
+                }
+            end,
+
+            [RESULT_KINDS.PREPARED] = function(body_buf)
+                local query_id = _M_buf.read_short_bytes(body_buf)
+                local metadata
+
+                if body_buf.version == 4 then
+                    metadata = parse_v4_prepared_metadata(body_buf)
+
+                else
+                    metadata = parse_metadata(body_buf)
+                end
+
+                return {
+                    type     = "PREPARED",
+                    meta     = metadata,
+                    query_id = query_id,
+                    result   = parse_metadata(body_buf)
+                }
+            end,
+
+            [RESULT_KINDS.SCHEMA_CHANGE] = function(body_buf)
+                local change_type = _M_buf.read_string(body_buf)
+                local target = _M_buf.read_string(body_buf)
+                local keyspace = _M_buf.read_string(body_buf)
+
+                local name, args_types
+
+                if target == "TABLE" or target == "TYPE" then
+                    name = _M_buf.read_string(body_buf)
+
+                elseif target == "FUNCTION" or target == "AGGREGATE" then
+                    -- v4 only
+                    name = _M_buf.read_string(body_buf)
+                    args_types = _M_buf.read_string_list(body_buf)
+                end
+
+                return {
+                    type            = "SCHEMA_CHANGE",
+                    name            = name,
+                    target          = target,
+                    keyspace        = keyspace,
+                    arguments_types = args_types,
+                    change_type     = change_type,
+                }
+            end,
+        }
+
+
+        function _M_frame_reader.read_body(header, bytes)
+            local body_buf
+            if header.body_length > 0 then
+                body_buf = _M_buf.new_r(header.version, bytes)
+            end
+
+            if header.op_code == OP_CODES.RESULT then
+                local tracing_id, warnings
+
+                if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
+                    tracing_id = _M_buf.read_uuid(body_buf)
+                end
+
+                if band(header.flags, FRAME_FLAGS.WARNING) ~= 0 then
+                    warnings = _M_buf.read_string_list(body_buf)
+                end
+
+                local result_kind = _M_buf.read_int(body_buf)
+                local parser = results_parsers[result_kind]
+                if not parser then
+                    error("no parser for result_kind: " .. tostring(result_kind))
+                end
+
+                local res = parser(body_buf)
+
+                res.tracing_id = tracing_id
+                res.warnings = warnings
+
+                return res
+
+            elseif header.op_code == OP_CODES.ERROR then
+                local code = _M_buf.read_int(body_buf)
+                local message = _M_buf.read_string(body_buf)
+
+                return nil, fmt("[%s] %s", ERROR_TRANSLATIONS[code], message), code
+
+            elseif header.op_code == OP_CODES.READY then
+                return READY_T
+
+            elseif header.op_code == OP_CODES.AUTHENTICATE then
+                local class_name = _M_buf.read_string(body_buf)
+
+                return {
+                    must_authenticate = true,
+                    class_name        = class_name,
+                }
+
+            elseif header.op_code == OP_CODES.AUTH_SUCCESS then
+                local token = _M_buf.read_bytes(body_buf)
+
+                return {
+                    authenticated = true,
+                    token         = token,
+                }
+
+            else
+                error("invalid or unknown op_code: " .. tostring(header.op_code))
+            end
+        end
+    end
+end
+
+
 -- Exports
 -- @section exports
 
 
-local _M        = {
-    requests    = _M_requests,
-    cql_t_unset = CQL_T_UNSET,
-    cql_t_null  = CQL_T_NULL,
-    CONSISTENCIES = CONSISTENCIES,
+local _M                     = {
+    requests                 = _M_requests,
+    frame_reader             = _M_frame_reader,
+    TYP_UNSET                = CQL_T_UNSET,
+    TYP_NULL                 = CQL_T_NULL,
+    CONSISTENCIES            = CONSISTENCIES,
+    ERRORS                   = ERRORS,
+    DEFAULT_PROTOCOL_VERSION = 4,
+    MIN_PROTOCOL_VERSION     = 2,
 
-    buffer      = _M_buf,
-    types       = cql_types,
-    is_list     = is_list,
+    buffer  = _M_buf,
+    types   = cql_types,
+    is_list = is_list,
 }
 
 

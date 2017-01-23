@@ -15,6 +15,21 @@ describe("is_list()", function()
   end)
 end)
 
+describe("CQL module", function()
+
+    it("has the necessary requests and frame_reader modules", function()
+        assert.is_table(cql.requests)
+        assert.is_table(cql.frame_reader)
+    end)
+
+    it("has the necessary constants", function()
+        assert.is_table(cql.CONSISTENCIES)
+        assert.is_table(cql.ERRORS)
+        assert.is_table(cql.TYP_UNSET)
+        assert.is_table(cql.TYP_NULL)
+    end)
+end)
+
 for protocol_version = 2, 3 do
   describe("CQL marshalling v" .. protocol_version, function()
 
@@ -243,8 +258,10 @@ for protocol_version = 2, 3 do
         local opts = {
           counter = true,
           prepared = true,
-          consistency = cassandra.consistencies.one
+          consistency = cassandra.consistencies.ONE
         }
+
+        assert.is_number(opts.consistency)
 
         local queries = {
           {"UPDATE users SET value = value + 1 WHERE key = 'batch'", nil, "1234"},

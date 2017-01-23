@@ -51,7 +51,7 @@ describe("Buffer", function()
         buf_w = Buffer.new_w()
         Buffer.write_null(buf_w)
         buf_r = Buffer.new_r(nil, Buffer.get(buf_w))
-        assert.equal(cql.cql_t_null, Buffer.read_bytes(buf_r))
+        assert.equal(cql.TYP_NULL, Buffer.read_bytes(buf_r))
     end)
 
 
@@ -65,13 +65,13 @@ describe("Buffer", function()
         buf_w = Buffer.new_w()
         Buffer.write_null(buf_w)
         buf_r = Buffer.new_r(nil, Buffer.get(buf_w))
-        assert.equal(cql.cql_t_null, Buffer.read_value(buf_r))
+        assert.equal(cql.TYP_NULL, Buffer.read_value(buf_r))
 
         -- cql unset
         buf_w = Buffer.new_w()
         Buffer.write_unset(buf_w)
         buf_r = Buffer.new_r(nil, Buffer.get(buf_w))
-        assert.equal(cql.cql_t_unset, Buffer.read_value(buf_r))
+        assert.equal(cql.TYP_UNSET, Buffer.read_value(buf_r))
     end)
 
 

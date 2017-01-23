@@ -1,5 +1,12 @@
 ### [Unreleased][unreleased]
 
+### [0.5.5] - 2017/01/23
+
+##### Fixed
+
+- In this old (< 1.0) version of the driver, sockets were never reused more than once because they were only
+put back in the connection pool on their first use.
+
 ### [0.5.4] - 2016/08/31
 
 ##### Added
@@ -165,7 +172,12 @@ Initial release. Forked from jbochi/lua-resty-cassandra v0.5.7 with some additio
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.5...HEAD
+[0.5.5]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.4...0.5.5
+[0.5.4]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.3...0.5.4
+[0.5.3]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.2...0.5.3
+[0.5.2]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.1...0.5.2
+[0.5.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.2...0.5.0
 [0.4.2]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/thibaultCha/lua-cassandra/compare/0.4.0...0.4.1

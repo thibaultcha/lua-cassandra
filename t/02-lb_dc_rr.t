@@ -186,3 +186,63 @@ GET /t
 --- error_code: 500
 --- error_log
 peer 127.0.0.3 data_center field must be a string
+
+
+
+=== TEST 4: rr_lb with hyphens in dc name
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local dc_rr = require "resty.cassandra.policies.lb.dc_rr"
+
+            local peers = {
+                { host = "10.0.0.1", data_center = "europe-west1-b" },
+
+                { host = "127.0.0.1", data_center = "dc1"},
+                { host = "127.0.0.2", data_center = "dc1"},
+                { host = "127.0.0.3", data_center = "dc1"},
+            }
+
+            local lb = dc_rr.new("europe-west1-b")
+            ngx.say("local_dc: ", lb.local_dc)
+
+            lb:init(peers)
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say(i, " ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say(i, " ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say(i, " ", peer.host)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body
+local_dc: europe-west1-b
+
+1 10.0.0.1
+2 127.0.0.1
+3 127.0.0.2
+4 127.0.0.3
+
+1 10.0.0.1
+2 127.0.0.2
+3 127.0.0.3
+4 127.0.0.1
+
+1 10.0.0.1
+2 127.0.0.3
+3 127.0.0.1
+4 127.0.0.2
+--- no_error_log
+[error]

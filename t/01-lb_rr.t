@@ -10,7 +10,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: rr_lb sanity
+=== TEST 1: lb_rr sanity
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -64,7 +64,7 @@ round_robin
 
 
 
-=== TEST 2: rr_lb on loop break
+=== TEST 2: lb_rr on loop break
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

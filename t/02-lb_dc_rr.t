@@ -10,7 +10,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: rr_lb sanity
+=== TEST 1: lb_dc_rr sanity
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -81,7 +81,7 @@ local_dc: dc1
 
 
 
-=== TEST 2: rr_lb on loop break
+=== TEST 2: lb_dc_rr on loop break
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -144,7 +144,7 @@ local_dc: dc1
 
 
 
-=== TEST 3: rr_lb with missing local_dc
+=== TEST 3: lb_dc_rr with missing local_dc
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -161,7 +161,7 @@ local_dc must be a string
 
 
 
-=== TEST 4: rr_lb with missing data_center fields
+=== TEST 4: lb_dc_rr with missing data_center fields
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -189,7 +189,7 @@ peer 127.0.0.3 data_center field must be a string
 
 
 
-=== TEST 4: rr_lb with hyphens in dc name
+=== TEST 4: lb_dc_rr with hyphens in dc name
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

@@ -4,6 +4,7 @@
 -- @author thibaultcha
 -- @release 1.1.0
 
+local require = require
 local resty_lock = require 'resty.lock'
 local cassandra = require 'cassandra'
 local cql = require 'cassandra.cql'
@@ -13,6 +14,7 @@ local cql_errors = cql.errors
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
 local requests = cql.requests
+local setmetatable = setmetatable
 local tonumber = tonumber
 local concat = table.concat
 local shared = ngx.shared

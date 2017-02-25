@@ -6,6 +6,7 @@
 
 local _M = require('resty.cassandra.policies.reconnection').new_policy('exponential')
 
+local error = error
 local type = type
 local min = math.min
 local pow = math.pow

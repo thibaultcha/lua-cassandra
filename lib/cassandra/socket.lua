@@ -130,6 +130,7 @@ local forbidden_luasocket_phases = {}
 
 do
   local setmetatable = setmetatable
+  local ngx = ngx
 
   if ngx then
     local log, WARN, INFO = ngx.log, ngx.WARN, ngx.INFO

@@ -8,6 +8,7 @@
 local _M = require('resty.cassandra.policies.retry').new_policy('simple')
 
 local type = type
+local error = error
 
 --- Create a simple retry policy.
 -- Instanciates a simple retry policy for
@@ -35,7 +36,7 @@ function _M.new(max_retries)
   return self
 end
 
-function _M:on_unavailable(request)
+function _M:on_unavailable()
   return false
 end
 

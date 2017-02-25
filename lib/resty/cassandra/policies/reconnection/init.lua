@@ -1,5 +1,8 @@
 local _M = {}
 
+local error = error
+local setmetatable = setmetatable
+
 function _M.new_policy(name)
   local reconn_mt = {
     name = name,

@@ -9,6 +9,7 @@ local _M = require('resty.cassandra.policies.reconnection').new_policy('constant
 
 
 local type = type
+local error = error
 
 
 --- Create a constant reconnection policy.

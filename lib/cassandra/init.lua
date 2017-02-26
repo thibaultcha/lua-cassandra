@@ -748,6 +748,7 @@ end
 
 
 for cql_t_name, cql_t in pairs(cql.types) do
+    local error = error
     _Host[cql_t_name] = function(val)
         if val == nil then
             return error("bad argument #1 to '" .. cql_t_name .. "()' (got nil)", 2)

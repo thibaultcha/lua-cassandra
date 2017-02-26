@@ -9,6 +9,7 @@ local _M = require('resty.cassandra.policies.reconnection').new_policy('exponent
 
 
 local type = type
+local error = error
 local min = math.min
 local pow = math.pow
 

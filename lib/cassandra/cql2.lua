@@ -3,6 +3,7 @@
 local bit = require "bit"
 
 
+local ipairs = ipairs
 local pairs = pairs
 local tonumber = tonumber
 local tostring = tostring
@@ -1016,7 +1017,7 @@ local function unmarsh_cql_double(bytes)
             return sign * huge
         end
 
-        return 0.0/0.0
+        return 0 / 0
     end
 
     return sign * ldexp(1.0 + mantissa / 0x10000000000000, exponent - 0x3FF)

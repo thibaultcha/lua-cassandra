@@ -7,6 +7,11 @@
 -- @author thibaultcha
 
 
+local assert = assert
+local error = error
+local type = type
+
+
 local _M = require('resty.cassandra.policies.lb').new_policy('dc_aware_round_robin')
 
 

@@ -10,6 +10,7 @@ local _M = require('resty.cassandra.policies.retry').new_policy('simple')
 
 
 local type = type
+local error = error
 
 
 --- Create a simple retry policy.

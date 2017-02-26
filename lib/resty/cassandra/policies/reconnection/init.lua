@@ -1,3 +1,7 @@
+local setmetatable = setmetatable
+local error = error
+
+
 local _M = {}
 
 

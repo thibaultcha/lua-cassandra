@@ -27,6 +27,7 @@ local setmetatable = setmetatable
 local tonumber = tonumber
 local ipairs = ipairs
 local pairs = pairs
+local error = error
 local type = type
 local insert = table.insert
 local concat = table.concat
@@ -732,7 +733,7 @@ do
                 return sign * huge
 
             else
-                return 0.0/0.0
+                return 0 / 0
             end
         end
 

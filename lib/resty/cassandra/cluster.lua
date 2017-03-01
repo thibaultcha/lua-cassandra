@@ -933,5 +933,7 @@ _Cluster.handle_error = handle_error
 _Cluster.set_peer_down = set_peer_down
 _Cluster.get_or_prepare = get_or_prepare
 _Cluster.next_coordinator = next_coordinator
+_Cluster.first_coordinator = first_coordinator
+_Cluster.wait_schema_consensus = wait_schema_consensus
 
 return _Cluster

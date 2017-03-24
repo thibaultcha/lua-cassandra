@@ -907,7 +907,7 @@ do
   -- Perform auto-pagination for a query when used as a Lua iterator.
   -- Load balancing, reconnection, and retry policies act the same as described
   -- for `execute`.
-  -- 
+  --
   -- @usage
   -- local Cluster = require "resty.cassandra.cluster"
   -- local cluster, err = Cluster.new()
@@ -928,7 +928,7 @@ do
   -- @param[type=table] args (optional) Arguments to bind to the query.
   -- @param[type=table] options (optional) Options from `query_options`
   -- for this query.
-  function _Cluster:iterate(query, args, options) 
+  function _Cluster:iterate(query, args, options)
     return page_iterator(self, query, args, options)
   end
 end

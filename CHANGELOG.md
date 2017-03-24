@@ -1,5 +1,12 @@
 ### [Unreleased][unreleased]
 
+### [1.2.0] - 2017/03/24
+
+##### Added
+
+- Methods to manually add and remove peers from a Cluster module instance.
+  [#87](https://github.com/thibaultcha/lua-cassandra/pull/87)
+
 ### [1.1.1] - 2016/02/28
 
 ##### Added
@@ -293,7 +300,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.1...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...HEAD
+[1.2.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/thibaultCha/lua-cassandra/compare/0.5.1...1.0.0

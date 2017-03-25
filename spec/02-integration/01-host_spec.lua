@@ -492,7 +492,7 @@ describe("cassandra (host)", function()
           {"INSERT INTO things(id, n) VALUES("..uuid..", 1)"},
           {"UPDATE things SET n = 2 WHERE id = "..uuid},
           {"UPDATE things SET n = 3 WHERE id = "..uuid}
-        }, {logged = false}))
+    }, {logged = false}))
         assert.equal("VOID", res.type)
 
         local rows = assert(peer:execute("SELECT * FROM things WHERE id = "..uuid))

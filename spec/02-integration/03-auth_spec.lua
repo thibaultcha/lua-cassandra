@@ -45,7 +45,13 @@ describe("plain_text auth provider", function()
       })
       local ok, err = peer:connect()
       assert.is_nil(ok)
-      assert.equal("[Bad credentials] Username and/or password are incorrect", err)
+
+      if helpers.cassandra_version_num >= 31000 then
+        assert.equal("[Bad credentials] Provided username cassandra and/or password are incorrect", err)
+
+      else
+        assert.equal("[Bad credentials] Username and/or password are incorrect", err)
+      end
     end)
     it("authenticates with valid credentials", function()
       local peer = assert(cassandra.new {

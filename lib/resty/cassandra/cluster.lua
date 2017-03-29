@@ -244,9 +244,9 @@ _Cluster.__index = _Cluster
 -- @field default_port The port on which all nodes from the cluster are
 -- listening on. (`number`, default: `9042`)
 -- @field keyspace Keyspace to use for this cluster. (`string`, optional)
--- @field connect_timeout The timeout value when connecing to a node, in ms.
+-- @field timeout_connect The timeout value when connecing to a node, in ms.
 -- (`number`, default: `1000`)
--- @field read_timeout The timeout value when reading from a node, in ms.
+-- @field timeout_read The timeout value when reading from a node, in ms.
 -- (`number`, default: `2000`)
 -- @field retry_on_timeout Specifies if the request should be retried on the
 -- next coordinator (as per the load balancing policy)
@@ -292,7 +292,7 @@ _Cluster.__index = _Cluster
 --   contact_points = {"10.0.0.1", "10.0.0.2"},
 --   keyspace = "my_keyspace",
 --   default_port = 9042,
---   connect_timeout = 3000
+--   timeout_connect = 3000
 -- }
 --
 -- @param[type=table] opts Options for the created cluster client.

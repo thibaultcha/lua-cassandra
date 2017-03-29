@@ -188,7 +188,7 @@ qq {
             local Cluster = require 'resty.cassandra.cluster'
             local cluster, err = Cluster.new {
                 contact_points = {'255.255.255.254'},
-                connect_timeout = 10
+                timeout_connect = 10
             }
             if not cluster then
                 ngx.log(ngx.ERR, err)

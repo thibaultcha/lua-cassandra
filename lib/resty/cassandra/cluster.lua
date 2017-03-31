@@ -9,6 +9,7 @@ local cassandra = require 'cassandra'
 local cql = require 'cassandra.cql'
 local ffi = require 'ffi'
 
+local update_time = ngx.update_time
 local cql_errors = cql.errors
 local ffi_cast = ffi.cast
 local ffi_str = ffi.string
@@ -588,11 +589,18 @@ local function wait_schema_consensus(self, coordinator)
   elseif not peers then return nil, 'no peers in shm'
   elseif #peers < 2 then return true end
 
+  update_time()
+
   local ok, err, tdiff
   local tstart = get_now()
 
   repeat
+    -- disabled because this method is currently used outside of an
+    -- ngx_lua compatible context by production applications.
+    -- no fallback implemented yet.
     --ngx.sleep(0.5)
+
+    update_time()
     ok, err = check_schema_consensus(coordinator)
     tdiff = get_now() - tstart
   until ok or err or tdiff >= self.max_schema_consensus_wait

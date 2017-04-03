@@ -1,5 +1,13 @@
 ### [Unreleased][unreleased]
 
+### [1.2.1] - 2017/04/03
+
+##### Fixed
+
+- Force the Nginx time to be updated when checking for schema consensus
+  timeout.
+  [#90](https://github.com/thibaultcha/lua-cassandra/pull/90)
+
 ### [1.2.0] - 2017/03/24
 
 ##### Added
@@ -300,7 +308,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...HEAD
+[1.2.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.0.0...1.1.0

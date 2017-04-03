@@ -2,7 +2,7 @@
 -- Cluster module for OpenResty.
 -- @module resty.cassandra.cluster
 -- @author thibaultcha
--- @release 1.2.0
+-- @release 1.2.1
 
 local resty_lock = require 'resty.lock'
 local cassandra = require 'cassandra'
@@ -231,7 +231,7 @@ end
 -----------
 
 local _Cluster = {
-  _VERSION = '1.2.0',
+  _VERSION = '1.2.1',
 }
 
 _Cluster.__index = _Cluster

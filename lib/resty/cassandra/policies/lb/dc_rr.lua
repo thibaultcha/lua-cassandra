@@ -8,6 +8,10 @@
 
 local _M = require('resty.cassandra.policies.lb').new_policy('dc_aware_round_robin')
 
+local assert = assert
+local error = error
+local type = type
+
 --- Create a DC-aware round robin policy.
 -- Instanciates a DC-aware round robin policy for `resty.cassandra.cluster`.
 --

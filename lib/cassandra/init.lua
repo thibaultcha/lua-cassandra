@@ -10,7 +10,9 @@ local cql = require 'cassandra.cql'
 local setmetatable = setmetatable
 local requests = cql.requests
 local fmt = string.format
+local tostring = tostring
 local pairs = pairs
+local error = error
 local find = string.find
 
 --- CQL error codes

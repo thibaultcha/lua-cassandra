@@ -25,6 +25,7 @@ local setmetatable = setmetatable
 local tonumber = tonumber
 local ipairs = ipairs
 local pairs = pairs
+local error = error
 local type = type
 local insert = table.insert
 local concat = table.concat
@@ -44,6 +45,7 @@ local sub = string.sub
 local fmt = string.format
 local band = bit.band
 local bor = bit.bor
+local nan = 0/0
 
 local Buffer = {}
 local requests = {}
@@ -608,7 +610,7 @@ do
       if mantissa == 0 then
         return sign * huge
       else
-        return 0.0/0.0
+        return nan
       end
     end
 
@@ -658,7 +660,7 @@ do
     local mantissa = ldexp(((b2 % 0x80) * 0x100 + b3) * 0x100 + b4, -23)
     if exponent == 0xFF then
       if mantissa > 0 then
-        return 0 / 0
+        return nan
       else
         mantissa = huge
         exponent = 0x7F

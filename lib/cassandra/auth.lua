@@ -1,4 +1,5 @@
 local setmetatable = setmetatable
+local error = error
 local type = type
 local fmt = string.format
 

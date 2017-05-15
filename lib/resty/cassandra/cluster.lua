@@ -330,6 +330,11 @@ function _Cluster.new(opts)
         return nil, 'verify must be a boolean'
       end
       peers_opts.verify = v
+    elseif k == 'cafile' then
+      if type(v) ~= 'string' then
+        return nil, 'cafile must be a string'
+      end
+      peers_opts.cafile = v
     elseif k == 'auth' then
       if type(v) ~= 'table' then
         return nil, 'auth seems not to be an auth provider'

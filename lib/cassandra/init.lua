@@ -318,8 +318,8 @@ end
 -- @treturn boolean `ok`: `true` if success, `nil` if failure.
 -- @treturn string `err`: String describing the error if failure.
 function _Host:change_keyspace(keyspace)
-  local ok, err = self:close()
-  if not ok then return nil, err end
+  local _, err = self:close()
+  if err then return nil, err end
 
   local sock, err = socket.tcp()
   if err then return nil, err end

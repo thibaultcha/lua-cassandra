@@ -1,5 +1,14 @@
 ### [Unreleased][unreleased]
 
+### [1.2.2] - 2017/05/17
+
+##### Added
+
+- New `cafile` option for the Cluster module. This allows supporting SSL
+  connections to Cassandra clusters when lua-cassandra is used in contexts
+  that do not support cosockets, and fallback on LuaSocket.
+  [#95](https://github.com/thibaultcha/lua-cassandra/pull/95)
+
 ### [1.2.1] - 2017/04/03
 
 ##### Fixed
@@ -308,7 +317,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...HEAD
+[1.2.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...1.2.2
 [1.2.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.0...1.1.1

@@ -7,19 +7,18 @@
 local resty_lock = require 'resty.lock'
 local cassandra = require 'cassandra'
 local cql = require 'cassandra.cql'
-local ffi = require 'ffi'
 
 local update_time = ngx.update_time
 local cql_errors = cql.errors
-local ffi_cast = ffi.cast
-local ffi_str = ffi.string
 local requests = cql.requests
 local tonumber = tonumber
 local concat = table.concat
 local shared = ngx.shared
 local assert = assert
 local pairs = pairs
+local fmt = string.format
 local sub = string.sub
+local find = string.find
 local now = ngx.now
 local type = type
 local log = ngx.log
@@ -27,7 +26,6 @@ local ERR = ngx.ERR
 local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local NOTICE = ngx.NOTICE
-local C = ffi.C
 
 local empty_t = {}
 local _log_prefix = '[lua-cassandra] '
@@ -35,21 +33,6 @@ local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
 local _protocol_version_key = 'protocol:version:'
 local _bind_all_address = '0.0.0.0'
-
-ffi.cdef [[
-    size_t strlen(const char *str);
-
-    struct peer_rec {
-        uint64_t      reconn_delay;
-        uint64_t      unhealthy_at;
-        char         *data_center;
-        char         *release_version;
-    };
-]]
-local str_const = ffi.typeof('char *')
-local rec_peer_const = ffi.typeof('const struct peer_rec*')
-local rec_peer_size = ffi.sizeof('struct peer_rec')
-local rec_peer_cdata = ffi.new('struct peer_rec')
 
 local function get_now()
   return now() * 1000
@@ -71,12 +54,10 @@ local function set_peer(self, host, up, reconn_delay, unhealthy_at,
   end
 
   -- host info
-  rec_peer_cdata.reconn_delay = reconn_delay
-  rec_peer_cdata.unhealthy_at = unhealthy_at
-  rec_peer_cdata.data_center = ffi_cast(str_const, data_center)
-  rec_peer_cdata.release_version = ffi_cast(str_const, release_version)
+  local marshalled = fmt("%d:%d:%d:%s%s", reconn_delay, unhealthy_at,
+                         #data_center, data_center, release_version)
 
-  ok, err = self.shm:safe_set(_rec_key..host, ffi_str(rec_peer_cdata, rec_peer_size))
+  ok, err = self.shm:safe_set(_rec_key..host, marshalled)
   if not ok then
     return nil, 'could not set host details in shm: '..err
   end
@@ -89,12 +70,12 @@ local function add_peer(self, host, data_center)
 end
 
 local function get_peer(self, host, status)
-  local rec_v, err = self.shm:get(_rec_key .. host)
+  local marshalled, err = self.shm:get(_rec_key .. host)
   if err then
     return nil, 'could not get host details in shm: '..err
-  elseif not rec_v then
+  elseif marshalled == nil then
     return nil, 'no host details for '..host
-  elseif type(rec_v) ~= 'string' or #rec_v ~= rec_peer_size then
+  elseif type(marshalled) ~= 'string' then
     return nil, 'corrupted shm'
   end
 
@@ -103,17 +84,26 @@ local function get_peer(self, host, status)
     if err then return nil, 'could not get host status in shm: '..err end
   end
 
-  local peer = ffi_cast(rec_peer_const, rec_v)
-  local data_center = ffi_str(peer.data_center, C.strlen(peer.data_center))
-  local release_version = ffi_str(peer.release_version, C.strlen(peer.release_version))
+  local sep_1 = find(marshalled, ":", 1, true)
+  local sep_2 = find(marshalled, ":", sep_1 + 1, true)
+  local sep_3 = find(marshalled, ":", sep_2 + 1, true)
+
+  local reconn_delay    = sub(marshalled, 1, sep_1 - 1)
+  local unhealthy_at    = sub(marshalled, sep_1 + 1, sep_2 - 1)
+  local data_center_len = sub(marshalled, sep_2 + 1, sep_3 - 1)
+
+  local data_center_last = sep_3 + tonumber(data_center_len)
+
+  local data_center     = sub(marshalled, sep_3 + 1, data_center_last)
+  local release_version = sub(marshalled, data_center_last + 1)
 
   return {
     up = status,
     host = host,
     data_center = data_center ~= '' and data_center or nil,
     release_version = release_version ~= '' and release_version or nil,
-    reconn_delay = tonumber(peer.reconn_delay),
-    unhealthy_at = tonumber(peer.unhealthy_at)
+    reconn_delay = tonumber(reconn_delay),
+    unhealthy_at = tonumber(unhealthy_at)
   }
 end
 

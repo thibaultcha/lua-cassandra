@@ -534,7 +534,7 @@ up: false
                 ngx.log(ngx.ERR, err)
             end
 
-            cluster.shm:set('host:rec:127.0.0.1', 'foobar')
+            cluster.shm:set('host:rec:127.0.0.1', false)
 
             local peers, err = cluster:get_peers()
             if not peers then

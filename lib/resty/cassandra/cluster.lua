@@ -578,7 +578,8 @@ local function check_schema_consensus(coordinator)
   return local_res[1].schema_version
 end
 
-local function wait_schema_consensus(self, coordinator)
+local function wait_schema_consensus(self, coordinator, timeout)
+  timeout = timeout or self.max_schema_consensus_wait
   local peers, err = get_peers(self)
   if err then return nil, err
   elseif not peers then return nil, 'no peers in shm'
@@ -598,7 +599,7 @@ local function wait_schema_consensus(self, coordinator)
     update_time()
     ok, err = check_schema_consensus(coordinator)
     tdiff = get_now() - tstart
-  until ok or err or tdiff >= self.max_schema_consensus_wait
+  until ok or err or tdiff >= timeout
 
   if ok then
     return ok

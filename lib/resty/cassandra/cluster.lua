@@ -950,5 +950,6 @@ _Cluster.get_or_prepare = get_or_prepare
 _Cluster.next_coordinator = next_coordinator
 _Cluster.first_coordinator = first_coordinator
 _Cluster.wait_schema_consensus = wait_schema_consensus
+_Cluster.check_schema_consensus = check_schema_consensus
 
 return _Cluster

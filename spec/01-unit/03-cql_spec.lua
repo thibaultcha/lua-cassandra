@@ -166,6 +166,7 @@ for protocol_version = 2, 3 do
 
   describe("CQL requests", function()
     local requests = cql.requests
+    local consistencies = cql.consistencies
 
     it("sanity", function()
       local r = requests.query.new("SELECT * FROM peers")
@@ -189,6 +190,14 @@ for protocol_version = 2, 3 do
 
         local frame3 = r:build_frame(protocol_version)
         assert.matches("SELECT key FROM local", frame3, nil, true)
+      end)
+      it("sets the stream_id if provided", function()
+        local r = requests.query.new("SELECT * FROM local")
+        r.opts = {stream_id = 255, consistency = consistencies.one}
+        local frame = r:build_frame(protocol_version)
+
+        local header = cql.frame_reader.read_header(protocol_version, string.sub(frame, 2, -1))
+        assert.equal(255, header.stream_id)
       end)
     end)
 

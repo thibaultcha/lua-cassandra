@@ -150,28 +150,34 @@ function _Host:send(request)
   local sent, err = self.sock:send(frame)
   if not sent then return nil, err end
 
-  -- receive frame version byte
-  local v_byte, err = self.sock:receive(1)
-  if not v_byte then return nil, err end
+  while true do
+    -- receive frame version byte
+    local v_byte, err = self.sock:receive(1)
+    if not v_byte then return nil, err end
 
-  -- -1 because of the v_byte we just read
-  local version, n_bytes = cql.frame_reader.version(v_byte)
+    -- -1 because of the v_byte we just read
+    local version, n_bytes = cql.frame_reader.version(v_byte)
 
-  -- receive frame header
-  local header_bytes, err = self.sock:receive(n_bytes)
-  if not header_bytes then return nil, err end
+    -- receive frame header
+    local header_bytes, err = self.sock:receive(n_bytes)
+    if not header_bytes then return nil, err end
 
-  local header = cql.frame_reader.read_header(version, header_bytes)
+    local header = cql.frame_reader.read_header(version, header_bytes)
 
-  -- receive frame body
-  local body_bytes
-  if header.body_length > 0 then
-    body_bytes, err = self.sock:receive(header.body_length)
-    if not body_bytes then return nil, err end
+    -- receive frame body
+    local body_bytes
+    if header.body_length > 0 then
+      body_bytes, err = self.sock:receive(header.body_length)
+      if not body_bytes then return nil, err end
+    end
+
+    -- If stream_id was set in request.opts, only return a response
+    -- with a matching stream_id and drop everything else
+    if not request.opts or not request.opts.stream_id or request.opts.stream_id == header.stream_id then
+      -- res, err, cql_err_code
+      return cql.frame_reader.read_body(header, body_bytes)
+    end
   end
-
-  -- res, err, cql_err_code
-  return cql.frame_reader.read_body(header, body_bytes)
 end
 
 local function send_startup(self)

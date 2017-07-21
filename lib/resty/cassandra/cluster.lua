@@ -440,6 +440,8 @@ function _Cluster.new(opts)
                 or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000),
     retry_policy = opts.retry_policy
                 or require('resty.cassandra.policies.retry.simple').new(3),
+    current_stream_id = -1,
+    max_stream_ids = 1,
   }, _Cluster)
 end
 
@@ -736,6 +738,8 @@ function _Cluster:refresh(timeout)
                ' (ver_refresh=', ver_refresh, ', ver_topo=', ver_topo, ')')
   end
 
+  self.max_stream_ids = self.peers_opts.protocol_version < 3 and 2^7-1 or 2^15-1
+
   return true, nil, topo_changes
 end
 
@@ -932,6 +936,8 @@ local function handle_error(self, err, cql_code, coordinator, request)
 end
 
 send_request = function(self, coordinator, request)
+  self.current_stream_id = (self.current_stream_id + 1) % (self.max_stream_ids + 1)
+  request.opts.stream_id = self.current_stream_id
   local res, err, cql_code = coordinator:send(request)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)

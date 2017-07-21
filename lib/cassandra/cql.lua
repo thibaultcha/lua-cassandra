@@ -10,7 +10,6 @@ Notes:
   - does not implement SUPPORTED results parsing and OPTIONS messages
   - does not implement EVENTS parsing
   - does not implement compression
-  - does not set stream ids for frames
   - does not implement no_metadata query flag and ROWS results flag
   - does not implement decimal data type
   - does not implement parsing of specific error codes
@@ -961,10 +960,15 @@ do
 
     header:write_byte(flags)
 
+    local stream_id = 0
+    if self.opts and self.opts.stream_id then
+      stream_id = self.opts.stream_id
+    end
+
     if version < 3 then
-      header:write_byte(0)       -- stream_id
+      header:write_byte(stream_id)
     else
-      header:write_short(0)      -- stream_id
+      header:write_short(stream_id)
     end
 
     header:write_byte(self.op_code)

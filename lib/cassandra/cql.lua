@@ -108,6 +108,7 @@ local ERRORS            = {
   CONFIG_ERROR          = 0x2300,
   ALREADY_EXISTS        = 0x2400,
   UNPREPARED            = 0x2500,
+  UNKNOWN               = -1,
 }
 
 local ERROR_TRANSLATIONS         = {
@@ -1377,7 +1378,16 @@ do
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()
       local message = body:read_string()
-      return nil, '['..ERROR_TRANSLATIONS[code]..'] '..message, code
+      local error_translation = ERROR_TRANSLATIONS[code]
+
+      -- If the translation is not found, return a formatted string
+      -- with the error code for convenience.
+      if error_translation == nil then
+        error_translation = string.format(
+          'UNSUPPORTED ERROR (code=%d)', code or ERRORS.UNKNOWN)
+      end
+
+      return nil, '['.. error_translation ..'] '..message, code
     elseif op_code == OP_CODES.READY then
       return ready
     elseif op_code == OP_CODES.AUTHENTICATE then

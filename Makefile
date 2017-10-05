@@ -1,23 +1,29 @@
 DEV_ROCKS=busted luacov luacov-coveralls luacheck ldoc
 BUSTED_ARGS ?= -v -o gtest
 CASSANDRA ?= 3.10
+PROD_ROCKFILE = $(shell ls lua-cassandra-*.rockspec | grep -v dev)
+DEV_ROCKFILE = $(shell ls lua-cassandra-*.rockspec | grep dev)
+FLAGS ?=
 
 .PHONY: install dev busted prove test clean coverage lint doc
 
 install:
-	@luarocks make
+	@luarocks make $(PROD_ROCKFILE)
 
-dev: install
+install-dev:
+	@luarocks $(FLAGS) make $(DEV_ROCKFILE) OPENSSL_DIR=$(OPENSSL_DIR)
+
+dev:
 	@for rock in $(DEV_ROCKS) ; do \
 		if ! luarocks list | grep $$rock > /dev/null ; then \
 			echo $$rock not found, installing via luarocks... ; \
-			luarocks install $$rock ; \
+			luarocks install $(FLAGS) $$rock ; \
 		else \
 			echo $$rock already installed, skipping ; \
 		fi \
 	done;
 
-busted:
+busted: install-dev
 	@busted $(BUSTED_ARGS)
 
 prove:
@@ -31,7 +37,7 @@ clean:
 	@rm -f luacov.*
 	@util/clean_ccm.sh
 
-coverage: clean
+coverage: clean install-dev
 	@busted $(BUSTED_ARGS) --coverage
 	@util/prove_ccm.sh $(CASSANDRA)
 	@TEST_COVERAGE_ENABLED=true TEST_NGINX_TIMEOUT=30 prove

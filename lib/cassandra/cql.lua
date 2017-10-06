@@ -102,6 +102,7 @@ local ERRORS            = {
   READ_TIMEOUT          = 0x1200,
   READ_FAILURE          = 0x1300,
   FUNCTION_FAILURE      = 0x1400,
+  WRITE_FAILURE         = 0x1500,
   SYNTAX_ERROR          = 0x2000,
   UNAUTHORIZED          = 0x2100,
   INVALID               = 0x2200,
@@ -122,6 +123,7 @@ local ERROR_TRANSLATIONS         = {
   [ERRORS.READ_TIMEOUT]          = 'Read timeout',
   [ERRORS.READ_FAILURE]          = 'Read failure',
   [ERRORS.FUNCTION_FAILURE]      = 'Function failure',
+  [ERRORS.WRITE_FAILURE]         = 'Write failure',
   [ERRORS.SYNTAX_ERROR]          = 'Syntax error',
   [ERRORS.UNAUTHORIZED]          = 'Unauthorized',
   [ERRORS.INVALID]               = 'Invalid',
@@ -1377,7 +1379,15 @@ do
     elseif op_code == OP_CODES.ERROR then
       local code = body:read_int()
       local message = body:read_string()
-      return nil, '['..ERROR_TRANSLATIONS[code]..'] '..message, code
+      local error_translation = ERROR_TRANSLATIONS[code]
+
+      -- If the translation is not found, return a formatted string
+      -- with the error code for convenience.
+      if error_translation == nil then
+        error_translation = fmt('UNSUPPORTED ERROR (code=0x%x)', code)
+      end
+
+      return nil, '['.. error_translation ..'] '..message, code
     elseif op_code == OP_CODES.READY then
       return ready
     elseif op_code == OP_CODES.AUTHENTICATE then

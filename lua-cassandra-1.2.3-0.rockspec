@@ -20,6 +20,8 @@ build = {
     ["cassandra.auth"] = "lib/cassandra/auth.lua",
     ["cassandra.socket"] = "lib/cassandra/socket.lua",
 
+    ["util.deque"] = "lib/util/deque.lua",
+
     ["resty.cassandra.cluster"] = "lib/resty/cassandra/cluster.lua",
     ["resty.cassandra.policies.lb"] = "lib/resty/cassandra/policies/lb/init.lua",
     ["resty.cassandra.policies.lb.rr"] = "lib/resty/cassandra/policies/lb/rr.lua",

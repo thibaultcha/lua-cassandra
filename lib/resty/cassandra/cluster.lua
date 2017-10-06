@@ -387,7 +387,6 @@ function _Cluster.new(opts)
                 or require('resty.cassandra.policies.reconnection.exp').new(1000, 60000),
     retry_policy = opts.retry_policy
                 or require('resty.cassandra.policies.retry.simple').new(3),
-    stream_ids = nil,
   }, _Cluster)
 end
 
@@ -550,15 +549,6 @@ function _Cluster:refresh()
 
   -- initiate the load balancing policy
   self.lb_policy:init(peers)
-
-  if self.stream_ids == nil then
-    -- Initialize the list of available seed ids (only once)
-    self.stream_ids = {}
-    local max_id = protocol_version < 3 and 2^7-1 or 2^15-1
-    for i=1,max_id do
-      self.stream_ids[i] = i
-    end
-  end
 
   -- cluster is ready to be queried
   self.init = true
@@ -758,45 +748,8 @@ local function handle_error(self, err, cql_code, coordinator, request)
   return nil, err, cql_code
 end
 
-local function get_stream_id(self)
-  local stream_id = 0
-
-  local lock = resty_lock:new(self.dict_name, self.lock_opts)
-  local elapsed, err = lock:lock('stream_id')
-  if not elapsed then return stream_id, 'failed to acquire stream_id lock: '..err end
-
-  if table.getn(self.stream_ids) > 0 then
-    stream_id = table.remove(self.stream_ids)
-  else
-    err = 'Too many inflight requests. No new stream ids available.'
-  end
-
-  local ok, err = lock:unlock()
-  if not ok then return stream_id, 'failed to unlock: '..err end
-
-  return stream_id, nil
-end
-
-local function release_stream_id(self, stream_id)
-  local lock = resty_lock:new(self.dict_name, self.lock_opts)
-  local elapsed, err = lock:lock('stream_id')
-  if not elapsed then return stream_id, 'failed to acquire stream_id lock: '..err end
-
-  table.insert(self.stream_ids, 1, stream_id)
-
-  local ok, err = lock:unlock()
-  if not ok then return stream_id, 'failed to unlock: '..err end
-end
-
 send_request = function(self, coordinator, request)
-  local err
-  request.opts.stream_id, err = get_stream_id(self)
-  if err ~= nil and self.logging then
-    log(WARN, _log_prefix, err)
-  end
-
   local res, err, cql_code = coordinator:send(request)
-  release_stream_id(self, request.opts.stream_id)
   if not res then
     return handle_error(self, err, cql_code, coordinator, request)
   elseif res.warnings and self.logging then

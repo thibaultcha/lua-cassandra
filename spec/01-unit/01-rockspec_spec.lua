@@ -43,7 +43,8 @@ describe("rockspec", function()
     end
 
     rock_filenames = exec("find . -name 'lua-cassandra-*.rockspec'")
-    local rock_filename, dev_rock_filename = rock_filenames:match("(%S.*%S)\n(%S.*%S)")
+    local rock_filename = rock_filenames:match("(lua%-cassandra%-[%d%.-]*.rockspec)")
+    local dev_rock_filename = rock_filenames:match("(lua%-cassandra%-dev%-[%d-]*.rockspec)")
 
     local f = assert(loadfile(rock_filename))
     _setfenv(f, rocks.production)

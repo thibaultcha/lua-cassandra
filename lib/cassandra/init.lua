@@ -6,6 +6,7 @@
 
 local socket = require 'cassandra.socket'
 local cql = require 'cassandra.cql'
+local deque = require 'util.deque'
 
 local setmetatable = setmetatable
 local requests = cql.requests
@@ -124,18 +125,29 @@ function _Host.new(opts)
   local sock, err = socket.tcp()
   if err then return nil, err end
 
+  local protocol_version = opts.protocol_version or cql.def_protocol_version
+
+  -- Initialize stream_ids deque
+  local max_id = protocol_version < 3 and 2^7-1 or 2^15-1
+  local stream_ids = deque.new()
+
+  for i=1,max_id do
+    deque.pushright(stream_ids, i)
+  end
+
   local host = {
     sock = sock,
     host = opts.host or '127.0.0.1',
     port = opts.port or 9042,
     keyspace = opts.keyspace,
-    protocol_version = opts.protocol_version or cql.def_protocol_version,
+    protocol_version = protocol_version,
     ssl = opts.ssl,
     verify = opts.verify,
     cert = opts.cert,
     cafile = opts.cafile,
     key = opts.key,
-    auth = opts.auth
+    auth = opts.auth,
+    stream_ids = stream_ids,
   }
 
   return setmetatable(host, _Host)
@@ -146,32 +158,61 @@ function _Host:send(request)
     return nil, 'no socket created'
   end
 
-  local frame = request:build_frame(self.protocol_version)
-  local sent, err = self.sock:send(frame)
-  if not sent then return nil, err end
-
-  -- receive frame version byte
-  local v_byte, err = self.sock:receive(1)
-  if not v_byte then return nil, err end
-
-  -- -1 because of the v_byte we just read
-  local version, n_bytes = cql.frame_reader.version(v_byte)
-
-  -- receive frame header
-  local header_bytes, err = self.sock:receive(n_bytes)
-  if not header_bytes then return nil, err end
-
-  local header = cql.frame_reader.read_header(version, header_bytes)
-
-  -- receive frame body
-  local body_bytes
-  if header.body_length > 0 then
-    body_bytes, err = self.sock:receive(header.body_length)
-    if not body_bytes then return nil, err end
+  -- set stream_id
+  local stream_id, err = deque.popleft(self.stream_ids)
+  if err == nil then
+      if request.opts then
+        request.opts.stream_id = stream_id
+      else
+        request.opts = {stream_id = stream_id}
+      end
   end
 
-  -- res, err, cql_err_code
-  return cql.frame_reader.read_body(header, body_bytes)
+  local frame = request:build_frame(self.protocol_version)
+  local sent, err = self.sock:send(frame)
+  if not sent then
+    deque.pushright(self.stream_ids, stream_id)
+    return nil, err
+  end
+
+  while true do
+    -- receive frame version byte
+    local v_byte, err = self.sock:receive(1)
+    if not v_byte then
+      deque.pushright(self.stream_ids, stream_id)
+      return nil, err
+    end
+
+    -- -1 because of the v_byte we just read
+    local version, n_bytes = cql.frame_reader.version(v_byte)
+
+    -- receive frame header
+    local header_bytes, err = self.sock:receive(n_bytes)
+    if not header_bytes then
+      deque.pushright(self.stream_ids, stream_id)
+      return nil, err
+    end
+
+    local header = cql.frame_reader.read_header(version, header_bytes)
+
+    -- receive frame body
+    local body_bytes
+    if header.body_length > 0 then
+      body_bytes, err = self.sock:receive(header.body_length)
+      if not body_bytes then
+        deque.pushright(self.stream_ids, stream_id)
+        return nil, err
+      end
+    end
+
+    -- If stream_id was set in request.opts, only return a response
+    -- with a matching stream_id and drop everything else
+    if stream_id and stream_id == header.stream_id then
+      -- res, err, cql_err_code
+      deque.pushright(self.stream_ids, stream_id)
+      return cql.frame_reader.read_body(header, body_bytes)
+    end
+  end
 end
 
 local function send_startup(self)

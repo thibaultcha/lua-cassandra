@@ -947,10 +947,15 @@ do
 
     header:write_byte(flags)
 
+    local stream_id = 0
+    if self.opts and self.opts.stream_id then
+      stream_id = self.opts.stream_id
+    end
+
     if version < 3 then
-      header:write_byte(0)       -- stream_id
+      header:write_byte(stream_id)
     else
-      header:write_short(0)      -- stream_id
+      header:write_short(stream_id)
     end
 
     header:write_byte(self.op_code)

@@ -995,8 +995,8 @@ coordinator 3: 127.0.0.1
     }
 --- request
 GET /t
---- response_body
-all hosts tried for query failed. 127.0.0.2: host still considered down. 127.0.0.3: host still considered down. 127.0.0.1: host still considered down
+--- response_body_like chomp
+all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down\. 127\.0\.0\.\d+: host still considered down\. 127\.0\.0\.\d+: host still considered down
 --- no_error_log
 [error]
 

@@ -41,8 +41,8 @@
   <li><a href="../modules/cassandra.html">cassandra</a></li>
   <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
   <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
-  <li><a href="../modules/resty.cassandra_policies.lb.req_dc_rr.html">resty.cassandra_policies.lb.req_dc_rr</a></li>
-  <li><strong>resty.cassandra.policies.lb.rr</strong></li>
+  <li><strong>resty.cassandra_policies.lb.req_dc_rr</strong></li>
+  <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
   <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
   <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
   <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
@@ -64,22 +64,24 @@
 
 <div id="content">
 
-<h1>Module <code>resty.cassandra.policies.lb.rr</code></h1>
-<p>Round robin load balancing policy.</p>
-<p>
-
-</p>
+<h1>Module <code>resty.cassandra_policies.lb.req_dc_rr</code></h1>
+<p>Request and Datacenter-aware round robin load balancing policy.</p>
+<p> This policy will work better than its plain Round Robin counterpart
+ in multi-datacenters setups.
+ It is implemented in such a fashion that it will always prioritize nodes
+ from the local/closest datacenter (which needs to be manually specified).
+ It also gives preference to reusing the same datacenter for the duration of a request</p>
     <h3>Info:</h3>
     <ul>
-        <li><strong>Author</strong>: thibaultcha</li>
+        <li><strong>Author</strong>: thibaultcha &amp; kikito</li>
     </ul>
 
 
 <h2><a href="#Functions">Functions</a></h2>
 <table class="function_list">
 	<tr>
-	<td class="name" nowrap><a href="#new">new ()</a></td>
-	<td class="summary">Create a round robin policy.</td>
+	<td class="name" nowrap><a href="#new">new (local_dc)</a></td>
+	<td class="summary">Create a Request-and-DC-aware round robin policy.</td>
 	</tr>
 </table>
 
@@ -92,19 +94,26 @@
     <dl class="function">
     <dt>
     <a name = "new"></a>
-    <strong>new ()</strong>
+    <strong>new (local_dc)</strong>
     </dt>
     <dd>
-    Create a round robin policy.
- Instanciates a round robin policy for <a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a>.
+    Create a Request-and-DC-aware round robin policy.
+ Instanciates a Request-and-DC-aware round robin policy for <a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a>.
 
 
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">local_dc</span>
+            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         Name of the local/closest datacenter.
+        </li>
+    </ul>
 
     <h3>Returns:</h3>
     <ol>
 
            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>policy</code>: A round robin policy.
+        <code>policy</code>: A DC-aware round robin policy.
     </ol>
 
 
@@ -112,9 +121,9 @@
     <h3>Usage:</h3>
     <ul>
         <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
-<span class="keyword">local</span> rr = <span class="global">require</span> <span class="string">"resty.cassandra.policies.lb.rr"</span>
+<span class="keyword">local</span> req_dc_rr = <span class="global">require</span> <span class="string">"resty.cassandra.policies.lb.req_dc_rr"</span>
 
-<span class="keyword">local</span> policy = rr.new()
+<span class="keyword">local</span> policy = req_dc_rr.new(<span class="string">"my_local_cluster_name"</span>)
 <span class="keyword">local</span> cluster = <span class="global">assert</span>(Cluster.new {
   lb_policy = policy
 })</pre>

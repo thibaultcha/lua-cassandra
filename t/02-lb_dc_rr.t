@@ -189,7 +189,7 @@ peer 127.0.0.3 data_center field must be a string
 
 
 
-=== TEST 4: lb_dc_rr with hyphens in dc name
+=== TEST 5: lb_dc_rr with hyphens in dc name
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

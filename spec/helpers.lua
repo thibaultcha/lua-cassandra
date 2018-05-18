@@ -1,9 +1,17 @@
 local unpack = rawget(table, "unpack") or unpack
+local lua51 = _VERSION == "Lua 5.1"
+local jit52 = (tostring(assert):match("builtin") ~= nil)
+if jit52 then
+  jit52 = not loadstring("local goto = 1")
+end
 
+-- Borrowed from Penlight compat.lua
+-- https://github.com/stevedonovan/Penlight/blob/master/lua/pl/compat.lua
 local function exec(cmd, ignore)
   local res1 = os.execute(cmd.." >/dev/null")
   local ok
-  if _VERSION == "Lua 5.1" then
+  if lua51 and not jit52 then
+    res1 = res1 > 255 and res1 / 256 or res1
     ok = res1 == 0
   else
     ok = not not res1

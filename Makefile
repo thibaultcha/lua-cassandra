@@ -23,7 +23,7 @@ busted:
 prove:
 	@util/prove_ccm.sh $(CASSANDRA)
 	@t/reindex t/*
-	@prove
+	@prove -I.
 
 test: busted prove
 

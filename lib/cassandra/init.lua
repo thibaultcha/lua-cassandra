@@ -643,9 +643,9 @@ end
 -- @field float CQL float.
 --     cassandra.float(1.618033)
 -- @field int CQL int.
---     cassandra.float(10)
+--     cassandra.int(10)
 -- @field text CQL text.
---     cassandra.float("hello world")
+--     cassandra.text("hello world")
 -- @field timeuuid CQL timeuuid.
 -- @field varchar CQL varchar.
 -- @field varint CQL varint.

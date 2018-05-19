@@ -42,11 +42,11 @@
   <li><a href="../modules/resty.cassandra.cluster.html">resty.cassandra.cluster</a></li>
   <li><a href="../modules/resty.cassandra.policies.lb.dc_rr.html">resty.cassandra.policies.lb.dc_rr</a></li>
   <li><a href="../modules/resty.cassandra.policies.lb.req_dc_rr.html">resty.cassandra.policies.lb.req_dc_rr</a></li>
-  <li><a href="../modules/resty.cassandra.policies.lb.req_rr.html">resty.cassandra.policies.lb.req_rr</a></li>
+  <li><strong>resty.cassandra.policies.lb.req_rr</strong></li>
   <li><a href="../modules/resty.cassandra.policies.lb.rr.html">resty.cassandra.policies.lb.rr</a></li>
   <li><a href="../modules/resty.cassandra.policies.reconnection.const.html">resty.cassandra.policies.reconnection.const</a></li>
   <li><a href="../modules/resty.cassandra.policies.reconnection.exp.html">resty.cassandra.policies.reconnection.exp</a></li>
-  <li><strong>resty.cassandra.policies.retry.simple</strong></li>
+  <li><a href="../modules/resty.cassandra.policies.retry.simple.html">resty.cassandra.policies.retry.simple</a></li>
 </ul>
 <h2>Manual</h2>
 <ul class="nowrap">
@@ -65,11 +65,17 @@
 
 <div id="content">
 
-<h1>Module <code>resty.cassandra.policies.retry.simple</code></h1>
-<p>Simple retry policy.</p>
-<p> This policy will retry requests that failed because of
- UNAVAILABLE<em>EXCEPTION, READ</em>TIMEOUT or WRITE_TIMEOUT server errors up to a
- given number of time before failing and returning an error.</p>
+<h1>Module <code>resty.cassandra.policies.lb.req_rr</code></h1>
+<p>Request-aware round robin load balancing policy for OpenResty.</p>
+<p> This policy will try to reuse the same node for the lifecycle of a given
+ request if possible. It is mostly designed for use in OpenResty
+ environments.</p>
+
+<p> This ensures that the underlying connection pool to the node is reused as
+ much as possible. If a new node is chosen for every query, there is no
+ guarantee that each selected node will already have a pre-established
+ connection. Since this policy reuses the same node for the lifecycle of a
+ request, the chances of having to open a new connection are much reduced.</p>
     <h3>Info:</h3>
     <ul>
         <li><strong>Author</strong>: thibaultcha</li>
@@ -79,8 +85,8 @@
 <h2><a href="#Functions">Functions</a></h2>
 <table class="function_list">
 	<tr>
-	<td class="name" nowrap><a href="#new">new (max_retries)</a></td>
-	<td class="summary">Create a simple retry policy.</td>
+	<td class="name" nowrap><a href="#new">new ()</a></td>
+	<td class="summary">Create a request-aware round robin policy.</td>
 	</tr>
 </table>
 
@@ -93,28 +99,19 @@
     <dl class="function">
     <dt>
     <a name = "new"></a>
-    <strong>new (max_retries)</strong>
+    <strong>new ()</strong>
     </dt>
     <dd>
-    Create a simple retry policy.
- Instanciates a simple retry policy for
- <a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a>.
+    Create a request-aware round robin policy.
+ Instanciates a request-aware round robin policy for <a href="../modules/resty.cassandra.cluster.html#">resty.cassandra.cluster</a>.
 
 
-    <h3>Parameters:</h3>
-    <ul>
-        <li><span class="parameter">max_retries</span>
-            <span class="types"><span class="type">number</span></span>
-         Maximum number of retries for a query
- before aborting and reporting the error.
-        </li>
-    </ul>
 
     <h3>Returns:</h3>
     <ol>
 
            <span class="types"><a class="type" href="https://www.lua.org/manual/5.1/manual.html#5.5">table</a></span>
-        <code>policy</code>: A simple retry policy.
+        <code>policy</code>: A request-ware round robin policy.
     </ol>
 
 
@@ -122,11 +119,11 @@
     <h3>Usage:</h3>
     <ul>
         <pre class="example"><span class="keyword">local</span> Cluster = <span class="global">require</span> <span class="string">"resty.cassandra.cluster"</span>
-<span class="keyword">local</span> simple_retry = <span class="global">require</span> <span class="string">"resty.cassandra.policies.retry.simple"</span>
+<span class="keyword">local</span> req_rr = <span class="global">require</span> <span class="string">"resty.cassandra.policies.lb.req_rr"</span>
 
-<span class="keyword">local</span> policy = simple_retry.new(<span class="number">3</span>)
+<span class="keyword">local</span> policy = req_rr.new()
 <span class="keyword">local</span> cluster = <span class="global">assert</span>(Cluster.new {
-  retry_policy = policy
+  lb_policy = policy
 })</pre>
     </ul>
 

@@ -1,5 +1,17 @@
 ### [Unreleased][unreleased]
 
+### [1.2.3] - 2017/07/20
+
+##### Added
+
+- Expose the `check_schema_consensus()` method of the Cluster module for
+  host applications to use.
+
+##### Fixed
+
+- Safely share peers across workers in the Cluster module.
+  [#97](https://github.com/thibaultcha/lua-cassandra/pull/97)
+
 ### [1.2.2] - 2017/05/17
 
 ##### Added
@@ -317,7 +329,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...HEAD
+[1.2.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...1.2.3
 [1.2.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...1.2.2
 [1.2.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.1.1...1.2.0

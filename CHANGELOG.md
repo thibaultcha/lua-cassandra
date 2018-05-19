@@ -1,5 +1,15 @@
 ### [Unreleased][unreleased]
 
+### [1.3.0] - 2018/??/??
+
+##### Added
+
+- New request-aware load-balancing policy for OpenResty environments.
+- New request-aware + datacenter-aware load-balancing policy for OpenResty
+  environments.
+  Thanks [@kikito](https://github.com/kikito) for the patch!
+  [#114](https://github.com/thibaultcha/lua-cassandra/pull/114)
+
 ### [1.2.3] - 2017/07/20
 
 ##### Added
@@ -329,7 +339,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...HEAD
+[1.3.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...1.3.0
 [1.2.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...1.2.3
 [1.2.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...1.2.2
 [1.2.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.0...1.2.1

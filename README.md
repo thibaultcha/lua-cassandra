@@ -221,6 +221,26 @@ The documentation is generated with
 $ make doc
 ```
 
+#### macOS notes
+
+## Openssl headers
+
+Newer versions of macOS don't include the openssl headers by purpose. You'll need to install
+them via `brew install openssl` or manually.
+
+Homebrew openssl headers however don't get symlinked in /usr/local, so you need to tell
+luarocks where to find them via `OPENSSL_DIR`.
+
+```
+OPENSSL_DIR=/usr/local/opt/openssl/ FLAGS='--local' make busted
+```
+
+## Install rocks locally
+
+To install the development dependencies locally instead of in `/usr/local`, set
+`FLAGS='--local'`. This will use the tree in the user's home directory.
+You might also need to run `eval $(luarocks path --bin)` to add them to your path.
+
 [Back to TOC](#table-of-contents)
 
 [Luarocks]: https://luarocks.org

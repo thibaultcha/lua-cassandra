@@ -9,7 +9,9 @@ description = {
   license = "MIT"
 }
 dependencies = {
-  "luabitop"
+  "luabitop",
+  "luasec",
+  "luasocket"
 }
 build = {
   type = "builtin",

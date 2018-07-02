@@ -2,8 +2,6 @@
 use Test::Nginx::Socket::Lua;
 use t::Util;
 
-our $HttpConfig = $t::Util::HttpConfig;
-
 no_long_string();
 
 plan tests => repeat_each() * blocks() * 3;
@@ -202,6 +200,68 @@ req_round_robin
                     break
                 end
             end
+        }
+    }
+--- request
+GET /t
+--- response_body
+req_round_robin
+1. 127.0.0.1
+2. 127.0.0.2
+3. 127.0.0.3
+--- no_error_log
+[error]
+
+
+
+=== TEST 5: req_rr can be used in init_by_lua* context with resty.core
+--- http_config eval
+qq{
+    $::LuaPackagePath
+
+    init_by_lua_block {
+        require "resty.core"
+
+        _G.res = {}
+
+        local lb_req_rr = require 'resty.cassandra.policies.lb.req_rr'
+        table.insert(res, lb_req_rr.name)
+
+        local peers = {
+            {host = '127.0.0.1'},
+            {host = '127.0.0.2'},
+            {host = '127.0.0.3'}
+        }
+
+        local lb = lb_req_rr.new()
+        lb:init(peers)
+
+        for i, peer in lb:iter() do
+            table.insert(res, '1. ' .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+
+        for i, peer in lb:iter() do
+            table.insert(res, '2. ' .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+
+        for i, peer in lb:iter() do
+            table.insert(res, '3. ' .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+    }
+}
+--- config
+    location /t {
+        content_by_lua_block {
+            ngx.say(table.concat(res, "\n"))
         }
     }
 --- request

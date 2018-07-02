@@ -4,8 +4,6 @@ use t::Util;
 
 no_long_string();
 
-our $HttpConfig = $t::Util::HttpConfig;
-
 plan tests => repeat_each() * blocks() * 3 - 2;
 
 run_tests();
@@ -355,6 +353,77 @@ local_dc: dc1
                     break
                 end
             end
+        }
+    }
+--- request
+GET /t
+--- response_body
+req_and_dc_aware_round_robin
+local_dc: dc1
+1. 127.0.0.1
+2. 127.0.0.2
+3. 127.0.0.3
+--- no_error_log
+[error]
+
+
+
+=== TEST 8: lb_req_dc_rr can be used in init_by_lua* context with resty.core
+--- http_config eval
+qq{
+    $::LuaPackagePath
+
+    init_by_lua_block {
+        require "resty.core"
+
+        _G.res = {}
+
+        local req_dc_rr = require 'resty.cassandra.policies.lb.req_dc_rr'
+
+        table.insert(res, req_dc_rr.name)
+
+        local peers = {
+            {host = '10.0.0.1', data_center = 'dc2'},
+
+            {host = '127.0.0.1', data_center = 'dc1'},
+            {host = '127.0.0.2', data_center = 'dc1'},
+            {host = '127.0.0.3', data_center = 'dc1'},
+
+            {host = '10.0.0.2', data_center = 'dc2'},
+            {host = '10.0.0.3', data_center = 'dc2'}
+        }
+
+        local lb = req_dc_rr.new('dc1')
+        table.insert(res, 'local_dc: ' .. lb.local_dc)
+
+        lb:init(peers)
+
+        for i, peer in lb:iter() do
+            table.insert(res, "1. " .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+
+        for i, peer in lb:iter() do
+            table.insert(res, "2. " .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+
+        for i, peer in lb:iter() do
+            table.insert(res, "3. " .. peer.host)
+            if i == 1 then
+                break
+            end
+        end
+    }
+}
+--- config
+    location /t {
+        content_by_lua_block {
+            ngx.say(table.concat(res, "\n"))
         }
     }
 --- request

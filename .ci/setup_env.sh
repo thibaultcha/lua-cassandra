@@ -45,7 +45,6 @@ if [ "$OPENRESTY_TESTS" = true ]; then
         --without-http_coolkit_module \
           --without-http_coolkit_module \
           --without-lua_resty_dns \
-          --without-lua_resty_lrucache \
           --without-lua_resty_upstream_healthcheck \
           --without-lua_resty_websocket \
           --without-lua_resty_upload \

@@ -17,6 +17,8 @@
 
 local _M = require('resty.cassandra.policies.lb').new_policy('req_and_dc_aware_round_robin')
 
+local past_init
+
 --- Create a request and DC-aware round robin policy.
 -- Instanciates a request and DC-aware round robin policy for
 -- `resty.cassandra.cluster`.
@@ -105,7 +107,12 @@ end
 function _M:iter()
   self.local_tried = 0
   self.remote_tried = 0
-  self.ctx = ngx and ngx.ctx
+
+  if past_init or ngx.get_phase() ~= "init" then
+    self.ctx = ngx and ngx.ctx
+    past_init = true
+  end
+
   self.initial_cassandra_coordinator = self.ctx and self.ctx.cassandra_coordinator
   self.local_idx = (self.start_local_idx % #self.local_peers) + 1
   self.remote_idx = (self.start_remote_idx % #self.remote_peers) + 1

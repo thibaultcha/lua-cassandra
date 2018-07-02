@@ -13,6 +13,8 @@
 
 local _rr_lb = require('resty.cassandra.policies.lb').new_policy('req_round_robin')
 
+local past_init
+
 --- Create a request-aware round robin policy.
 -- Instanciates a request-aware round robin policy for `resty.cassandra.cluster`.
 --
@@ -61,8 +63,11 @@ local function next_peer(state, i)
 end
 
 function _rr_lb:iter()
-  print()
-  self.ctx = ngx and ngx.ctx
+  if past_init or ngx.get_phase() ~= "init" then
+    self.ctx = ngx and ngx.ctx
+    past_init = true
+  end
+
   self.initial_cassandra_coordinator = self.ctx and self.ctx.cassandra_coordinator
   self.idx = (self.start_idx % #self.peers) + 1
   self.start_idx = self.start_idx + 1

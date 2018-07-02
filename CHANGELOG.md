@@ -1,6 +1,15 @@
 ### [Unreleased][unreleased]
 
-### [1.3.0] - 2018/??/??
+### [1.3.1] - 2018/07/02
+
+##### Fixed
+
+- The new request-aware load-balancing policies can now be used in the
+  init_by_lua* context when using the lua-resty-core module (only applies
+  to OpenResty environments).
+  [#117](https://github.com/thibaultcha/lua-cassandra/pull/117)
+
+### [1.3.0] - 2018/06/14
 
 ##### Added
 
@@ -339,7 +348,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...HEAD
+[1.3.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...1.3.0
 [1.2.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...1.2.3
 [1.2.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.1...1.2.2

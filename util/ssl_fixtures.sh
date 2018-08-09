@@ -12,11 +12,11 @@ pushd spec/fixtures/ssl
   # generate keystore
   keytool -genkey \
           -keyalg RSA \
-          -validity 365 \
+          -validity 3650 \
           -alias cassandra \
           -storepass $PASS \
           -keypass $PASS \
-          -dname 'CN=Thibault Charbonnier, O=Mashape, L=San Francisco, ST=CA, C=US' \
+          -dname 'CN=Thibault Charbonnier, O=Kong Inc, L=San Francisco, ST=CA, C=US' \
           -keystore keystore.jks
 
   # export cert
@@ -37,10 +37,10 @@ pushd spec/fixtures/ssl
   keytool -genkeypair \
           -keyalg RSA \
           -alias client \
-          -validity 365 \
+          -validity 3650 \
           -storepass $PASS \
           -keypass $PASS \
-          -dname 'CN=Thibault Charbonnier, O=Mashape, L=San Francisco, ST=CA, C=US' \
+          -dname 'CN=Thibault Charbonnier, O=Kong Inc, L=San Francisco, ST=CA, C=US' \
           -keystore truststore.jks
 
   # export the private and public parts

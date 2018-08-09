@@ -479,7 +479,7 @@ function _Cluster:refresh()
     if not coordinator then return nil, err end
 
     local local_rows, err = coordinator:execute [[
-      SELECT data_center,rpc_address,release_version FROM system.local
+      SELECT data_center,listen_address,release_version FROM system.local
     ]]
     if not local_rows then return nil, err end
 
@@ -493,7 +493,7 @@ function _Cluster:refresh()
     coordinator:setkeepalive()
 
     rows[#rows+1] = { -- local host
-      rpc_address = coordinator.host,
+      rpc_address = local_rows[1].listen_address,
       data_center = local_rows[1].data_center,
       release_version = local_rows[1].release_version
     }

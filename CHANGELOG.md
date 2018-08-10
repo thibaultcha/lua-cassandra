@@ -1,5 +1,17 @@
 ### [Unreleased][unreleased]
 
+### [1.3.2]
+
+> Released on: 2018/08/10
+
+##### Fixed
+
+- Environments with DNS load-balancing in effect for `contact_points` provided
+  as hostnames (e.g. Kubernetes with `contact_points = { "cassandra" }`) could
+  result in `no host details for <peer IP>` errors when using multiple
+  instances of the Cluster module. This is now fixed.
+  [#118](https://github.com/thibaultcha/lua-cassandra/pull/118)
+
 ### [1.3.1] - 2018/07/02
 
 ##### Fixed
@@ -348,7 +360,8 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...HEAD
+[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...HEAD
+[1.3.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...1.3.0
 [1.2.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.2...1.2.3

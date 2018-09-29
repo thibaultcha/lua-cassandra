@@ -484,6 +484,19 @@ do
     return {fields = fields}
   end
 
+  local function unmarsh_bytes_map(buffer)
+    local n = buffer:read_short()
+
+    local fields = {}
+    for _ = 1, n do
+      local key = buffer:read_string()
+      local value = buffer:read_bytes()
+      fields[key] = value
+    end
+
+    return fields
+  end
+
   do
     local marshallers = {
       byte            = {marsh_byte, unmarsh_byte},
@@ -500,7 +513,8 @@ do
       string_list     = {marsh_string_list, unmarsh_string_list},
       string_multimap = {marsh_string_multimap, unmarsh_string_multimap},
       udt_type        = {nil, unmarsh_udt_type},
-      tuple_type      = {nil, unmarsh_tuple_type}
+      tuple_type      = {nil, unmarsh_tuple_type},
+      bytes_map       = {nil, unmarsh_bytes_map}
     }
 
     for name, t in pairs(marshallers) do

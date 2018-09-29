@@ -25,6 +25,8 @@ end
 
 local _M = {
   cassandra_version = os.getenv("CASSANDRA") or "3.9",
+  scylladb_version = os.getenv("SCYLLADB") or "",
+  scylladb_dir = os.getenv("SCYLLADB_DIR") or "",
   ssl_path = os.getenv("SSL_PATH") or "spec/fixtures/ssl"
 }
 
@@ -73,6 +75,9 @@ function _M.ccm_start(opts)
     end
     if opts.pwd_auth then
       cmd = cmd.." --pwd-auth"
+    end
+    if _M.scylladb_version then
+      cmd = cmd.." --scylla --vnodes --install-dir='".._M.SCYLLADB_DIR.."' --debug"
     end
 
     exec(cmd)

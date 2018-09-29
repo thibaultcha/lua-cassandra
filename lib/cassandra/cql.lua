@@ -154,7 +154,7 @@ local OP_CODES   = {
 local FRAME_FLAGS  = {
   --COMPRESSION    = 0x01,
   TRACING          = 0x02,
-  --CUSTOM_PAYLOAD = 0x04,
+  CUSTOM_PAYLOAD   = 0x04,
   WARNING          = 0x08,
 }
 
@@ -1376,14 +1376,18 @@ do
     local op_code = header.op_code
     local body = Buffer.new(header.version, bytes)
 
+    local tracing_id, warnings
+    if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
+      tracing_id = body:read_uuid()
+    end
+    if band(header.flags, FRAME_FLAGS.CUSTOM_PAYLOAD) ~= 0 then
+      body:read_bytes_map() -- discard
+    end
+    if band(header.flags, FRAME_FLAGS.WARNING) ~= 0 then
+      warnings = body:read_string_list()
+    end
+
     if op_code == OP_CODES.RESULT then
-      local tracing_id, warnings
-      if band(header.flags, FRAME_FLAGS.TRACING) ~= 0 then
-        tracing_id = body:read_uuid()
-      end
-      if band(header.flags, FRAME_FLAGS.WARNING) ~= 0 then
-        warnings = body:read_string_list()
-      end
       local result_kind = body:read_int()
       local parser = results_parsers[result_kind]
       local res = parser(body)

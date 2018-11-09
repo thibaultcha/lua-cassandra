@@ -32,7 +32,6 @@ local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
 local _prepared_key = 'prepared:id:'
 local _protocol_version_key = 'protocol:version:'
-local _bind_all_address = '0.0.0.0'
 
 local function get_now()
   return now() * 1000
@@ -409,7 +408,7 @@ local function first_coordinator(self)
     if not peer then
       errors[cp[i]] = err
     else
-      return peer
+      return peer, nil, cp[i]
     end
   end
 
@@ -475,11 +474,11 @@ function _Cluster:refresh()
   if err then return nil, err
   elseif not peers then
     -- we are the first ones to get there
-    local coordinator, err = first_coordinator(self)
+    local coordinator, err, local_cp = first_coordinator(self)
     if not coordinator then return nil, err end
 
     local local_rows, err = coordinator:execute [[
-      SELECT data_center,listen_address,release_version FROM system.local
+      SELECT data_center,rpc_address,release_version FROM system.local
     ]]
     if not local_rows then return nil, err end
 
@@ -492,8 +491,18 @@ function _Cluster:refresh()
 
     coordinator:setkeepalive()
 
+    local local_addr = local_rows[1].rpc_address
+    if local_addr == "0.0.0.0" or local_addr == "::" then
+      log(WARN, _log_prefix, 'found contact point with \'', local_addr, '\' ',
+                             'as rpc_address, using \'', local_cp, '\' to ',
+                             'contact it instead. If this is incorrect ',
+                             'you should avoid using \'', local_cp, '\' ',
+                             'in rpc_address')
+      local_addr = local_cp
+    end
+
     rows[#rows+1] = { -- local host
-      rpc_address = local_rows[1].listen_address,
+      rpc_address = local_addr,
       data_center = local_rows[1].data_center,
       release_version = local_rows[1].release_version
     }
@@ -506,12 +515,12 @@ function _Cluster:refresh()
                               ' in ', coordinator.host, '\'s peers system ',
                               'table. ', row.peer, ' will be ignored.')
       else
-        if host == _bind_all_address then
-          log(WARN, _log_prefix, 'found host with 0.0.0.0 as rpc_address, ',
-                                 'using listen_address ', row.peer, ' to ',
-                                 'contact it instead. If this is ',
-                                 'incorrect you should avoid using 0.0.0.0 ',
-                                 'server-side.')
+        if host == "0.0.0.0" or host == "::" then
+          log(WARN, _log_prefix, 'found host with \'', host, '\' as ',
+                                 'rpc_address, using \'', row.peer, '\' ',
+                                 'to contact it instead. If this is ',
+                                 'incorrect you should avoid using \'', host,
+                                 '\' in rpc_address')
           host = row.peer
         end
 

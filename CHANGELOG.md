@@ -1,4 +1,17 @@
-### [Unreleased][unreleased]
+### [1.3.3]
+
+> Released on: 2018/11/09
+
+##### Added
+
+- Support for binary CQL frames with custom payload.
+  [#119](https://github.com/thibaultcha/lua-cassandra/pull/119)
+
+##### Fixed
+
+- Favor the `rpc_address` value to connect to the provided contact
+  points.
+  [#122](https://github.com/thibaultcha/lua-cassandra/pull/122)
 
 ### [1.3.2]
 
@@ -360,7 +373,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
-[unreleased]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...HEAD
+[1.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...1.3.3
 [1.3.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.2.3...1.3.0

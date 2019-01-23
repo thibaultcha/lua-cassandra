@@ -493,11 +493,14 @@ function _Cluster:refresh()
 
     local local_addr = local_rows[1].rpc_address
     if local_addr == "0.0.0.0" or local_addr == "::" then
-      log(WARN, _log_prefix, 'found contact point with \'', local_addr, '\' ',
-                             'as rpc_address, using \'', local_cp, '\' to ',
-                             'contact it instead. If this is incorrect ',
-                             'you should avoid using \'', local_addr, '\' ',
-                             'in rpc_address')
+      if self.logging then
+        log(WARN, _log_prefix, 'found contact point with \'', local_addr, '\' ',
+                               'as rpc_address, using \'', local_cp, '\' to ',
+                               'contact it instead. If this is incorrect ',
+                               'you should avoid using \'', local_addr, '\' ',
+                               'in rpc_address')
+      end
+
       local_addr = local_cp
     end
 
@@ -516,11 +519,14 @@ function _Cluster:refresh()
                               'table. ', row.peer, ' will be ignored.')
       else
         if host == "0.0.0.0" or host == "::" then
-          log(WARN, _log_prefix, 'found host with \'', host, '\' as ',
-                                 'rpc_address, using \'', row.peer, '\' ',
-                                 'to contact it instead. If this is ',
-                                 'incorrect you should avoid using \'', host,
-                                 '\' in rpc_address')
+          if self.logging then
+            log(WARN, _log_prefix, 'found host with \'', host, '\' as ',
+                                   'rpc_address, using \'', row.peer, '\' ',
+                                   'to contact it instead. If this is ',
+                                   'incorrect you should avoid using \'', host,
+                                   '\' in rpc_address')
+          end
+
           host = row.peer
         end
 

@@ -1,2 +1,5 @@
 t/servroot
 luacov.*
+*.rock
+*.tar.gz
+lua-cassandra-*/

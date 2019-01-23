@@ -1,3 +1,12 @@
+### [1.3.4]
+
+> Released on: 2019/01/23
+
+##### Changed
+
+- Do not log the "rpc_address set to 0.0.0.0" warning when `opts.silent` is on.
+  [#126](https://github.com/thibaultcha/lua-cassandra/pull/126)
+
 ### [1.3.3]
 
 > Released on: 2018/11/09
@@ -373,6 +382,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
+[1.3.4]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.3...1.3.4
 [1.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...1.3.3
 [1.3.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.0...1.3.1

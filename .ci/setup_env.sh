@@ -1,5 +1,7 @@
 set -e
 
+openssl version
+
 # -----------
 # Install ccm
 # -----------
@@ -105,9 +107,7 @@ else
 fi
 
 # init_by_lua + plain Lua dependencies
-luarocks install luasec
+luarocks install luasec 0.6
 luarocks install luasocket
 luarocks install luacov
 luarocks install luacov-coveralls
-
-luarocks --version

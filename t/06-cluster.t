@@ -426,8 +426,8 @@ init: true
             end
 
             -- insert fake peers
-            cluster:set_peer('127.0.0.253', true, 0, 0, 'foocenter1', '0.0')
-            cluster:set_peer('127.0.0.254', true, 0, 0, 'foocenter1', '0.0')
+            cluster:set_peer('127.0.0.253', true, 0, 0, 'foocenter1', nil, '0.0')
+            cluster:set_peer('127.0.0.254', true, 0, 0, 'foocenter1', nil, '0.0')
 
             local ok, err = cluster:refresh()
             if not ok then
@@ -482,7 +482,7 @@ info: no host details for 127.0.0.254
             end
 
             -- insert previous peers with some infos
-            cluster:set_peer('127.0.0.1', false, 1000, 1461030739000, '', '')
+            cluster:set_peer('127.0.0.1', false, 1000, 1461030739000, '', '', '')
 
             local ok, err = cluster:refresh()
             if not ok then
@@ -987,6 +987,8 @@ coordinator 3: 127.0.0.1
                 end
             end
 
+            ngx.sleep(0.2)
+
             local coordinator, err = cluster:next_coordinator()
             if not coordinator then
                 ngx.say(err)
@@ -996,13 +998,57 @@ coordinator 3: 127.0.0.1
 --- request
 GET /t
 --- response_body_like chomp
-all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down\. 127\.0\.0\.\d+: host still considered down\. 127\.0\.0\.\d+: host still considered down
+all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)
 --- no_error_log
 [error]
 
 
 
-=== TEST 23: next_coordinator() avoids down hosts
+=== TEST 23: next_coordinator() returns no host available errors with recorded errors
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local peers, err = cluster:get_peers()
+            if not peers then
+                ngx.log(ngx.ERR, err)
+            end
+
+            for i = 1, #peers do
+                local ok, err = cluster:set_peer_down(peers[i].host, "timeout")
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+            end
+
+            local coordinator, err = cluster:next_coordinator()
+            if not coordinator then
+                ngx.say(err)
+            end
+        }
+    }
+--- request
+GET /t
+--- response_body_like chomp
+all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down for 1s \(last error: timeout\)\. 127\.0\.0\.\d+: host still considered down for 1s \(last error: timeout\)\. 127\.0\.0\.\d+: host still considered down for 1s \(last error: timeout\)
+--- no_error_log
+[error]
+
+
+
+=== TEST 24: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1046,7 +1092,7 @@ GET /t
 
 
 
-=== TEST 24: next_coordinator() marks nodes as down
+=== TEST 25: next_coordinator() marks nodes as down
 --- http_config eval
 qq {
     lua_socket_log_errors off;
@@ -1114,7 +1160,7 @@ can try peer 255.255.255.253: false
 
 
 
-=== TEST 25: next_coordinator() retries down host as per reconnection policy and ups them back
+=== TEST 26: next_coordinator() retries down host as per reconnection policy and ups them back
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1189,7 +1235,7 @@ GET /t
 
 
 
-=== TEST 26: next_coordinator() sets coordinator keyspace on connect
+=== TEST 27: next_coordinator() sets coordinator keyspace on connect
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

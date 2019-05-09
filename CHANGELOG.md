@@ -1,3 +1,14 @@
+### [1.4.0]
+
+> Released on: 2019/05/09
+
+##### Changed
+
+- Improve `host still considered down` error logs to include the error causing
+  each node to be considered as "DOWN", as well as the duration for which it
+  will still be considered "DOWN".
+  [#129](https://github.com/thibaultcha/lua-cassandra/pull/129)
+
 ### [1.3.4]
 
 > Released on: 2019/01/23
@@ -382,6 +393,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
+[1.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.4...1.4.0
 [1.3.4]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.3...1.3.4
 [1.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...1.3.3
 [1.3.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.1...1.3.2

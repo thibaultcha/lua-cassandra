@@ -998,7 +998,7 @@ coordinator 3: 127.0.0.1
 --- request
 GET /t
 --- response_body_like chomp
-all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.[678]\d+s \(last error: not recorded\)
+all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down for 0\.\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.\d+s \(last error: not recorded\)\. 127\.0\.0\.\d+: host still considered down for 0\.\d+s \(last error: not recorded\)
 --- no_error_log
 [error]
 

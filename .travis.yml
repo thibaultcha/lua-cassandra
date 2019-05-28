@@ -31,11 +31,11 @@ env:
     - LUA="luajit 2.0"
     - LUA="luajit 2.1"
     - OPENRESTY_TESTS=true
-      CASSANDRA=3.9
+      CASSANDRA=3.11.4
     - OPENRESTY_TESTS=true
-      CASSANDRA=2.2.8
+      CASSANDRA=2.2.14
     - OPENRESTY_TESTS=true
-      CASSANDRA=2.1.16
+      CASSANDRA=2.1.21
 
 before_install:
   - source .ci/setup_env.sh

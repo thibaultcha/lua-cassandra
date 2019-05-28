@@ -167,7 +167,25 @@ req_round_robin
 --- config
     location /t {
         content_by_lua_block {
-            ngx.ctx = nil
+            if rawget(ngx, "ctx") == nil then
+                -- OpenResty >= 1.15.8.1
+                local __ngx_index = getmetatable(ngx)
+
+                setmetatable(ngx, {
+                    __index = function(t, k)
+                        if k == "ctx" then
+                            return
+                        end
+
+                        return __ngx_index(t, k)
+                    end
+                })
+
+            else
+                -- OpenResty <= 1.13.6.2
+                ngx.ctx = nil
+            end
+
             local lb_req_rr = require 'resty.cassandra.policies.lb.req_rr'
             ngx.say(lb_req_rr.name)
 

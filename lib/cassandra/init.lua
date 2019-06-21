@@ -613,7 +613,7 @@ end
 --     cassandra.null
 -- @field unset Equivalent to the `not set` CQL value. Leaves field untouched
 -- for binary protocol v4+, or unset it for v2/v3.
---     cassandra.unset()
+--     cassandra.unset
 -- @field uuid Serialize a 32 lowercase characters string to a CQL uuid.
 --     cassandra.uuid("123e4567-e89b-12d3-a456-426655440000")
 -- @field timestamp Serialize a 10 digits number into a CQL timestamp.

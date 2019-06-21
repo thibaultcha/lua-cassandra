@@ -610,7 +610,7 @@ end
 --
 -- @field null (native protocol v4 only) Equivalent to the `null` CQL value.
 -- Useful to unset a field.
---     cassandra.null()
+--     cassandra.null
 -- @field unset Equivalent to the `not set` CQL value. Leaves field untouched
 -- for binary protocol v4+, or unset it for v2/v3.
 --     cassandra.unset()

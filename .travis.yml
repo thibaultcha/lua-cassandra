@@ -21,7 +21,7 @@ addons:
 env:
   global:
     - LUAROCKS=3.1.2
-    - OPENRESTY=1.15.8.1
+    - OPENRESTY=1.15.8.2
     - DOWNLOAD_CACHE=$HOME/download-cache
     - INSTALL_CACHE=$HOME/install-cache
     - PERL_DIR=$HOME/perl5

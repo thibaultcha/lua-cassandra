@@ -23,20 +23,23 @@ __DATA__
                 return
             end
 
+            ngx.say('topo_ver: ', cluster.topo_ver)
+
             local rows, err = cluster:execute("SELECT * FROM system.peers")
             if not rows then
                 ngx.log(ngx.ERR, err)
                 return
             end
 
-            ngx.say('init: ', cluster.init)
+            ngx.say('topo_ver: ', cluster.topo_ver)
             ngx.say(#rows)
         }
     }
 --- request
 GET /t
 --- response_body
-init: true
+topo_ver: 0
+topo_ver: 1
 2
 --- no_error_log
 [error]

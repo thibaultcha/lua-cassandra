@@ -5,7 +5,7 @@ use t::Util;
 
 our $HttpConfig = $t::Util::HttpConfig;
 
-plan tests => repeat_each() * blocks() * 3;
+plan tests => repeat_each() * (blocks() * 3 + 3);
 
 run_tests();
 
@@ -364,13 +364,13 @@ GET /t
                 return
             end
 
-            local protocol_version, err = ngx.shared.cassandra:get('protocol:version:')
-            if err then
-                ngx.log(ngx.ERR, 'could not get protocol_version: ', err)
+            local peers, err = cluster:get_peers()
+            if not peers then
+                ngx.log(ngx.ERR, 'could not get shm peers: ', err)
                 return
             end
 
-            ngx.say('protocol_version: ', protocol_version)
+            ngx.say('protocol_version: ', peers.protocol_version)
         }
     }
 --- request
@@ -382,7 +382,7 @@ protocol_version: \d
 
 
 
-=== TEST 11: cluster.refresh() inits cluster
+=== TEST 11: cluster.refresh() inits cluster topology
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -402,19 +402,19 @@ protocol_version: \d
                 ngx.log(ngx.ERR, 'could not refresh: ', err)
             end
 
-            ngx.say('init: ', cluster.init)
+            ngx.say('topo_ver: ', cluster.topo_ver)
         }
     }
 --- request
 GET /t
 --- response_body
-init: true
+topo_ver: 1
 --- no_error_log
 [error]
 
 
 
-=== TEST 12: cluster.refresh() removes old peers details/status
+=== TEST 12: cluster.refresh() does not remove old peers details/status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -450,10 +450,10 @@ init: true
             ngx.say('status: ', cluster.shm:get('127.0.0.253'))
             ngx.say('status: ', cluster.shm:get('127.0.0.254'))
 
-            local _, err = cluster:get_peer('127.0.0.253')
-            ngx.say('info: ', err)
-            local _, err = cluster:get_peer('127.0.0.254')
-            ngx.say('info: ', err)
+            local peer, err = cluster:get_peer('127.0.0.253')
+            ngx.say('peer.host: ', peer.host)
+            local peer, err = cluster:get_peer('127.0.0.254')
+            ngx.say('peer.host: ', peer.host)
         }
     }
 --- request
@@ -462,10 +462,10 @@ GET /t
 127.0.0.3 true
 127.0.0.2 true
 127.0.0.1 true
-status: nil
-status: nil
-info: no host details for 127.0.0.253
-info: no host details for 127.0.0.254
+status: true
+status: true
+peer.host: 127.0.0.253
+peer.host: 127.0.0.254
 --- no_error_log
 [error]
 
@@ -524,7 +524,7 @@ up: false
 
 
 
-=== TEST 14: get_peers() corrupted shm
+=== TEST 14: cluster.refresh() can be called while executing queries
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -533,6 +533,114 @@ up: false
             local cluster, err = Cluster.new()
             if not cluster then
                 ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say('topo_ver: ', cluster.topo_ver)
+
+            local t, err = ngx.thread.spawn(function()
+                while true do
+                    local res, err = cluster:execute("SELECT * FROM system.local")
+                    if not res then
+                        ngx.log(ngx.ERR, err)
+                    end
+                    ngx.sleep(0.001)
+                end
+            end)
+            if not t then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            for i = 1, 3 do
+                local ok, err = cluster:refresh()
+                if not ok then
+                    ngx.log(ngx.ERR, err)
+                    return
+                end
+            end
+
+            ngx.say('topo_ver: ', cluster.topo_ver)
+
+            ngx.thread.kill(t)
+        }
+    }
+--- request
+GET /t
+--- response_body
+topo_ver: 1
+topo_ver: 1
+--- error_log
+changes detected in topology: no (ver_refresh=2)
+changes detected in topology: no (ver_refresh=3)
+changes detected in topology: no (ver_refresh=4)
+--- no_error_log
+[error]
+
+
+
+=== TEST 15: cluster.refresh() returns topology changes
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err, topology = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say("added peers: ", #topology.added)
+            ngx.say("removed peers: ", #topology.removed)
+
+            local ok, err, topology = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            ngx.say("added peers: ", #topology.added)
+            ngx.say("removed peers: ", #topology.removed)
+        }
+    }
+--- request
+GET /t
+--- response_body
+added peers: 3
+removed peers: 0
+added peers: 0
+removed peers: 0
+--- no_error_log
+[error]
+
+
+
+=== TEST 16: get_peers() corrupted shm
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+        content_by_lua_block {
+            local Cluster = require 'resty.cassandra.cluster'
+            local cluster, err = Cluster.new()
+            if not cluster then
+                ngx.log(ngx.ERR, err)
+            end
+
+            local ok, err = cluster:refresh()
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
             end
 
             cluster.shm:set('host:rec:127.0.0.1', false)
@@ -552,7 +660,7 @@ corrupted shm
 
 
 
-=== TEST 15: get_peers() returns nil if no peers
+=== TEST 17: get_peers() returns nil if no peers
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -582,7 +690,7 @@ is nil: true
 
 
 
-=== TEST 16: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes status
+=== TEST 18: set_peer_down()/set_peer_up()/can_try_peer() set shm booleans for nodes status
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -644,7 +752,7 @@ GET /t
 
 
 
-=== TEST 17: set_peer_down()/set_peer_up() use existing host details if exists
+=== TEST 19: set_peer_down()/set_peer_up() use existing host details if exists
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -713,7 +821,7 @@ GET /t
 
 
 
-=== TEST 18: set_peer_down()/set_peer_up() defaults hosts details if not exists
+=== TEST 20: set_peer_down()/set_peer_up() defaults hosts details if not exists
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -772,7 +880,7 @@ GET /t
 
 
 
-=== TEST 19: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
+=== TEST 21: set_peer_down()/set_peer_up() use reconnection policy (update peer_rec delays)
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -858,7 +966,7 @@ reconn_delay: true
 
 
 
-=== TEST 20: can_try_peer() use reconnection policy to decide when node is down
+=== TEST 22: can_try_peer() use reconnection policy to decide when node is down
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -922,7 +1030,7 @@ after delay: true true
 
 
 
-=== TEST 21: next_coordinator() uses load balancing policy
+=== TEST 23: next_coordinator() uses load balancing policy
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -959,7 +1067,7 @@ coordinator 3: 127.0.0.1
 
 
 
-=== TEST 22: next_coordinator() returns no host available errors
+=== TEST 24: next_coordinator() returns no host available errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1005,7 +1113,7 @@ all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down fo
 
 
 
-=== TEST 23: next_coordinator() returns no host available errors with recorded errors
+=== TEST 25: next_coordinator() returns no host available errors with recorded errors
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1049,7 +1157,7 @@ all hosts tried for query failed\. 127\.0\.0\.\d+: host still considered down fo
 
 
 
-=== TEST 24: next_coordinator() avoids down hosts
+=== TEST 26: next_coordinator() avoids down hosts
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1093,7 +1201,7 @@ GET /t
 
 
 
-=== TEST 25: next_coordinator() marks nodes as down
+=== TEST 27: next_coordinator() marks nodes as down
 --- http_config eval
 qq {
     lua_socket_log_errors off;
@@ -1122,7 +1230,16 @@ qq {
                 return
             end
 
-            local peers, err = cluster:get_peers()
+            local ok, err = cluster:set_peers(1, {
+                { host = "255.255.255.254" },
+                { host = "255.255.255.253" },
+            })
+            if not ok then
+                ngx.log(ngx.ERR, err)
+                return
+            end
+
+            local peers, err = cluster:get_peers(1)
             if not peers then
                 ngx.log(ngx.ERR, err)
                 return
@@ -1130,7 +1247,6 @@ qq {
 
             -- init cluster as if it was refreshed
             cluster.lb_policy:init(peers)
-            cluster.init = true
 
             -- attempt to get next coordinator
             local coordinator, err = cluster:next_coordinator()
@@ -1161,7 +1277,7 @@ can try peer 255.255.255.253: false
 
 
 
-=== TEST 26: next_coordinator() retries down host as per reconnection policy and ups them back
+=== TEST 28: next_coordinator() retries down host as per reconnection policy and ups them back
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -1236,7 +1352,7 @@ GET /t
 
 
 
-=== TEST 27: next_coordinator() sets coordinator keyspace on connect
+=== TEST 29: next_coordinator() sets coordinator keyspace on connect
 --- http_config eval: $::HttpConfig
 --- config
     location /t {

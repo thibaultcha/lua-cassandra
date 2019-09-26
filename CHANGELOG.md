@@ -1,3 +1,17 @@
+### [1.5.0]
+
+> Released on: 2019/09/25
+
+##### Added
+
+- The `cluster:refresh()` method is now safe to be called at runtime,
+  allowing cluster topology changes (added or removed nodes) to be taken into
+  consideration.
+  [#134](https://github.com/thibaultcha/lua-cassandra/pull/134)
+- The `cluster:refresh()` method now accepts an optional `timeout` argument,
+  and returns the topology changes (if any).
+  [#134](https://github.com/thibaultcha/lua-cassandra/pull/134)
+
 ### [1.4.0]
 
 > Released on: 2019/05/09
@@ -393,6 +407,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
+[1.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.4.0...1.5.0
 [1.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.4...1.4.0
 [1.3.4]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.3...1.3.4
 [1.3.3]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.2...1.3.3

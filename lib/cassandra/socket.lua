@@ -121,6 +121,7 @@ local COSOCKET_PHASES = {
   access = true,
   content = true,
   timer = true,
+  preread = true,
   ssl_cert = true,
   ssl_session_fetch = true
 }

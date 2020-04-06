@@ -372,6 +372,16 @@ function _Cluster.new(opts)
         return nil, 'cafile must be a string'
       end
       peers_opts.cafile = v
+    elseif k == 'cert' then
+      if type(v) ~= 'string' then
+        return nil, 'cert must be a string'
+      end
+      peers_opts.cert = v
+    elseif k == 'key' then
+      if type(v) ~= 'string' then
+        return nil, 'key must be a string'
+      end
+      peers_opts.key = v
     elseif k == 'auth' then
       if type(v) ~= 'table' then
         return nil, 'auth seems not to be an auth provider'
@@ -384,6 +394,10 @@ function _Cluster.new(opts)
     elseif k == 'contact_points' then
       if type(v) ~= 'table' then
         return nil, 'contact_points must be a table'
+      end
+    elseif k == 'use_proxy' then
+      if type(v) ~= 'boolean' then
+        return nil, 'use_proxy must be a boolean'
       end
     elseif k == 'timeout_read' then
       if type(v) ~= 'number' then
@@ -422,6 +436,7 @@ function _Cluster.new(opts)
     keyspace = opts.keyspace,
     default_port = opts.default_port or 9042,
     contact_points = opts.contact_points or {'127.0.0.1'},
+    use_proxy = opts.use_proxy,
     timeout_read = opts.timeout_read or 2000,
     timeout_connect = opts.timeout_connect or 1000,
     retry_on_timeout = opts.retry_on_timeout == nil and true or opts.retry_on_timeout,
@@ -584,10 +599,15 @@ function _Cluster:refresh(timeout)
 
       assert(local_rows[1] ~= nil, 'local host could not be found')
 
-      local rows, err = coordinator:execute [[
-        SELECT peer,data_center,rpc_address,release_version FROM system.peers
-      ]]
-      if not rows then return nil, err end
+      local rows = {}
+      local err
+
+      if not self.use_proxy then
+        rows, err = coordinator:execute [[
+          SELECT peer,data_center,rpc_address,release_version FROM system.peers
+        ]]
+        if not rows then return nil, err end
+      end
 
       coordinator:setkeepalive()
 
@@ -605,7 +625,7 @@ function _Cluster:refresh(timeout)
       end
 
       rows[#rows+1] = { -- local host
-        rpc_address = local_addr,
+        rpc_address = self.use_proxy and local_cp or local_addr,
         data_center = local_rows[1].data_center,
         release_version = local_rows[1].release_version
       }

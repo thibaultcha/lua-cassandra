@@ -102,6 +102,9 @@ _Host.__index = _Host
 -- (`string`, optional)
 -- @field key Path to the client SSL key (LuaSec usage only).
 -- (`string`, optional)
+-- @field encryption_protocol The client encryption protocol version to use
+-- if `ssl` is enabled (LuaSec usage only).
+-- (`string`, default: `any`)
 -- @field auth Authentication handler, created from the
 -- `cassandra.auth_providers` table. (optional)
 -- @table `client_options`
@@ -134,6 +137,7 @@ function _Host.new(opts)
     verify = opts.verify,
     cert = opts.cert,
     cafile = opts.cafile,
+    encryption_protocol = opts.encryption_protocol,
     key = opts.key,
     auth = opts.auth
   }
@@ -194,6 +198,7 @@ local function ssl_handshake(self)
   local params = {
     key = self.key,
     cafile = self.cafile,
+    encryption_protocol = self.encryption_protocol,
     cert = self.cert
   }
 

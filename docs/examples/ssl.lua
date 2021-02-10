@@ -35,6 +35,7 @@ http {
           contact_points = {"127.0.0.1", "127.0.0.2"},
           keyspace = "my_keyspace",
           ssl = true,
+          encryption_protocol = 'any'
           verify = true
         }
         if not cluster then

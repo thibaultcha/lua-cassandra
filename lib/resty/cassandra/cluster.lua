@@ -372,6 +372,11 @@ function _Cluster.new(opts)
         return nil, 'cafile must be a string'
       end
       peers_opts.cafile = v
+    elseif k == 'encryption_protocol' then
+      if type(v) ~= 'string' then
+        return nil, 'encryption_protocol must be a string'
+      end
+      peers_opts.encryption_protocol = v
     elseif k == 'auth' then
       if type(v) ~= 'table' then
         return nil, 'auth seems not to be an auth provider'

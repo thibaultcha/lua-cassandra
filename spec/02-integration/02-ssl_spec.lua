@@ -31,5 +31,32 @@ describe("SSL", function()
       local rows = assert(peer:execute "SELECT * FROM system.local")
       assert.equal(1, #rows)
     end)
+    it("connects with TLSv1_1 encryption", function()
+      local peer = assert(cassandra.new {
+        ssl = true,
+        encryption_protocol = 'tlsv1_1',
+      })
+      assert(peer:connect())
+      local rows = assert(peer:execute "SELECT * FROM system.local")
+      assert.equal(1, #rows)
+    end)
+    it("connects with TLSv1_2 encryption", function()
+      local peer = assert(cassandra.new {
+        ssl = true,
+        encryption_protocol = 'tlsv1_2',
+      })
+      assert(peer:connect())
+      local rows = assert(peer:execute "SELECT * FROM system.local")
+      assert.equal(1, #rows)
+    end)
+    it("connects with negotiated highest possible encryption", function()
+      local peer = assert(cassandra.new {
+        ssl = true,
+        encryption_protocol = 'any',
+      })
+      assert(peer:connect())
+      local rows = assert(peer:execute "SELECT * FROM system.local")
+      assert.equal(1, #rows)
+    end)
   end)
 end)

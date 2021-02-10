@@ -93,6 +93,10 @@ _Host.__index = _Host
 -- (`number`, default: `3`)
 -- @field ssl Determines if the client should connect using SSL.
 -- (`boolean`, default: `false`)
+-- @field ssl_protocol The client encryption protocol version to use
+-- if `ssl` is enabled (LuaSec usage only, see `lua_ssl_protocols` directive
+-- for ngx_lua).
+-- (`string`, default: `any`)
 -- @field verify Enable server certificate validation if `ssl` is enabled.
 -- (`boolean`, default: `false`)
 -- @field cafile Path to the server certificate (LuaSec usage only, see
@@ -134,6 +138,7 @@ function _Host.new(opts)
     verify = opts.verify,
     cert = opts.cert,
     cafile = opts.cafile,
+    ssl_protocol = opts.ssl_protocol,
     key = opts.key,
     auth = opts.auth
   }
@@ -194,6 +199,7 @@ local function ssl_handshake(self)
   local params = {
     key = self.key,
     cafile = self.cafile,
+    protocol = self.ssl_protocol,
     cert = self.cert
   }
 

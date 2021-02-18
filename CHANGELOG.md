@@ -1,3 +1,20 @@
+### [1.5.1]
+
+> Released on: 2021/02/18
+
+##### Added
+
+- Enable TLS 1.2 in LuaSec fallback and disable SSLv2, SSLv3, and TLS 1.0.
+  [#138](https://github.com/thibaultcha/lua-cassandra/pull/138)
+- Enable LuaSec fallback in ngx_stream_lua's `preread` phase.
+  [#136](https://github.com/thibaultcha/lua-cassandra/pull/136)
+
+#### Fixed
+
+- Ensure `cluster:refresh()` always releases its lock when encountering an
+  error.
+  [#140](https://github.com/thibaultcha/lua-cassandra/pull/140)
+
 ### [1.5.0]
 
 > Released on: 2019/09/25
@@ -407,6 +424,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
+[1.5.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.4.0...1.5.0
 [1.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.4...1.4.0
 [1.3.4]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.3...1.3.4

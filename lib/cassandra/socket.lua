@@ -14,6 +14,8 @@ do
   local function flatten(v, buf)
     if type(v) == 'string' then
       buf[#buf+1] = v
+    elseif type(v) == 'number' then
+      buf[#buf+1] = tostring(v)
     elseif type(v) == 'table' then
       for i = 1, #v do
         flatten(v[i], buf)
@@ -61,7 +63,7 @@ do
         certificate = opts.cert,
         cafile = opts.cafile,
         verify = verify and 'peer' or 'none',
-        options = 'all'
+        options = { 'all', 'no_sslv2', 'no_sslv3', 'no_tlsv1' }
       }
 
       local sock, err = ssl.wrap(self.sock, params)

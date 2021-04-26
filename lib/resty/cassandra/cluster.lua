@@ -71,11 +71,22 @@ local function add_peer(self, host, data_center)
 end
 
 local function get_peer(self, host, status)
+  local timeout = 1000
+
+  update_time()
+  local tstart = get_now()
   local marshalled, err = self.shm:get(_rec_key .. host)
   if err then
     return nil, 'could not get host details in shm: '..err
   elseif marshalled == nil then
-    return nil, 'no host details for '..host
+    repeat
+      update_time()
+      marshalled, err = self.shm:get(_rec_key .. host)
+      tdiff = get_now() - tstart
+    until(marshalled or tdiff >= timeout)
+    if (tdiff >= timeout) then
+      return nil, 'no host details for '..host
+    end
   elseif type(marshalled) ~= 'string' then
     return nil, 'corrupted shm'
   end
@@ -750,10 +761,8 @@ local function handle_error(self, err, cql_code, coordinator, request)
     return prepare_and_retry(self, coordinator, request)
   end
 
-  -- failure, need to try another coordinator
-  coordinator:setkeepalive()
-
   if cql_code then
+    coordinator:setkeepalive()
     local retry
     if cql_code == cql_errors.OVERLOADED or
        cql_code == cql_errors.IS_BOOTSTRAPPING or
@@ -771,11 +780,13 @@ local function handle_error(self, err, cql_code, coordinator, request)
       return self:send_retry(request, 'CQL code: ', cql_code)
     end
   elseif err == 'timeout' then
+    coordinator:close()
     if self.retry_on_timeout then
       return self:send_retry(request, 'timeout')
     end
   else
     -- host seems down?
+    coordinator:setkeepalive()
     local ok, err2 = set_peer_down(self, coordinator.host, err)
     if not ok then return nil, err2 end
     return self:send_retry(request, 'coordinator seems down (' .. err .. ')')

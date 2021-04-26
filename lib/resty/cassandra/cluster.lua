@@ -30,6 +30,7 @@ local NOTICE = ngx.NOTICE
 local empty_t = {}
 local _log_prefix = '[lua-cassandra] '
 local _rec_key = 'host:rec:'
+local _maintenance_key = 'host:maintenance:'
 local _prepared_key = 'prepared:id:'
 local _protocol_version_key = 'protocol:version:'
 
@@ -173,7 +174,30 @@ local function set_peer_up(self, host)
                   peer.data_center, nil, peer.release_version)
 end
 
+local  function set_peer_maintenance(self, host, maintenance)
+  local ok, err = self.shm:safe_set(_maintenance_key .. host, maintenance)
+  if not ok then return 'could not set peer maintenance mode in shm: '..err end
+
+  -- show peer status as down in topology if in maintenance
+  if maintenance then
+    set_peer_down(self, host)
+  else
+    set_peer_up(self, host)
+  end
+
+  return nil
+end
+
+local function in_maintenance_mode(self, host)
+  local ok, err = self.shm:get(_maintenance_key .. host)
+  return ok
+end
+
 local function can_try_peer(self, host)
+  if in_maintenance_mode(self, host) then
+      return false
+  end
+
   local up, err = self.shm:get(host)
   if up then return up
   elseif err then return nil, err
@@ -998,5 +1022,6 @@ _Cluster.next_coordinator = next_coordinator
 _Cluster.first_coordinator = first_coordinator
 _Cluster.wait_schema_consensus = wait_schema_consensus
 _Cluster.check_schema_consensus = check_schema_consensus
+_Cluster.set_peer_maintenance = set_peer_maintenance
 
 return _Cluster

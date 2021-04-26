@@ -150,7 +150,7 @@ end
 
 local function set_peer_down(self, host, connect_err)
   if self.logging then
-    log(WARN, _log_prefix, 'setting host at ', host, ' DOWN')
+    log(ERR, _log_prefix, 'setting host at ', host, ' DOWN')
   end
 
   local peer = get_peer(self, host, false)
@@ -162,7 +162,7 @@ end
 
 local function set_peer_up(self, host)
   if self.logging then
-    log(NOTICE, _log_prefix, 'setting host at ', host, ' UP')
+    log(ERR, _log_prefix, 'setting host at ', host, ' UP')
   end
   self.reconn_policy:reset(host)
 
@@ -551,7 +551,7 @@ function _Cluster:refresh()
       else
         if host == "0.0.0.0" or host == "::" then
           if self.logging then
-            log(WARN, _log_prefix, 'found host with \'', host, '\' as ',
+            log(ERR, _log_prefix, 'found host with \'', host, '\' as ',
                                    'rpc_address, using \'', row.peer, '\' ',
                                    'to contact it instead. If this is ',
                                    'incorrect you should avoid using \'', host,
@@ -695,7 +695,7 @@ local function get_or_prepare(self, coordinator, query)
         local ok, err = shm:safe_set(key, query_id)
         if not ok then
           if err == 'no memory' then
-            log(WARN, _log_prefix, 'could not set query id in shm: ',
+            log(ERR, _log_prefix, 'could not set query id in shm: ',
                       'running out of memory, please increase the ',
                       self.dict_name, ' dict size')
           else
@@ -721,7 +721,7 @@ function _Cluster:send_retry(request, ...)
   if not coordinator then return nil, err end
 
   if self.logging then
-    log(NOTICE, _log_prefix, 'retrying request on host at ', coordinator.host,
+    log(ERR, _log_prefix, 'retrying request on host at ', coordinator.host,
                              ' reason: ', ...)
   end
 
@@ -734,7 +734,7 @@ local function prepare_and_retry(self, coordinator, request)
   if request.queries then
     -- prepared batch
     if self.logging then
-      log(NOTICE, _log_prefix, 'some requests from this batch were not prepared on host ',
+      log(ERR, _log_prefix, 'some requests from this batch were not prepared on host ',
                   coordinator.host, ', preparing and retrying')
     end
     for i = 1, #request.queries do
@@ -745,7 +745,7 @@ local function prepare_and_retry(self, coordinator, request)
   else
     -- prepared query
     if self.logging then
-      log(NOTICE, _log_prefix, request.query, ' was not prepared on host ',
+      log(ERR, _log_prefix, request.query, ' was not prepared on host ',
                   coordinator.host, ', preparing and retrying')
     end
     local query_id, err = prepare(self, coordinator, request.query)
@@ -802,7 +802,7 @@ send_request = function(self, coordinator, request)
   elseif res.warnings and self.logging then
     -- protocol v4 can return warnings to the client
     for i = 1, #res.warnings do
-      log(WARN, _log_prefix, res.warnings[i])
+      log(ERR, _log_prefix, res.warnings[i])
     end
   end
 

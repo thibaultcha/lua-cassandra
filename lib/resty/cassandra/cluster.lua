@@ -269,6 +269,7 @@ end
 
 local _Cluster = {
   _VERSION = '1.5.1',
+  _log_prefix = _log_prefix,
 }
 
 _Cluster.__index = _Cluster

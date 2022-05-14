@@ -5,7 +5,7 @@ use t::Util;
 
 no_long_string();
 
-plan tests => repeat_each() * blocks() * 3 - 2;
+plan tests => repeat_each() * blocks() * 3 - 1;
 
 run_tests();
 
@@ -183,9 +183,10 @@ local_dc must be a string
     }
 --- request
 GET /t
---- error_code: 500
---- error_log
-peer 127.0.0.3 data_center field must be a string
+--- error_log eval
+qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.3 has no data_center field in shm, considering it remote/
+--- no_error_log
+[error]
 
 
 

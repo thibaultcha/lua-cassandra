@@ -17,6 +17,10 @@
 
 local _M = require('resty.cassandra.policies.lb').new_policy('req_and_dc_aware_round_robin')
 
+local log = ngx.log
+local WARN = ngx.WARN
+
+local _log_prefix = '[lua-cassandra] '
 local past_init
 
 --- Create a request and DC-aware round robin policy.
@@ -47,7 +51,11 @@ function _M:init(peers)
 
   for i = 1, #peers do
     if type(peers[i].data_center) ~= 'string' then
-      error('peer '..peers[i].host..' data_center field must be a string')
+      log(WARN, _log_prefix, 'peer ', peers[i].host, ' data_center field must be a string')
+
+      if peers[i].err ~= '' then
+        log(WARN, _log_prefix, 'peer ', peers[i].host, ' ', peers[i].err)
+      end
     end
 
     if peers[i].data_center == self.local_dc then

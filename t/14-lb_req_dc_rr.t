@@ -5,7 +5,7 @@ use t::Util;
 
 no_long_string();
 
-plan tests => repeat_each() * blocks() * 3 - 2;
+plan tests => repeat_each() * blocks() * 3 - 1;
 
 run_tests();
 
@@ -171,9 +171,9 @@ local_dc must be a string
             local peers = {
                 {host = '10.0.0.1', data_center = 'dc2'},
 
-                {host = '127.0.0.1', data_center = 'dc1'},
+                {host = '127.0.0.1'},
                 {host = '127.0.0.2', data_center = 'dc1'},
-                {host = '127.0.0.3'}
+                {host = '127.0.0.3', data_center = 'dc1'}
             }
 
             local lb = req_dc_rr.new('dc1')
@@ -186,6 +186,8 @@ GET /t
 --- error_code: 200
 --- no_error_log
 [error]
+--- error_log eval
+qr/\[warn\].*\[lua-cassandra\] peer 127.0.0.1 has no data_center field in shm therefore considered a remote peer/
 
 
 
@@ -454,30 +456,3 @@ local_dc: dc1
 3. 127.0.0.3
 --- no_error_log
 [error]
-
-
-
-=== TEST 9: lb_req_dc_rr with down node no error
---- http_config eval: $::HttpConfig
---- config
-    location /t {
-        content_by_lua_block {
-            local req_dc_rr = require 'resty.cassandra.policies.lb.req_dc_rr'
-
-            local peers = {
-                {host = '10.0.0.1', err = 'connection refused'},
-                {host = '10.0.0.2', data_center = 'dc1'},
-                {host = '10.0.0.3', data_center = 'dc1'},
-            }
-
-            local lb = req_dc_rr.new('dc1')
-
-            lb:init(peers)
-        }
-    }
---- request
-GET /t
---- error_code: 200
---- error_log
-[lua-cassandra] peer 10.0.0.1 data_center field must be a string
-[lua-cassandra] peer 10.0.0.1 connection refused

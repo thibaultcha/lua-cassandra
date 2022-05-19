@@ -187,7 +187,7 @@ GET /t
 --- no_error_log
 [error]
 --- error_log eval
-qr/\[warn\].*\[lua-cassandra\] peer 127.0.0.1 has no data_center field in shm therefore considered a remote peer/
+qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.1 has no data_center field in shm therefore considered a remote peer/
 
 
 

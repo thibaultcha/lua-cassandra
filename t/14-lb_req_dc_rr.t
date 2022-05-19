@@ -183,11 +183,10 @@ local_dc must be a string
     }
 --- request
 GET /t
---- error_code: 200
---- no_error_log
-[error]
 --- error_log eval
 qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.1 has no data_center field in shm therefore considered a remote peer/
+--- no_error_log
+[error]
 
 
 

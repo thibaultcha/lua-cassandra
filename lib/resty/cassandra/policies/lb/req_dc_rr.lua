@@ -50,13 +50,16 @@ function _M:init(peers)
   local local_peers, remote_peers = {}, {}
 
   for i = 1, #peers do
-    if type(peers[i].data_center) == 'string' and peers[i].data_center == self.local_dc then
+    if type(peers[i].data_center) ~= 'string' then
+      log(WARN, _log_prefix, 'peer ', peers[i].host,
+          ' has no data_center field in shm therefore considered a remote peer')
+
+      remote_peers[#remote_peers+1] = peers[i]
+
+    elseif peers[i].data_center == self.local_dc then
       local_peers[#local_peers+1] = peers[i]
 
     else
-      if type(peers[i].data_center) ~= 'string' then
-        log(WARN, _log_prefix, 'peer ', peers[i].host, ' has no data_center field in shm therefore considered a remote peer')
-      end
       remote_peers[#remote_peers+1] = peers[i]
     end
   end

@@ -25,11 +25,6 @@ prove:
 	@t/reindex t/*
 	@prove -I.
 
-prove-4018:
-	@util/prove_ccm.sh $(CASSANDRA)
-	@t/reindex t/*
-	@prove -v -I. t/14-lb_req_dc_rr.t
-
 test: busted prove
 
 clean:

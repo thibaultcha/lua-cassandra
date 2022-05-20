@@ -1,3 +1,14 @@
+### [1.5.2]
+
+> Released on: 2022/05/20
+
+#### Fixed
+
+- Improve DC-aware LB policies robustness.
+  [#147](https://github.com/thibaultcha/lua-cassandra/pull/147)
+- Ensure request-aware + DC-aware LB policy prioritizes local peers over remote
+  ones.
+
 ### [1.5.1]
 
 > Released on: 2021/02/18
@@ -424,6 +435,7 @@ now be called with `:`.
 
 - `set_keyspace` erroring on names with capital letters.
 
+[1.5.2]: https://github.com/thibaultCha/lua-cassandra/compare/1.5.1...1.5.2
 [1.5.1]: https://github.com/thibaultCha/lua-cassandra/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.4.0...1.5.0
 [1.4.0]: https://github.com/thibaultCha/lua-cassandra/compare/1.3.4...1.4.0

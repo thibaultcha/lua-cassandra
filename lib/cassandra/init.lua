@@ -2,7 +2,7 @@
 -- Single host module for PUC Lua, LuaJIT and OpenResty.
 -- @module cassandra
 -- @author thibaultcha
--- @release 1.5.1
+-- @release 1.5.2
 
 local socket = require 'cassandra.socket'
 local cql = require 'cassandra.cql'
@@ -74,7 +74,7 @@ local find = string.find
 -- @table cassandra.auth_providers
 
 local _Host = {
-  _VERSION = '1.5.1',
+  _VERSION = '1.5.2',
   cql_errors = cql.errors,
   consistencies = cql.consistencies,
   auth_providers = require 'cassandra.auth'

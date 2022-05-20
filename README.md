@@ -238,4 +238,4 @@ $ make doc
 [badge-coveralls-url]: https://coveralls.io/r/thibaultcha/lua-cassandra?branch=master
 [badge-coveralls-image]: https://coveralls.io/repos/thibaultcha/lua-cassandra/badge.svg?branch=master&style=flat
 
-[badge-version-image]: https://img.shields.io/badge/version-1.5.1-blue.svg?style=flat
+[badge-version-image]: https://img.shields.io/badge/version-1.5.2-blue.svg?style=flat

@@ -5,7 +5,7 @@ use t::Util;
 
 no_long_string();
 
-plan tests => repeat_each() * blocks() * 3 - 1;
+plan tests => repeat_each() * blocks() * 3;
 
 run_tests();
 
@@ -158,6 +158,8 @@ GET /t
 --- error_code: 500
 --- error_log
 local_dc must be a string
+--- no_error_log
+[crit]
 
 
 

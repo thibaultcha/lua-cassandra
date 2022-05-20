@@ -68,9 +68,13 @@ function _rr_lb:iter()
     past_init = true
   end
 
-  self.initial_cassandra_coordinator = self.ctx and self.ctx.cassandra_coordinator
+  if self.ctx then
+    self.initial_cassandra_coordinator = self.ctx.cassandra_coordinator
+  end
+
   self.idx = (self.start_idx % #self.peers) + 1
   self.start_idx = self.start_idx + 1
+
   return next_peer, self, 0
 end
 

@@ -72,12 +72,19 @@ local function advance_local_or_remote_peer(state)
   if state.local_tried < #state.local_peers then
     state.local_tried = state.local_tried + 1
     state.local_idx = state.local_idx + 1
-    return state.local_peers[(state.local_idx % #state.local_peers) + 1]
-  end
 
-  if state.remote_tried < #state.remote_peers then
+    local peer = state.local_peers[(state.local_idx % #state.local_peers) + 1]
+
+    if state.ctx then
+      state.ctx.cassandra_coordinator = peer
+    end
+
+    return peer
+
+  elseif state.remote_tried < #state.remote_peers then
     state.remote_tried = state.remote_tried + 1
     state.remote_idx = state.remote_idx + 1
+
     return state.remote_peers[(state.remote_idx % #state.remote_peers) + 1]
   end
 end
@@ -94,18 +101,14 @@ local function next_peer(state, i)
     return nil
   end
 
-  if state.initial_cassandra_coordinator == peer then
+  if peer == state.initial_cassandra_coordinator then
     peer = advance_local_or_remote_peer(state)
     if not peer then
       return nil
     end
   end
 
-  if state.ctx then
-    state.ctx.cassandra_coordinator = peer
-  end
-
-  return i, peer
+  return i + 1, peer
 end
 
 function _M:iter()
@@ -117,11 +120,16 @@ function _M:iter()
     past_init = true
   end
 
-  self.initial_cassandra_coordinator = self.ctx and self.ctx.cassandra_coordinator
+  if self.ctx then
+    self.initial_cassandra_coordinator = self.ctx.cassandra_coordinator
+  end
+
   self.local_idx = (self.start_local_idx % #self.local_peers) + 1
   self.remote_idx = (self.start_remote_idx % #self.remote_peers) + 1
+
   self.start_remote_idx = self.start_remote_idx + 1
   self.start_local_idx = self.start_local_idx + 1
+
   return next_peer, self, 0
 end
 

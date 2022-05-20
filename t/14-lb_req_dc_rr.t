@@ -37,17 +37,17 @@ __DATA__
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("1.", i, ' ', peer.host)
+                ngx.say("1. ", peer.host)
             end
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("2.", i, ' ', peer.host)
+                ngx.say("2. ", peer.host)
             end
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("3.", i, ' ', peer.host)
+                ngx.say("3. ", peer.host)
             end
         }
     }
@@ -57,26 +57,26 @@ GET /t
 req_and_dc_aware_round_robin
 local_dc: dc1
 
-1.1 127.0.0.1
-1.2 127.0.0.2
-1.3 127.0.0.3
-1.4 10.0.0.1
-1.5 10.0.0.2
-1.6 10.0.0.3
+1. 127.0.0.1
+1. 127.0.0.2
+1. 127.0.0.3
+1. 10.0.0.1
+1. 10.0.0.2
+1. 10.0.0.3
 
-2.1 10.0.0.3
-2.2 127.0.0.2
-2.3 127.0.0.3
-2.4 127.0.0.1
-2.5 10.0.0.2
-2.6 10.0.0.1
+2. 127.0.0.3
+2. 127.0.0.2
+2. 127.0.0.1
+2. 10.0.0.2
+2. 10.0.0.3
+2. 10.0.0.1
 
-3.1 10.0.0.1
-3.2 127.0.0.3
-3.3 127.0.0.1
-3.4 127.0.0.2
-3.5 10.0.0.3
-3.6 10.0.0.2
+3. 127.0.0.1
+3. 127.0.0.3
+3. 127.0.0.2
+3. 10.0.0.3
+3. 10.0.0.1
+3. 10.0.0.2
 --- no_error_log
 [error]
 
@@ -108,7 +108,7 @@ local_dc: dc1
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("1.", i, ' ', peer.host)
+                ngx.say("1. ", peer.host)
                 if i == #peers - 1 then
                     break
                 end
@@ -116,7 +116,7 @@ local_dc: dc1
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("2.", i, ' ', peer.host)
+                ngx.say("2. ", peer.host)
                 ngx.log(ngx.INFO, i, ' ', peer.host)
             end
         }
@@ -127,18 +127,19 @@ GET /t
 req_and_dc_aware_round_robin
 local_dc: dc1
 
-1.1 127.0.0.1
-1.2 127.0.0.2
-1.3 127.0.0.3
-1.4 10.0.0.1
-1.5 10.0.0.2
+1. 127.0.0.1
+1. 127.0.0.2
+1. 127.0.0.3
+1. 10.0.0.1
+1. 10.0.0.2
+1. 10.0.0.3
 
-2.1 10.0.0.2
-2.2 127.0.0.2
-2.3 127.0.0.3
-2.4 127.0.0.1
-2.5 10.0.0.3
-2.6 10.0.0.1
+2. 127.0.0.3
+2. 127.0.0.2
+2. 127.0.0.1
+2. 10.0.0.2
+2. 10.0.0.3
+2. 10.0.0.1
 --- no_error_log
 [error]
 
@@ -179,16 +180,47 @@ local_dc must be a string
             }
 
             local lb = req_dc_rr.new('dc1')
+            ngx.say("local_dc: ", lb.local_dc)
 
             lb:init(peers)
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("1. ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("2. ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("3. ", peer.host)
+            end
         }
     }
 --- request
 GET /t
+--- response_body
+local_dc: dc1
+
+1. 127.0.0.1
+1. 127.0.0.2
+1. 10.0.0.1
+1. 127.0.0.3
+
+2. 127.0.0.2
+2. 127.0.0.1
+2. 127.0.0.3
+2. 10.0.0.1
+
+3. 127.0.0.1
+3. 127.0.0.2
+3. 10.0.0.1
+3. 127.0.0.3
 --- error_log eval
 qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.3 has no data_center field in shm, considering it remote/
---- no_error_log
-[error]
 
 
 
@@ -214,17 +246,17 @@ qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.3 has no data_center field in sh
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("1.", i, " ", peer.host)
+                ngx.say("1. ", peer.host)
             end
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("2.", i, " ", peer.host)
+                ngx.say("2. ", peer.host)
             end
 
             ngx.say()
             for i, peer in lb:iter() do
-                ngx.say("3.", i, " ", peer.host)
+                ngx.say("3. ", peer.host)
             end
         }
     }
@@ -233,20 +265,20 @@ GET /t
 --- response_body
 local_dc: europe-west1-b
 
-1.1 10.0.0.1
-1.2 127.0.0.1
-1.3 127.0.0.2
-1.4 127.0.0.3
+1. 10.0.0.1
+1. 127.0.0.1
+1. 127.0.0.2
+1. 127.0.0.3
 
-2.1 127.0.0.3
-2.2 10.0.0.1
-2.3 127.0.0.2
-2.4 127.0.0.1
+2. 10.0.0.1
+2. 127.0.0.2
+2. 127.0.0.3
+2. 127.0.0.1
 
-3.1 127.0.0.1
-3.2 10.0.0.1
-3.3 127.0.0.3
-3.4 127.0.0.2
+3. 10.0.0.1
+3. 127.0.0.3
+3. 127.0.0.1
+3. 127.0.0.2
 --- no_error_log
 [error]
 
@@ -276,25 +308,20 @@ local_dc: europe-west1-b
 
             lb:init(peers)
 
+            ngx.say()
             for i, peer in lb:iter() do
                 ngx.say("1. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
 
             for i, peer in lb:iter() do
                 ngx.say("2. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
 
             for i, peer in lb:iter() do
                 ngx.say("3. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
         }
     }
@@ -303,6 +330,7 @@ GET /t
 --- response_body
 req_and_dc_aware_round_robin
 local_dc: dc1
+
 1. 127.0.0.1
 2. 127.0.0.1
 3. 127.0.0.1
@@ -354,25 +382,20 @@ local_dc: dc1
 
             lb:init(peers)
 
+            ngx.say()
             for i, peer in lb:iter() do
                 ngx.say("1. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
 
             for i, peer in lb:iter() do
                 ngx.say("2. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
 
             for i, peer in lb:iter() do
                 ngx.say("3. ", peer.host)
-                if i == 1 then
-                    break
-                end
+                break
             end
         }
     }
@@ -381,6 +404,7 @@ GET /t
 --- response_body
 req_and_dc_aware_round_robin
 local_dc: dc1
+
 1. 127.0.0.1
 2. 127.0.0.2
 3. 127.0.0.3
@@ -419,25 +443,20 @@ qq{
 
         lb:init(peers)
 
+        table.insert(res, '')
         for i, peer in lb:iter() do
             table.insert(res, "1. " .. peer.host)
-            if i == 1 then
-                break
-            end
+            break
         end
 
         for i, peer in lb:iter() do
             table.insert(res, "2. " .. peer.host)
-            if i == 1 then
-                break
-            end
+            break
         end
 
         for i, peer in lb:iter() do
             table.insert(res, "3. " .. peer.host)
-            if i == 1 then
-                break
-            end
+            break
         end
     }
 }
@@ -452,6 +471,7 @@ GET /t
 --- response_body
 req_and_dc_aware_round_robin
 local_dc: dc1
+
 1. 127.0.0.1
 2. 127.0.0.2
 3. 127.0.0.3

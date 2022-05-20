@@ -6,6 +6,7 @@
 -- @module resty.cassandra.policies.lb.dc_rr
 -- @author thibaultcha
 
+local cluster = require "resty.cassandra.cluster"
 local _M = require('resty.cassandra.policies.lb').new_policy('dc_aware_round_robin')
 
 --- Create a DC-aware round robin policy.
@@ -35,11 +36,15 @@ function _M:init(peers)
 
   for i = 1, #peers do
     if type(peers[i].data_center) ~= 'string' then
-      error('peer '..peers[i].host..' data_center field must be a string')
+      ngx.log(ngx.WARN, cluster._log_prefix, 'peer ', peers[i].host,
+              ' has no data_center field in shm, considering it remote')
+
+      peers[i].data_center = nil
     end
 
-    if peers[i].data_center == self.local_dc then
+    if self.local_dc and peers[i].data_center == self.local_dc then
       local_peers[#local_peers+1] = peers[i]
+
     else
       remote_peers[#remote_peers+1] = peers[i]
     end

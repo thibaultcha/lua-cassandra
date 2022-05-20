@@ -5,7 +5,9 @@ use t::Util;
 
 our $HttpConfig = $t::Util::HttpConfig;
 
-plan tests => repeat_each() * blocks() * 3 - 2;
+no_long_string();
+
+plan tests => repeat_each() * blocks() * 3;
 
 run_tests();
 
@@ -159,6 +161,8 @@ GET /t
 --- error_code: 500
 --- error_log
 local_dc must be a string
+--- no_error_log
+[crit]
 
 
 
@@ -178,15 +182,47 @@ local_dc must be a string
             }
 
             local lb = dc_rr.new('dc1')
+            ngx.say("local_dc: ", lb.local_dc)
 
             lb:init(peers)
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("1. ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("2. ", peer.host)
+            end
+
+            ngx.say()
+            for i, peer in lb:iter() do
+                ngx.say("3. ", peer.host)
+            end
         }
     }
 --- request
 GET /t
---- error_code: 500
---- error_log
-peer 127.0.0.3 data_center field must be a string
+--- response_body
+local_dc: dc1
+
+1. 127.0.0.1
+1. 127.0.0.2
+1. 10.0.0.1
+1. 127.0.0.3
+
+2. 127.0.0.2
+2. 127.0.0.1
+2. 127.0.0.3
+2. 10.0.0.1
+
+3. 127.0.0.1
+3. 127.0.0.2
+3. 10.0.0.1
+3. 127.0.0.3
+--- error_log eval
+qr/\[warn\].*?\[lua-cassandra\] peer 127\.0\.0\.3 has no data_center field in shm, considering it remote/
 
 
 

@@ -1,7 +1,7 @@
 package = "lua-cassandra"
 version = "1.5.2-0"
 source = {
-  url = "git://github.com/thibaultcha/lua-cassandra",
+  url = "git@github.com:thibaultcha/lua-cassandra.git",
   tag = "1.5.2"
 }
 description = {
